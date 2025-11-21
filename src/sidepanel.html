@@ -4,38 +4,57 @@
 <head>
     <style>
         body {
-            font-family: system-ui;
-            padding: 10px;
-            width: 300px;
+            font-family: system-ui, sans-serif;
+            padding: 12px;
+            margin: 0;
         }
 
-        .status {
-            padding: 10px;
-            background: #f0f0f0;
-            margin-top: 10px;
-            border-radius: 4px;
-        }
-
-        .error {
-            color: #d32f2f;
-        }
-
-        .success {
-            color: #2e7d32;
+        h2 {
+            margin-top: 0;
+            font-size: 16px;
         }
 
         button {
             width: 100%;
-            margin-top: 5px;
             padding: 8px;
+            margin-top: 8px;
             cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
         }
 
         textarea {
             width: 100%;
-            height: 150px;
+            height: 200px;
             margin-top: 10px;
             font-family: monospace;
+            font-size: 11px;
+            border: 1px solid #ddd;
+        }
+
+        .status-box {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 12px;
+            border: 1px solid #eee;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .fail {
+            color: red;
+            font-weight: bold;
         }
     </style>
     <script src="papaparse.min.js"></script>
@@ -44,20 +63,21 @@
 <body>
     <h2>🔍 Nano Auditor</h2>
 
-    <div id="controls">
-        <p>1. Upload URLs (CSV):</p>
-        <input type="file" id="csvFile" accept=".csv">
+    <div id="setup">
+        <p style="margin-bottom: 5px; font-size: 12px;">1. Load URLs (CSV with 'url' column):</p>
+        <input type="file" id="csvFile" accept=".csv" />
         <button id="startBtn" disabled>Start Batch Audit</button>
     </div>
 
-    <div id="statusArea" class="status" style="display:none;">
+    <div id="statusArea" class="status-box" style="display:none;">
         <strong>Progress:</strong> <span id="progress">0/0</span><br>
-        <strong>Current:</strong> <span id="currentUrl">Waiting...</span>
+        <div style="margin-top:4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <strong>Current:</strong> <span id="currentUrl">...</span>
+        </div>
     </div>
 
-    <p>Live Log:</p>
-    <textarea id="log" readonly></textarea>
-    <button id="downloadBtn" style="display:none;">Download Report</button>
+    <textarea id="log" readonly placeholder="Audit logs will appear here..."></textarea>
+    <button id="downloadBtn" style="display:none; background: #28a745;">Download Report (.csv)</button>
 
     <script src="sidepanel.js"></script>
 </body>
