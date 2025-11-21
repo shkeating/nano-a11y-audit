@@ -8,5 +8,8 @@ data/results/*.csv
 .vscode/
 .idea/
 
-# Optional: Ignore your main dataset if it's huge
-# data/*.csv
+# Ignore your main dataset if it's huge
+data/*.csv
+
+# ignore tester html files for now
+test-files/*.html
