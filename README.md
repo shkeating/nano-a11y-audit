@@ -85,15 +85,15 @@ The browser will automatically navigate to each page. The logs in the side panel
 
 ### 3. Export & View Results
 
-1. Once the batch is complete, click "Download Report Data".
-2. This downloads a .json file.
-3. Go to the W3C WCAG-EM Report Tool.
+1. Once the batch is complete, click **"Download Report Data"**.
+2. This downloads a `.json` file.
+3. Go to the [W3C WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
 4. Click Open Report and select your JSON file.
 5. Navigate to Step 4: Audit Sample to see your AI-generated results populated in the official reporting interface.
 
 ## 🧪 Current Scope
 
-As of v0.1, the tool is hard-coded to test the following criteria to validate the "Visual + Semantic" hypothesis:
+As of `v0.1`, the tool is hard-coded to test the following criteria to validate the "Visual + Semantic" hypothesis:
 
 | Criterion              | Rule ID               | Implementation Strategy                                                                                  |
 | ---------------------- | --------------------- | -------------------------------------------------------------------------------------------------------- |
