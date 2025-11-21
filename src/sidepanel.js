@@ -174,16 +174,152 @@ function finishAudit() {
   document.getElementById("startBtn").disabled = false;
   document.getElementById("startBtn").textContent = "Audit Complete";
 
-  // Prepare CSV Download
-  const csv = Papa.unparse(auditResults);
-  const blob = new Blob([csv], { type: "text/csv" });
+  // GENERATE WCAG-EM COMPATIBLE JSON
+  const earlReport = generateEarlReport(auditResults);
+  const blob = new Blob([JSON.stringify(earlReport, null, 2)], {
+    type: "application/json",
+  });
   const url = URL.createObjectURL(blob);
 
   const btn = document.getElementById("downloadBtn");
+  btn.textContent = "Download WCAG-EM Data (.json)"; // Update label
   btn.style.display = "block";
   btn.onclick = () => {
-    chrome.downloads.download({ url: url, filename: "nano_audit_results.csv" });
+    chrome.downloads.download({ url: url, filename: "nano-audit-earl.json" });
   };
 }
 
-// dev note: Right-click inside the Side Panel and hit Reload Frame to update with changes
+function generateEarlReport(results) {
+  const date = new Date().toISOString();
+
+  //  Create the "Structured Sample" (Step 3 Data)
+  // We need unique IDs for each page (e.g., _:page_0, _:page_1)
+  const structuredSample = results.map((item, index) => ({
+    id: `_:page_${index}`,
+    type: "Webpage",
+    title: item.url,
+    description: item.url, // The tool matches on this
+  }));
+
+  //  Create the "Audit Sample" (Step 4 Data)
+  const auditSample = results.map((item, index) => {
+    const testId = CRITERIA_MAP["1.4.1"] || "WCAG21:use-of-color"; // Fallback
+
+    // Match the exact "outcome" object structure
+    const outcomeObj =
+      item.verdict === "FAIL"
+        ? { id: "earl:failed", type: ["OutcomeValue", "Fail"], title: "Failed" }
+        : {
+            id: "earl:passed",
+            type: ["OutcomeValue", "Pass"],
+            title: "Passed",
+          };
+
+    return {
+      type: "Assertion",
+      date: date,
+      mode: { type: "TestMode", "@value": "earl:automatic" },
+      result: {
+        type: "TestResult",
+        date: date,
+        description: item.reason || "AI Audit via Gemini Nano",
+        outcome: outcomeObj,
+      },
+      // LINK THIS RESULT TO THE PAGE DEFINED ABOVE
+      subject: { id: `_:page_${index}` },
+      test: {
+        id: testId,
+        type: ["TestCriterion", "TestRequirement"],
+      },
+    };
+  });
+
+  // Return the Complete WCAG-EM Save File
+  return {
+    "@context": {
+      reporter: "http://github.com/w3c/wcag-em-report-tool/",
+      wcagem: "http://www.w3.org/TR/WCAG-EM/#",
+      Evaluation: "wcagem:procedure",
+      defineScope: "wcagem:step1",
+      scope: "wcagem:step1a",
+      conformanceTarget: "step1b",
+      accessibilitySupportBaseline: "wcagem:step1c",
+      additionalEvaluationRequirements: "wcagem:step1d",
+      exploreTarget: "wcagem:step2",
+      essentialFunctionality: "wcagem:step2b",
+      pageTypeVariety: "wcagem:step2c",
+      technologiesReliedUpon: "wcagem:step2d",
+      selectSample: "wcagem:step3",
+      structuredSample: "wcagem:step3a",
+      randomSample: "wcagem:step3b",
+      Website: "wcagem:website",
+      Webpage: "wcagem:webpage",
+      auditSample: "wcagem:step4",
+      reportFindings: "wcagem:step5",
+      documentSteps: "wcagem:step5a",
+      commissioner: "wcagem:commissioner",
+      evaluator: "wcagem:evaluator",
+      evaluationSpecifics: "wcagem:step5b",
+      WCAG: "http://www.w3.org/TR/WCAG/#",
+      WCAG20: "http://www.w3.org/TR/WCAG20/#",
+      WCAG21: "http://www.w3.org/TR/WCAG21/#",
+      WAI: "http://www.w3.org/WAI/",
+      earl: "http://www.w3.org/ns/earl#",
+      Assertion: "earl:Assertion",
+      TestMode: "earl:TestMode",
+      TestCriterion: "earl:TestCriterion",
+      TestRequirement: "earl:TestRequirement",
+      TestSubject: "earl:TestSubject",
+      TestResult: "earl:TestResult",
+      OutcomeValue: "earl:OutcomeValue",
+      Pass: "earl:Pass",
+      Fail: "earl:Fail",
+      CannotTell: "earl:CannotTell",
+      NotApplicable: "earl:NotApplicable",
+      NotTested: "earl:NotTested",
+      assertedBy: "earl:assertedBy",
+      mode: "earl:mode",
+      result: "earl:result",
+      subject: "earl:subject",
+      test: "earl:test",
+      outcome: "earl:outcome",
+      dcterms: "http://purl.org/dc/terms/",
+      title: "dcterms:title",
+      description: "dcterms:description",
+      summary: "dcterms:summary",
+      date: "dcterms:date",
+      id: "@id",
+      type: "@type",
+      language: "@language",
+    },
+    type: "Evaluation",
+    language: "en",
+
+    // STEP 1: Define Scope (Required boilerplate)
+    defineScope: {
+      id: "_:defineScope",
+      scope: { description: "", title: "Gemini Nano Audit" },
+      conformanceTarget: "AA",
+      wcagVersion: "2.1",
+    },
+
+    // STEP 2: Explore Target (Boilerplate)
+    exploreTarget: { id: "_:exploreTarget", technologiesReliedUpon: [] },
+
+    // STEP 3: SELECT SAMPLE (This is what we fixed!)
+    selectSample: {
+      id: "_:selectSample",
+      structuredSample: structuredSample, // <--- Your URLs go here
+      randomSample: [],
+    },
+
+    // STEP 4: AUDIT SAMPLE (The Results)
+    auditSample: auditSample,
+  };
+}
+
+// Ensure this map is still at the bottom of your file
+const CRITERIA_MAP = {
+  "1.4.1": "WCAG21:use-of-color",
+  // Add others as you build them...
+};
