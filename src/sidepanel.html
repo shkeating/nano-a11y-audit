@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: system-ui;
+            padding: 10px;
+            width: 300px;
+        }
+
+        .status {
+            padding: 10px;
+            background: #f0f0f0;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+
+        .error {
+            color: #d32f2f;
+        }
+
+        .success {
+            color: #2e7d32;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 5px;
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-top: 10px;
+            font-family: monospace;
+        }
+    </style>
+    <script src="papaparse.min.js"></script>
+</head>
+
+<body>
+    <h2>🔍 Nano Auditor</h2>
+
+    <div id="controls">
+        <p>1. Upload URLs (CSV):</p>
+        <input type="file" id="csvFile" accept=".csv">
+        <button id="startBtn" disabled>Start Batch Audit</button>
+    </div>
+
+    <div id="statusArea" class="status" style="display:none;">
+        <strong>Progress:</strong> <span id="progress">0/0</span><br>
+        <strong>Current:</strong> <span id="currentUrl">Waiting...</span>
+    </div>
+
+    <p>Live Log:</p>
+    <textarea id="log" readonly></textarea>
+    <button id="downloadBtn" style="display:none;">Download Report</button>
+
+    <script src="sidepanel.js"></script>
+</body>
+
+</html>

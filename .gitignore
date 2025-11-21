@@ -1,0 +1,12 @@
+# Ignore Mac System Files
+.DS_Store
+
+# Ignore Test Results (They change too often)
+data/results/*.csv
+
+# Ignore IDE settings
+.vscode/
+.idea/
+
+# Optional: Ignore your main dataset if it's huge
+# data/*.csv
