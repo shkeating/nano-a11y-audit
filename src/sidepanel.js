@@ -1,3 +1,21 @@
+// 5. CRITERIA MAPPING (Required for WCAG-EM)
+const CRITERIA_MAP = {
+  "1.3.2": "WCAG21:meaningful-sequence",
+  "1.3.3": "WCAG21:sensory-characteristics",
+  "1.3.4": "WCAG21:orientation",
+  "1.4.1": "WCAG21:use-of-color",
+  "1.4.2": "WCAG21:audio-control",
+  "1.4.5": "WCAG21:images-of-text",
+  "1.4.10": "WCAG21:reflow",
+  "1.4.12": "WCAG21:text-spacing",
+  "2.2.1": "WCAG21:timing-adjustable",
+  "2.2.2": "WCAG21:pause-stop-hide",
+  "2.4.5": "WCAG21:multiple-ways",
+  "2.5.3": "WCAG21:label-in-name",
+  "2.5.8": "WCAG21:target-size",
+  "3.2.2": "WCAG21:on-input",
+};
+
 let urlQueue = [];
 let auditResults = [];
 
@@ -10,7 +28,6 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
     header: true,
     skipEmptyLines: true,
     complete: (results) => {
-      // Filter for rows that actually have a 'url'
       urlQueue = results.data
         .filter((r) => r.url && r.url.startsWith("http"))
         .map((r) => r.url);
@@ -19,7 +36,7 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
         log(`✅ Loaded ${urlQueue.length} URLs.`);
         document.getElementById("startBtn").disabled = false;
       } else {
-        log("❌ No valid URLs found. Check CSV headers.");
+        log("❌ No valid URLs found. Header must be 'url'.");
       }
     },
   });
@@ -29,27 +46,30 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
 document.getElementById("startBtn").addEventListener("click", async () => {
   document.getElementById("startBtn").disabled = true;
   document.getElementById("statusArea").style.display = "block";
-  auditResults = []; // Reset results
+  auditResults = [];
 
   for (let i = 0; i < urlQueue.length; i++) {
     const url = urlQueue[i];
     updateStatus(i + 1, urlQueue.length, url);
 
     try {
-      // A. Navigate
       log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
+
+      // Robust Wait for Page Load
+      const loadPromise = waitForTabLoad(tab.id);
       await chrome.tabs.update(tab.id, { url: url });
+      await loadPromise;
 
-      // B. Wait for Load
-      await waitForTabLoad(tab.id);
-
-      // C. Run Audit
       log(`Analyzing DOM...`);
       const result = await runAuditOnTab(tab.id);
 
-      // D. Log Result
-      const statusIcon = result.verdict === "FAIL" ? "❌" : "✅";
+      const statusIcon =
+        result.verdict === "FAIL"
+          ? "❌"
+          : result.verdict === "PASS"
+          ? "✅"
+          : "⚠️";
       log(`${statusIcon} Verdict: ${result.verdict}`);
 
       auditResults.push({ url, ...result });
@@ -62,35 +82,39 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   finishAudit();
 });
 
-// 3. THE AI AUDITOR (Injected Script + Local AI)
+// 3. THE AI AUDITOR
 async function runAuditOnTab(tabId) {
-  // Step A: Inject the Extractor to get the Structured Context Object
-  const injection = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: extractDomContext, // This function runs INSIDE the web page
-  });
-
-  const domContext = injection[0].result;
-
-  // Step B: Check AI Capability
-  if (typeof window.LanguageModel === "undefined") {
-    return { verdict: "ERROR", reason: "AI API (LanguageModel) missing" };
-  }
-
   try {
-    // Step C: Initialize Session (Using updated Pilot syntax)
+    // A. Inject Extractor
+    const injection = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: extractDomContext,
+    });
+
+    if (!injection || !injection[0]) throw new Error("Script injection failed");
+    const domContext = injection[0].result;
+
+    // B. Check AI API
+    if (typeof window.LanguageModel === "undefined") {
+      return { verdict: "ERROR", reason: "LanguageModel API missing" };
+    }
+
+    // C. Create Session (WITH CORRECT SYNTAX)
     const session = await window.LanguageModel.create({
-      expectedContext: "Accessibility Audit",
+      // 1. Define the Output Contract (The Fix)
+      expectedOutputs: [{ type: "text", languages: ["en"] }],
+
+      // 2. System Prompt
       initialPrompts: [
         {
           role: "system",
           content: `You are an accessibility auditor checking WCAG 1.4.1 (Use of Color).
-                    RULE: Links must have visual indicators (underline, border, bold) other than color.
+                    RULE: Links must have visual indicators (underline, bold, or border) other than color.
                     
                     INSTRUCTIONS: 
-                    1. Analyze the JSON input.
-                    2. If textDecorationLine is 'none' AND borderBottomStyle is 'none' AND fontWeight is not bold, the verdict is FAIL.
-                    3. Otherwise, PASS.
+                    - Analyze the JSON input.
+                    - If textDecorationLine is 'none' AND borderBottomStyle is 'none' AND fontWeight is 400, verdict is FAIL.
+                    - Otherwise verdict is PASS.
                     
                     OUTPUT FORMAT:
                     Return ONLY valid JSON with these two fields:
@@ -102,35 +126,30 @@ async function runAuditOnTab(tabId) {
       ],
     });
 
-    // Step D: Prompt the Model
-    const aiResponse = await session.prompt(JSON.stringify(domContext));
-
-    // Step E: Parse Output
-    const cleanJson = aiResponse.replace(/```json|```/g, "").trim();
+    // D. Prompt & Parse
+    const resultString = await session.prompt(JSON.stringify(domContext));
+    const cleanJson = resultString.replace(/```json|```/g, "").trim();
     const result = JSON.parse(cleanJson);
 
     session.destroy();
     return result;
   } catch (err) {
-    return { verdict: "AI_ERROR", reason: err.message };
+    console.error("AI Error:", err);
+    return { verdict: "ERROR", reason: `AI Error: ${err.message}` };
   }
 }
 
-// 4. THE EXTRACTOR (This runs inside the page, not the extension)
+// 4. THE EXTRACTOR
 function extractDomContext() {
-  // Grab the first 5 links for this pilot test
   const links = Array.from(document.querySelectorAll("a")).slice(0, 5);
-
-  // Create the SCO (Structured Context Object)
-  // We grab the *first* failing link we find, or just the first link if all pass
-  // Real version would return an array, but we simplify for the AI input limit
   const target = links[0];
-  if (!target) return { error: "No links found" };
+
+  if (!target) return { note: "No links found" };
 
   const s = window.getComputedStyle(target);
   return {
     tagName: "A",
-    text: target.innerText.substring(0, 50),
+    text: target.innerText.substring(0, 30),
     computedStyles: {
       color: s.color,
       textDecorationLine: s.textDecorationLine,
@@ -142,21 +161,29 @@ function extractDomContext() {
 
 // --- UTILS ---
 
-async function getActiveTab() {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tabs[0];
-}
-
 function waitForTabLoad(tabId) {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.status === "complete") {
+        setTimeout(resolve, 1000);
+        return;
+      }
+    } catch (e) {}
+
     const listener = (tid, changeInfo) => {
       if (tid === tabId && changeInfo.status === "complete") {
         chrome.tabs.onUpdated.removeListener(listener);
-        setTimeout(resolve, 1500); // 1.5s buffer for hydration
+        setTimeout(resolve, 1000);
       }
     };
     chrome.tabs.onUpdated.addListener(listener);
   });
+}
+
+async function getActiveTab() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tabs[0];
 }
 
 function updateStatus(current, total, url) {
@@ -174,7 +201,6 @@ function finishAudit() {
   document.getElementById("startBtn").disabled = false;
   document.getElementById("startBtn").textContent = "Audit Complete";
 
-  // GENERATE WCAG-EM COMPATIBLE JSON
   const earlReport = generateEarlReport(auditResults);
   const blob = new Blob([JSON.stringify(earlReport, null, 2)], {
     type: "application/json",
@@ -182,66 +208,70 @@ function finishAudit() {
   const url = URL.createObjectURL(blob);
 
   const btn = document.getElementById("downloadBtn");
-  btn.textContent = "Download WCAG-EM Data (.json)"; // Update label
   btn.style.display = "block";
   btn.onclick = () => {
-    chrome.downloads.download({ url: url, filename: "nano-audit-earl.json" });
+    chrome.downloads.download({ url: url, filename: "nano-audit-wcag.json" });
   };
 }
 
+// 6. REPORT GENERATOR
 function generateEarlReport(results) {
   const date = new Date().toISOString();
 
-  //  Create the "Structured Sample" (Step 3 Data)
-  // We need unique IDs for each page (e.g., _:page_0, _:page_1)
-  const structuredSample = results.map((item, index) => ({
-    id: `_:page_${index}`,
-    type: "Webpage",
+  // 1. CREATE SAMPLE LIST (Step 3)
+  // Use the URL itself as the ID to guarantee matching
+  const webpages = results.map((item) => ({
+    "@id": item.url, // <--- CHANGED: Use URL as ID
+    "@type": "Webpage",
     title: item.url,
-    description: item.url, // The tool matches on this
+    description: item.url,
   }));
 
-  //  Create the "Audit Sample" (Step 4 Data)
-  const auditSample = results.map((item, index) => {
-    const testId = CRITERIA_MAP["1.4.1"] || "WCAG21:use-of-color"; // Fallback
+  // 2. CREATE ASSERTIONS (Step 4)
+  const assertions = results.map((item) => {
+    const testId = CRITERIA_MAP["1.4.1"] || "WCAG21:use-of-color";
 
-    // Match the exact "outcome" object structure
-    const outcomeObj =
-      item.verdict === "FAIL"
-        ? { id: "earl:failed", type: ["OutcomeValue", "Fail"], title: "Failed" }
-        : {
-            id: "earl:passed",
-            type: ["OutcomeValue", "Pass"],
-            title: "Passed",
-          };
+    let outcomeObj;
+    if (item.verdict === "FAIL") {
+      outcomeObj = { "@id": "earl:failed", "@type": "Fail", title: "Failed" };
+    } else if (item.verdict === "PASS") {
+      outcomeObj = { "@id": "earl:passed", "@type": "Pass", title: "Passed" };
+    } else {
+      outcomeObj = {
+        "@id": "earl:cantTell",
+        "@type": "CannotTell",
+        title: "Cannot Tell",
+      };
+    }
 
     return {
-      type: "Assertion",
-      date: date,
-      mode: { type: "TestMode", "@value": "earl:automatic" },
+      "@type": "Assertion",
+      mode: { "@type": "TestMode", "@value": "earl:automatic" },
       result: {
-        type: "TestResult",
+        "@type": "TestResult",
         date: date,
-        description: item.reason || "AI Audit via Gemini Nano",
+        description: item.reason || "AI Analysis",
         outcome: outcomeObj,
       },
-      // LINK THIS RESULT TO THE PAGE DEFINED ABOVE
-      subject: { id: `_:page_${index}` },
+      subject: { "@id": item.url }, // <--- CHANGED: Link by URL
       test: {
-        id: testId,
-        type: ["TestCriterion", "TestRequirement"],
+        "@id": testId,
+        "@type": "TestCriterion",
       },
     };
   });
 
-  // Return the Complete WCAG-EM Save File
   return {
     "@context": {
       reporter: "http://github.com/w3c/wcag-em-report-tool/",
       wcagem: "http://www.w3.org/TR/WCAG-EM/#",
+      WAI: "http://www.w3.org/WAI/",
+      WCAG21: "http://www.w3.org/TR/WCAG21/#",
+      earl: "http://www.w3.org/ns/earl#",
       Evaluation: "wcagem:procedure",
       defineScope: "wcagem:step1",
       scope: "wcagem:step1a",
+      step1b: { "@id": "wcagem:step1b", "@type": "@id" },
       conformanceTarget: "step1b",
       accessibilitySupportBaseline: "wcagem:step1c",
       additionalEvaluationRequirements: "wcagem:step1d",
@@ -260,11 +290,6 @@ function generateEarlReport(results) {
       commissioner: "wcagem:commissioner",
       evaluator: "wcagem:evaluator",
       evaluationSpecifics: "wcagem:step5b",
-      WCAG: "http://www.w3.org/TR/WCAG/#",
-      WCAG20: "http://www.w3.org/TR/WCAG20/#",
-      WCAG21: "http://www.w3.org/TR/WCAG21/#",
-      WAI: "http://www.w3.org/WAI/",
-      earl: "http://www.w3.org/ns/earl#",
       Assertion: "earl:Assertion",
       TestMode: "earl:TestMode",
       TestCriterion: "earl:TestCriterion",
@@ -291,35 +316,30 @@ function generateEarlReport(results) {
       id: "@id",
       type: "@type",
       language: "@language",
+      A: "WAI:WCAG2A-Conformance",
+      AA: "WAI:WCAG2AA-Conformance",
+      AAA: "WAI:WCAG2AAA-Conformance",
+      wcagVersion: "WAI:standards-guidelines/wcag/#versions",
     },
     type: "Evaluation",
     language: "en",
-
-    // STEP 1: Define Scope (Required boilerplate)
     defineScope: {
       id: "_:defineScope",
       scope: { description: "", title: "Gemini Nano Audit" },
       conformanceTarget: "AA",
       wcagVersion: "2.1",
     },
-
-    // STEP 2: Explore Target (Boilerplate)
-    exploreTarget: { id: "_:exploreTarget", technologiesReliedUpon: [] },
-
-    // STEP 3: SELECT SAMPLE (This is what we fixed!)
+    exploreTarget: {
+      id: "_:exploreTarget",
+      essentialFunctionality: "",
+      pageTypeVariety: "",
+      technologiesReliedUpon: [],
+    },
     selectSample: {
       id: "_:selectSample",
-      structuredSample: structuredSample, // <--- Your URLs go here
+      structuredSample: webpages,
       randomSample: [],
     },
-
-    // STEP 4: AUDIT SAMPLE (The Results)
-    auditSample: auditSample,
+    auditSample: assertions,
   };
 }
-
-// Ensure this map is still at the bottom of your file
-const CRITERIA_MAP = {
-  "1.4.1": "WCAG21:use-of-color",
-  // Add others as you build them...
-};
