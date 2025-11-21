@@ -9,7 +9,7 @@ data/results/*.csv
 .idea/
 
 # Ignore your main dataset if it's huge
-data/*.csv
+data/urls.csv
 
 # ignore tester html files for now
 test-files/*.html
