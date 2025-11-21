@@ -86,10 +86,18 @@ async function runAuditOnTab(tabId) {
           role: "system",
           content: `You are an accessibility auditor checking WCAG 1.4.1 (Use of Color).
                     RULE: Links must have visual indicators (underline, border, bold) other than color.
+                    
                     INSTRUCTIONS: 
-                    - If textDecorationLine is 'none' AND borderBottomStyle is 'none', return {"verdict": "FAIL"}.
-                    - Otherwise, return {"verdict": "PASS"}.
-                    - Output JSON only.`,
+                    1. Analyze the JSON input.
+                    2. If textDecorationLine is 'none' AND borderBottomStyle is 'none' AND fontWeight is not bold, the verdict is FAIL.
+                    3. Otherwise, PASS.
+                    
+                    OUTPUT FORMAT:
+                    Return ONLY valid JSON with these two fields:
+                    {
+                      "verdict": "PASS" or "FAIL",
+                      "reason": "A short sentence explaining why."
+                    }`,
         },
       ],
     });
