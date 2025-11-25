@@ -5,18 +5,20 @@ export const earlId = "WCAG22:use-of-color";
 export const systemPrompt = `
 You are a strict accessibility auditor who writes in plain, easy-to-understand language.
 Task: Check if color is used as the ONLY means of conveying information (WCAG 1.4.1).
-Input: A JSON object with 'links' and 'formElements' arrays.
+Input: A JSON object with 'links', 'formElements', and 'textFragments' arrays.
 
 Execution Steps:
-1. Initialize two empty lists: 'failing_links' and 'failing_form_fields'.
+1. Initialize three empty lists: 'failing_links', 'failing_form_fields', and 'failing_fragments'.
 2. For EACH link in the 'links' array: if 'isUnderlined' is false AND 'isBold' is false AND 'hasBorder' is false, add the link's 'text' to the 'failing_links' list.
 3. For EACH form element in the 'formElements' array: if ('isRequired' is true OR 'isInvalid' is true) AND 'hasVisibleLabelAsterisk' is false AND 'hasDescribedByError' is false, add the element's 'label' to the 'failing_form_fields' list.
-4. After checking all elements, if both lists are empty, the final verdict is "PASS".
-5. If any list is not empty, the final verdict is "FAIL".
+4. For EACH fragment in the 'textFragments' array, add the fragment's 'text' to the 'failing_fragments' list.
+5. After checking all elements, if all lists are empty, the final verdict is "PASS".
+6. If any list is not empty, the final verdict is "FAIL".
 
 Reasoning for FAIL verdict:
 - If the 'failing_form_fields' list is not empty, generate a sentence with this exact format: "The form field(s) '[field label 1]' and '[field label 2]' use only color to indicate they are required or invalid. Add an asterisk to the label or a visible error message that does not rely on color." (Use the labels from the list, quoted and joined naturally).
 - If the 'failing_links' list is not empty, generate a sentence with this exact format: "The link(s) '[link text 1]' and '[link text 2]' rely only on color. Add an underline or make them bold." (Use the texts from the list, quoted and joined naturally).
+- If the 'failing_fragments' list is not empty, generate a sentence with this exact format: "The text fragment(s) '[fragment text 1]' and '[fragment text 2]' rely only on color to convey information. Use bold, underline, or other non-color indicators to distinguish them." (Use the texts from the list, quoted and joined naturally).
 - Combine all generated sentences, each on a new line.
 
 Final JSON Output:
@@ -29,6 +31,57 @@ export function extractor() {
   const formElements = Array.from(
     document.querySelectorAll("input, textarea, select")
   );
+
+  function hasOnlyColorDifference(element, parent) {
+    const elementStyle = window.getComputedStyle(element);
+    const parentStyle = window.getComputedStyle(parent);
+
+    if (elementStyle.color === parentStyle.color) {
+      return false; // No color difference
+    }
+
+    // Check for other differences that provide non-color-based distinction
+    const fontWeightChanged = elementStyle.fontWeight !== parentStyle.fontWeight;
+    const fontStyleChanged = elementStyle.fontStyle !== parentStyle.fontStyle;
+    const textDecorationChanged =
+      elementStyle.textDecorationLine !== parentStyle.textDecorationLine;
+    const borderBottomChanged =
+      elementStyle.borderBottomStyle !== parentStyle.borderBottomStyle;
+    const backgroundChanged =
+      elementStyle.backgroundColor !== parentStyle.backgroundColor;
+    const beforeContentChanged =
+      window.getComputedStyle(element, "::before").content !== "none";
+    const afterContentChanged =
+      window.getComputedStyle(element, "::after").content !== "none";
+
+    return !(
+      fontWeightChanged ||
+      fontStyleChanged ||
+      textDecorationChanged ||
+      borderBottomChanged ||
+      backgroundChanged ||
+      beforeContentChanged ||
+      afterContentChanged
+    );
+  }
+
+  const textFragments = [];
+  const allElements = document.body.getElementsByTagName("*");
+
+  for (const el of allElements) {
+    // Check if it's a leaf element in terms of element nodes.
+    if (el.children.length === 0 && el.textContent.trim().length > 0) {
+      const parent = el.parentElement;
+      if (parent && parent.children.length > 1) {
+        if (hasOnlyColorDifference(el, parent)) {
+          textFragments.push({
+            text: el.innerText.substring(0, 30),
+            tagName: el.tagName.toLowerCase(),
+          });
+        }
+      }
+    }
+  }
 
   return {
     pageTitle: document.title,
@@ -68,5 +121,6 @@ export function extractor() {
         hasDescribedByError: describedByText.trim().length > 0,
       };
     }),
+    textFragments,
   };
 }
