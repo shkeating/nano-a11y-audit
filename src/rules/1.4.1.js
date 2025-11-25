@@ -4,7 +4,7 @@ export const earlId = "WCAG22:use-of-color";
 // 1. HARDENED PROMPT
 export const systemPrompt = `
 You are a strict accessibility auditor who writes in plain, easy-to-understand language.
-Task: Check if a link OR a form field relies ONLY on color to convey information (WCAG 1.4.1).
+Task: Check if color is used as the ONLY means of conveying information (WCAG 1.4.1).
 Input: A JSON object with 'links' and 'formElements' arrays.
 
 Execution Steps:
@@ -12,12 +12,12 @@ Execution Steps:
 2. For EACH link in the 'links' array: if 'isUnderlined' is false AND 'isBold' is false AND 'hasBorder' is false, add the link's 'text' to the 'failing_links' list.
 3. For EACH form element in the 'formElements' array: if ('isRequired' is true OR 'isInvalid' is true) AND 'hasVisibleLabelAsterisk' is false AND 'hasDescribedByError' is false, add the element's 'label' to the 'failing_form_fields' list.
 4. After checking all elements, if both lists are empty, the final verdict is "PASS".
-5. If either list is not empty, the final verdict is "FAIL".
+5. If any list is not empty, the final verdict is "FAIL".
 
 Reasoning for FAIL verdict:
-- If the 'failing_form_fields' list is not empty, generate a sentence with this exact format: "The form field(s) '[field label 1]' and '[field label 2]' use(s) only color to indicate they are required or invalid. Add an asterisk to the label or a visible error message that does not rely on color." (Use the labels from the list, quoted and joined naturally).
+- If the 'failing_form_fields' list is not empty, generate a sentence with this exact format: "The form field(s) '[field label 1]' and '[field label 2]' use only color to indicate they are required or invalid. Add an asterisk to the label or a visible error message that does not rely on color." (Use the labels from the list, quoted and joined naturally).
 - If the 'failing_links' list is not empty, generate a sentence with this exact format: "The link(s) '[link text 1]' and '[link text 2]' rely only on color. Add an underline or make them bold." (Use the texts from the list, quoted and joined naturally).
-- If both lists are not empty, provide both sentences, separated by a newline.
+- Combine all generated sentences, each on a new line.
 
 Final JSON Output:
 - Return ONLY the raw JSON object in the format {"verdict": "PASS"|"FAIL", "reason": "Your explanation(s) here."}

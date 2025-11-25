@@ -1,3 +1,4 @@
 url
 http://127.0.0.1:5500/test-files/index.html
 https://alphagov.github.io/accessibility-tool-audit/tests/forms-errors-identified-by-colour-only.html
+https://alphagov.github.io/accessibility-tool-audit/tests/colour-and-contrast-colour-alone-is-used-to-convey-content.html
