@@ -2,34 +2,36 @@ export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 
 // 1. HARDENED PROMPT
-// Added "Return ONLY JSON" and "Do not include markdown"
 export const systemPrompt = `
 You are a strict accessibility auditor who writes in plain, easy-to-understand language.
-Task: Check if ANY link in the provided array relies ONLY on color (WCAG 1.4.1).
-Input: A JSON object with a 'links' property containing an array of link style objects.
+Task: Check if a link OR a form field relies ONLY on color to convey information (WCAG 1.4.1).
+Input: A JSON object with 'links' and 'formElements' arrays.
 
-Rules:
-1. Iterate through EACH link object in the 'links' array.
-2. A link FAILS if it does not have a visual indicator other than color.
-3. A link fails if 'isUnderlined' is false, 'isBold' is false, AND 'hasBorder' is false.
-4. If ANY link in the array fails, the entire test is a FAIL.
-5. If ALL links in the array pass, the entire test is a PASS.
+Execution Steps:
+1. Initialize two empty lists: 'failing_links' and 'failing_form_fields'.
+2. For EACH link in the 'links' array: if 'isUnderlined' is false AND 'isBold' is false AND 'hasBorder' is false, add the link's 'text' to the 'failing_links' list.
+3. For EACH form element in the 'formElements' array: if ('isRequired' is true OR 'isInvalid' is true) AND 'hasVisibleLabelAsterisk' is false AND 'hasDescribedByError' is false, add the element's 'label' to the 'failing_form_fields' list.
+4. After checking all elements, if both lists are empty, the final verdict is "PASS".
+5. If either list is not empty, the final verdict is "FAIL".
 
-OUTPUT INSTRUCTIONS:
-- Return ONLY the raw JSON object. Do not use Markdown or conversational text.
-- For a FAIL verdict, the 'reason' MUST clearly explain the problem in simple terms.
-- Example Fail Reason: "The link 'Some Text' might be hard for some users to see because it is only distinguished by color. Try adding an underline or making it bold."
-- Format: {"verdict": "PASS"|"FAIL", "reason": "Your simple explanation here."}
+Reasoning for FAIL verdict:
+- If the 'failing_form_fields' list is not empty, generate a sentence with this exact format: "The form field(s) '[field label 1]' and '[field label 2]' use(s) only color to indicate they are required or invalid. Add an asterisk to the label or a visible error message that does not rely on color." (Use the labels from the list, quoted and joined naturally).
+- If the 'failing_links' list is not empty, generate a sentence with this exact format: "The link(s) '[link text 1]' and '[link text 2]' rely only on color. Add an underline or make them bold." (Use the texts from the list, quoted and joined naturally).
+- If both lists are not empty, provide both sentences, separated by a newline.
+
+Final JSON Output:
+- Return ONLY the raw JSON object in the format {"verdict": "PASS"|"FAIL", "reason": "Your explanation(s) here."}
 `;
 
 // 2. EXTRACTOR
 export function extractor() {
-  // We grab up to 5 links to give a good sample
-  const links = Array.from(document.querySelectorAll("a")).slice(0, 5);
+  const links = Array.from(document.querySelectorAll("a"));
+  const formElements = Array.from(
+    document.querySelectorAll("input, textarea, select")
+  );
 
   return {
     pageTitle: document.title,
-    // simplify the data structure to keep tokens low and prevent confusion
     links: links.map((a) => {
       const s = window.getComputedStyle(a);
       return {
@@ -41,6 +43,29 @@ export function extractor() {
           s.fontWeight === "bold" ||
           parseInt(s.fontWeight) >= 700,
         hasBorder: s.borderBottomStyle !== "none",
+      };
+    }),
+    formElements: formElements.map((el) => {
+      const s = window.getComputedStyle(el);
+      const label = el.labels?.[0];
+      const describedById = el.getAttribute("aria-describedby");
+      let describedByText = "";
+      if (describedById) {
+        const describedByEl = document.getElementById(describedById);
+        if (describedByEl) {
+          describedByText = describedByEl.innerText;
+        }
+      }
+
+      return {
+        tagName: el.tagName.toLowerCase(),
+        label: label?.innerText.substring(0, 30),
+        color: s.color,
+        borderColor: s.borderColor,
+        isRequired: el.required,
+        isInvalid: el.getAttribute("aria-invalid") === "true",
+        hasVisibleLabelAsterisk: label?.innerText.includes("*") ?? false,
+        hasDescribedByError: describedByText.trim().length > 0,
       };
     }),
   };
