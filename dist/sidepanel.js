@@ -32,7 +32,7 @@ Analyze each array based on the rules below.
 **Rule 3: Text fragments using only color**
 - Any fragment in the 'textFragments' array is considered a failure. These have been pre-identified as being distinguished by color alone.
 - For each failing fragment, get its 'text'.
-- If the 'textFragments' array is not empty, generate a sentence with this exact format: "The text fragment(s) '[fragment text 1]' and '[fragment text 2]' rely only on color to convey information. Use bold, underline, or other non-color indicators to distinguish them." (Use the collected texts, quoted and joined naturally).
+- If the 'textFragments' array is not empty, generate a sentence with this exact format: "There are text fragment(s) such as '[fragment text 1]' and '[fragment text 2]' that rely only on color to convey information. Use bold, underline, or other non-color indicators to distinguish them." (Use the collected texts, quoted and joined naturally).
 
 **Final Output**
 - If there are no failures from any of the rules, the final verdict is "PASS".

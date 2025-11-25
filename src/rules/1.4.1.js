@@ -12,7 +12,7 @@ Analyze each array based on the rules below.
 **Rule 1: Links using only color**
 - A link from the 'links' array fails if 'isUnderlined' is false, 'isBold' is false, and 'hasBorder' is false.
 - For each failing link, get its 'text'.
-- If you find any failing links, generate a sentence with this exact format: "The link(s) '[link text 1]' and '[link text 2]' rely only on color. Add an underline or make them bold." (Use the collected texts, quoted and joined naturally).
+- If you find any failing links, generate a sentence with this exact format: "The link(s) '[link text 1]' and '[link text 2]' rely only on color to differentiate themselves from other text to communicate visually link interactivity. Add an underline or make them bold." (Use the collected texts, quoted and joined naturally).
 
 **Rule 2: Form fields using only color**
 - A form element from the 'formElements' array fails if ('isRequired' is true or 'isInvalid' is true) AND 'hasVisibleLabelAsterisk' is false AND 'hasDescribedByError' is false.
@@ -22,7 +22,7 @@ Analyze each array based on the rules below.
 **Rule 3: Text fragments using only color**
 - Any fragment in the 'textFragments' array is considered a failure. These have been pre-identified as being distinguished by color alone.
 - For each failing fragment, get its 'text'.
-- If the 'textFragments' array is not empty, generate a sentence with this exact format: "The text fragment(s) '[fragment text 1]' and '[fragment text 2]' rely only on color to convey information. Use bold, underline, or other non-color indicators to distinguish them." (Use the collected texts, quoted and joined naturally).
+- If the 'textFragments' array is not empty, generate a sentence with this exact format: "There are text fragment(s) such as '[fragment text 1]' and '[fragment text 2]' that rely only on color to convey information. Use bold, underline, or other non-color indicators to distinguish them." (Use the collected texts, quoted and joined naturally).
 
 **Final Output**
 - If there are no failures from any of the rules, the final verdict is "PASS".
@@ -47,7 +47,8 @@ export function extractor() {
     }
 
     // Check for other differences that provide non-color-based distinction
-    const fontWeightChanged = elementStyle.fontWeight !== parentStyle.fontWeight;
+    const fontWeightChanged =
+      elementStyle.fontWeight !== parentStyle.fontWeight;
     const fontStyleChanged = elementStyle.fontStyle !== parentStyle.fontStyle;
     const textDecorationChanged =
       elementStyle.textDecorationLine !== parentStyle.textDecorationLine;
