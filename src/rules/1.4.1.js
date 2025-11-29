@@ -33,7 +33,38 @@ Analyze each array based on the rules below.
 
 // 2. EXTRACTOR
 export function extractor() {
-  const links = Array.from(document.querySelectorAll("a"));
+  // Sample links with unique styles, ignoring links in <nav>, to avoid exceeding token limits
+  const allLinks = Array.from(document.querySelectorAll("a"));
+  const linksOutsideNav = allLinks.filter(link => !link.closest('nav'));
+  const uniqueStyledLinks = new Map();
+  const MAX_LINKS_TO_SAMPLE = 50; // Hard cap for safety
+
+  for (const link of linksOutsideNav) {
+    if (link.offsetParent === null) continue; // Ignore non-visible links
+
+    const s = window.getComputedStyle(link);
+    const isBold = s.fontWeight === "700" || s.fontWeight === "bold" || parseInt(s.fontWeight) >= 700;
+    const isUnderlined = s.textDecorationLine.includes("underline");
+    const hasBorder = s.borderBottomStyle !== "none";
+
+    const signature = `${s.color}|${s.backgroundColor}|${isBold}|${isUnderlined}|${hasBorder}`;
+
+    if (!uniqueStyledLinks.has(signature)) {
+      uniqueStyledLinks.set(signature, {
+        text: link.innerText.substring(0, 20),
+        color: s.color,
+        isUnderlined: isUnderlined,
+        isBold: isBold,
+        hasBorder: hasBorder,
+      });
+    }
+    
+    if (uniqueStyledLinks.size >= MAX_LINKS_TO_SAMPLE) {
+        break;
+    }
+  }
+  const links = Array.from(uniqueStyledLinks.values());
+
   const formElements = Array.from(
     document.querySelectorAll("input, textarea, select")
   );
@@ -47,8 +78,7 @@ export function extractor() {
     }
 
     // Check for other differences that provide non-color-based distinction
-    const fontWeightChanged =
-      elementStyle.fontWeight !== parentStyle.fontWeight;
+    const fontWeightChanged = elementStyle.fontWeight !== parentStyle.fontWeight;
     const fontStyleChanged = elementStyle.fontStyle !== parentStyle.fontStyle;
     const textDecorationChanged =
       elementStyle.textDecorationLine !== parentStyle.textDecorationLine;
@@ -92,19 +122,7 @@ export function extractor() {
 
   return {
     pageTitle: document.title,
-    links: links.map((a) => {
-      const s = window.getComputedStyle(a);
-      return {
-        text: a.innerText.substring(0, 20), // Truncate
-        color: s.color,
-        isUnderlined: s.textDecorationLine.includes("underline"),
-        isBold:
-          s.fontWeight === "700" ||
-          s.fontWeight === "bold" ||
-          parseInt(s.fontWeight) >= 700,
-        hasBorder: s.borderBottomStyle !== "none",
-      };
-    }),
+    links,
     formElements: formElements.map((el) => {
       const s = window.getComputedStyle(el);
       const label = el.labels?.[0];
