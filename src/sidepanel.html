@@ -57,11 +57,11 @@
             font-weight: bold;
         }
     </style>
-    <script src="lib/papaparse.min.js"></script>
 </head>
 
 <body>
     <h2>🔍 Nano Auditor</h2>
+    <script type="module" src="sidepanel.js"></script>
 
     <div id="setup">
         <p style="margin-bottom: 5px; font-size: 12px;">1. Load URLs (CSV with 'url' column):</p>
@@ -78,8 +78,6 @@
 
     <textarea id="log" readonly placeholder="Audit logs will appear here..."></textarea>
     <button id="downloadBtn" style="display:none; background: #28a745;">Download Report Data</button>
-
-    <script src="sidepanel.js"></script>
 </body>
 
 </html>

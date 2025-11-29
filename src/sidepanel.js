@@ -1,108 +1,15 @@
-// 1. THE SAFE ID LIST (Exact IDs extracted from your working manual file)
-const ALL_VALID_IDS = [
-  "WCAG22:non-text-content",
-  "WCAG22:audio-only-and-video-only-prerecorded",
-  "WCAG22:captions-prerecorded",
-  "WCAG22:audio-description-or-media-alternative-prerecorded",
-  "WCAG22:captions-live",
-  "WCAG22:audio-description-prerecorded",
-  "WCAG22:info-and-relationships",
-  "WCAG22:meaningful-sequence",
-  "WCAG22:sensory-characteristics",
-  "WCAG22:orientation",
-  "WCAG22:identify-input-purpose",
-  "WCAG22:use-of-color",
-  "WCAG22:audio-control",
-  "WCAG22:contrast-minimum",
-  "WCAG22:resize-text",
-  "WCAG22:images-of-text",
-  "WCAG22:contrast-enhanced",
-  "WCAG22:low-or-no-background-audio",
-  "WCAG22:visual-presentation",
-  "WCAG22:images-of-text-no-exception",
-  "WCAG22:reflow",
-  "WCAG22:non-text-contrast",
-  "WCAG22:text-spacing",
-  "WCAG22:content-on-hover-or-focus",
-  "WCAG22:keyboard",
-  "WCAG22:no-keyboard-trap",
-  "WCAG22:keyboard-no-exception",
-  "WCAG22:character-key-shortcuts",
-  "WCAG22:timing-adjustable",
-  "WCAG22:pause-stop-hide",
-  "WCAG22:no-timing",
-  "WCAG22:interruptions",
-  "WCAG22:re-authenticating",
-  "WCAG22:timeouts",
-  "WCAG22:three-flashes-or-below-threshold",
-  "WCAG22:three-flashes",
-  "WCAG22:bypass-blocks",
-  "WCAG22:page-titled",
-  "WCAG22:focus-order",
-  "WCAG22:link-purpose-in-context",
-  "WCAG22:multiple-ways",
-  "WCAG22:headings-and-labels",
-  "WCAG22:focus-visible",
-  "WCAG22:focus-not-obscured-minimum",
-  "WCAG22:focus-not-obscured-enhanced",
-  "WCAG22:focus-appearance",
-  "WCAG22:pointer-gestures",
-  "WCAG22:pointer-cancellation",
-  "WCAG22:label-in-name",
-  "WCAG22:motion-actuation",
-  "WCAG22:target-size", // Note: 2.5.5 (Enhanced)
-  "WCAG22:dragging-movements",
-  "WCAG22:target-size-minimum", // Note: 2.5.8 (Minimum)
-  "WCAG22:language-of-page",
-  "WCAG22:language-of-parts",
-  "WCAG22:unusual-words",
-  "WCAG22:abbreviations",
-  "WCAG22:reading-level",
-  "WCAG22:pronunciation",
-  "WCAG22:on-focus",
-  "WCAG22:on-input",
-  "WCAG22:consistent-navigation",
-  "WCAG22:consistent-identification",
-  "WCAG22:change-on-request",
-  "WCAG22:consistent-help",
-  "WCAG22:error-identification",
-  "WCAG22:labels-or-instructions",
-  "WCAG22:error-suggestion",
-  "WCAG22:error-prevention-legal-financial-data",
-  "WCAG22:help",
-  "WCAG22:error-prevention-all",
-  "WCAG22:redundant-entry",
-  "WCAG22:accessible-authentication-minimum",
-  "WCAG22:accessible-authentication-enhanced",
-  "WCAG21:parsing", // <--- SPECIAL EXCEPTION (4.1.1)
-  "WCAG22:name-role-value",
-  "WCAG21:status-messages", // <--- SPECIAL EXCEPTION (4.1.3)
-];
-
-// 2. CRITERIA MAPPING (Maps your simple IDs to the Safe List)
-const CRITERIA_MAP = {
-  "1.3.2": "WCAG22:meaningful-sequence",
-  "1.3.3": "WCAG22:sensory-characteristics",
-  "1.3.4": "WCAG22:orientation",
-  "1.4.1": "WCAG22:use-of-color",
-  "1.4.2": "WCAG22:audio-control",
-  "1.4.5": "WCAG22:images-of-text",
-  "1.4.10": "WCAG22:reflow",
-  "1.4.12": "WCAG22:text-spacing",
-  "2.2.1": "WCAG22:timing-adjustable",
-  "2.2.2": "WCAG22:pause-stop-hide",
-  "2.4.5": "WCAG22:multiple-ways",
-  "2.5.3": "WCAG22:label-in-name",
-  "2.5.8": "WCAG22:target-size-minimum",
-  "3.2.2": "WCAG22:on-input",
-};
+import Papa from "papaparse";
+import { RULES } from "./rules/index.js";
+import { generateEarlReport } from "./utils/earl-reporter.js";
 
 let urlQueue = [];
 let auditResults = [];
 
+// 1. CSV UPLOAD HANDLER
 document.getElementById("csvFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
+
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
@@ -110,13 +17,18 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
       urlQueue = results.data
         .filter((r) => r.url && r.url.startsWith("http"))
         .map((r) => r.url);
-      if (urlQueue.length > 0)
+
+      if (urlQueue.length > 0) {
+        log(`✅ Loaded ${urlQueue.length} URLs.`);
         document.getElementById("startBtn").disabled = false;
-      log(`✅ Loaded ${urlQueue.length} URLs.`);
+      } else {
+        log("❌ No valid URLs found. Check CSV headers.");
+      }
     },
   });
 });
 
+// 2. BATCH PROCESS RUNNER
 document.getElementById("startBtn").addEventListener("click", async () => {
   document.getElementById("startBtn").disabled = true;
   document.getElementById("statusArea").style.display = "block";
@@ -125,250 +37,172 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   for (let i = 0; i < urlQueue.length; i++) {
     const url = urlQueue[i];
     updateStatus(i + 1, urlQueue.length, url);
+
     try {
-      log(`Navigating: ${url}`);
+      log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
+
       const loadPromise = waitForTabLoad(tab.id);
       await chrome.tabs.update(tab.id, { url: url });
       await loadPromise;
-      log(`Scanning...`);
-      const result = await runAuditOnTab(tab.id);
-      log(`${result.verdict === "FAIL" ? "❌" : "✅"} ${result.verdict}`);
-      auditResults.push({ url, ...result });
+
+      log(`Analyzing DOM...`);
+
+      // Iterate through the Rules Registry
+      for (const ruleId in RULES) {
+        const rule = RULES[ruleId];
+
+        try {
+          const result = await runAuditOnTab(tab.id, rule);
+
+          const statusIcon =
+            result.verdict === "FAIL"
+              ? "❌"
+              : result.verdict === "PASS"
+              ? "✅"
+              : "⚠️";
+          log(`[${ruleId}] ${statusIcon} ${result.verdict}`);
+
+          auditResults.push({
+            url,
+            earlId: rule.earlId, // Needed for the report
+            ...result,
+          });
+        } catch (ruleErr) {
+          console.error(ruleErr);
+          log(`⚠️ Error [${ruleId}]: ${ruleErr.message}`);
+          // Push an error result so the report isn't empty
+          auditResults.push({
+            url,
+            earlId: rule.earlId,
+            verdict: "ERROR",
+            reason: ruleErr.message,
+            pageTitle: "Error",
+          });
+        }
+      }
     } catch (err) {
-      log(`Error: ${err.message}`);
-      auditResults.push({ url, verdict: "ERROR", reason: err.message });
+      log(`⛔ Critical Error: ${err.message}`);
     }
   }
+
   finishAudit();
 });
 
-async function runAuditOnTab(tabId) {
+// 3. THE AI AUDITOR
+async function runAuditOnTab(tabId, rule) {
   try {
+    // A. Inject Extractor
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
-      func: extractDomContext,
+      func: rule.extractor, // Uses the specific rule's extractor
     });
+
+    if (!injection || !injection[0]) throw new Error("Script injection failed");
     const domContext = injection[0].result;
 
-    if (typeof window.LanguageModel === "undefined")
+    // B. Check AI API
+    // Robust check for both namespaces
+    const aiOrigin = window.ai?.languageModel || window.LanguageModel;
+
+    if (!aiOrigin) {
       return {
         verdict: "ERROR",
         reason: "AI API missing",
         pageTitle: domContext.pageTitle,
       };
+    }
 
-    const session = await window.LanguageModel.create({
-      expectedContext: "Accessibility Audit",
-      expectedOutputs: [{ type: "text", languages: ["en"] }],
+    // C. Create Session
+    const session = await aiOrigin.create({
       initialPrompts: [
         {
           role: "system",
-          content: `Audit WCAG 1.4.1 (Use of Color). Links need visual indicators. OUTPUT JSON: {"verdict": "PASS"|"FAIL", "reason": "string"}`,
+          content: rule.systemPrompt, // Use the specific rule's prompt
         },
       ],
+      expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
 
+    // D. Prompt
     const resultString = await session.prompt(JSON.stringify(domContext));
-    const result = JSON.parse(resultString.replace(/```json|```/g, "").trim());
+
+    // E. Parse (The "Hunter" Logic)
+    // Find the first '{' and the last '}' to ignore conversational text
+    const jsonMatch = resultString.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      console.error("Raw AI Output:", resultString); // Log for debugging
+      throw new Error(
+        `No JSON found in output. Raw: "${resultString.substring(0, 20)}..."`
+      );
+    }
+
+    const result = JSON.parse(jsonMatch[0]);
     session.destroy();
-    return { ...result, pageTitle: domContext.pageTitle };
+
+    return {
+      ...result,
+      pageTitle: domContext.pageTitle,
+    };
   } catch (err) {
-    return { verdict: "ERROR", reason: err.message, pageTitle: "Error" };
+    throw err; // Bubble up to the main loop
   }
 }
 
-function extractDomContext() {
-  const links = Array.from(document.querySelectorAll("a")).slice(0, 5);
-  const target = links[0];
-  const s = target ? window.getComputedStyle(target) : {};
-  return {
-    pageTitle: document.title || "Untitled",
-    linkStyle: target
-      ? { color: s.color, textDecoration: s.textDecorationLine }
-      : null,
-  };
-}
-
-function generateEarlReport(results) {
-  const date = new Date().toISOString();
-  const websiteId = "_:website";
-
-  // 1. DEFINE PAGES (Step 3)
-  const pages = results.map((item, index) => ({
-    id: `_:page_${index + 1}`,
-    type: ["TestSubject", "Webpage"],
-    title: item.pageTitle || item.url,
-    description: item.url,
-    date: date,
-  }));
-
-  // 2. GENERATE ALL ASSERTIONS (Step 4)
-  const allAssertions = [];
-
-  // Loop through EVERY valid ID to ensure the matrix is complete
-  ALL_VALID_IDS.forEach((fullId) => {
-    // A. Create "Untested" Placeholder for Website Scope (Boilerplate)
-    allAssertions.push({
-      type: "Assertion",
-      date: date,
-      mode: { type: "TestMode", "@value": "earl:manual" },
-      result: {
-        type: "TestResult",
-        date: date,
-        outcome: { id: "earl:untested", type: ["OutcomeValue", "NotTested"] },
-      },
-      subject: {
-        id: websiteId,
-        type: ["TestSubject", "Website"],
-        title: "Gemini Nano Audit",
-      },
-      test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
-    });
-
-    // B. If we have a specific result for this ID, add the Page-Level Assertion
-    results.forEach((item, index) => {
-      const auditedId = CRITERIA_MAP["1.4.1"]; // Currently hardcoded to 1.4.1
-
-      if (fullId === auditedId) {
-        const outcomeObj =
-          item.verdict === "FAIL"
-            ? {
-                id: "earl:failed",
-                type: ["OutcomeValue", "Fail"],
-                title: "Failed",
-              }
-            : {
-                id: "earl:passed",
-                type: ["OutcomeValue", "Pass"],
-                title: "Passed",
-              };
-
-        allAssertions.push({
-          type: "Assertion",
-          date: date,
-          mode: { type: "TestMode", "@value": "earl:manual" },
-          result: {
-            type: "TestResult",
-            date: date,
-            description: item.reason,
-            outcome: outcomeObj,
-          },
-          subject: { id: `_:page_${index + 1}` }, // Links to Page
-          test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
-        });
-      }
-    });
-  });
-
-  // 3. RETURN REPORT
-  return {
-    "@context": {
-      reporter: "http://github.com/w3c/wcag-em-report-tool/",
-      wcagem: "http://www.w3.org/TR/WCAG-EM/#",
-      Evaluation: "wcagem:procedure",
-      defineScope: "wcagem:step1",
-      scope: "wcagem:step1a",
-      step1b: { "@id": "wcagem:step1b", "@type": "@id" },
-      conformanceTarget: "step1b",
-      accessibilitySupportBaseline: "wcagem:step1c",
-      additionalEvaluationRequirements: "wcagem:step1d",
-      exploreTarget: "wcagem:step2",
-      essentialFunctionality: "wcagem:step2b",
-      pageTypeVariety: "wcagem:step2c",
-      technologiesReliedUpon: "wcagem:step2d",
-      selectSample: "wcagem:step3",
-      structuredSample: "wcagem:step3a",
-      randomSample: "wcagem:step3b",
-      Website: "wcagem:website",
-      Webpage: "wcagem:webpage",
-      auditSample: "wcagem:step4",
-      reportFindings: "wcagem:step5",
-      documentSteps: "wcagem:step5a",
-      commissioner: "wcagem:commissioner",
-      evaluator: "wcagem:evaluator",
-      evaluationSpecifics: "wcagem:step5b",
-      WCAG: "http://www.w3.org/TR/WCAG/#",
-      WCAG20: "http://www.w3.org/TR/WCAG20/#",
-      WCAG21: "http://www.w3.org/TR/WCAG21/#",
-      WAI: "http://www.w3.org/WAI/",
-      earl: "http://www.w3.org/ns/earl#",
-      Assertion: "earl:Assertion",
-      TestMode: "earl:TestMode",
-      TestCriterion: "earl:TestCriterion",
-      TestRequirement: "earl:TestRequirement",
-      TestSubject: "earl:TestSubject",
-      TestResult: "earl:TestResult",
-      OutcomeValue: "earl:OutcomeValue",
-      Pass: "earl:Pass",
-      Fail: "earl:Fail",
-      CannotTell: "earl:CannotTell",
-      NotApplicable: "earl:NotApplicable",
-      NotTested: "earl:NotTested",
-      assertedBy: "earl:assertedBy",
-      mode: "earl:mode",
-      result: "earl:result",
-      subject: "earl:subject",
-      test: "earl:test",
-      outcome: "earl:outcome",
-      dcterms: "http://purl.org/dc/terms/",
-      title: "dcterms:title",
-      description: "dcterms:description",
-      summary: "dcterms:summary",
-      date: "dcterms:date",
-      id: "@id",
-      type: "@type",
-      language: "@language",
-      A: "WAI:WCAG2A-Conformance",
-      AA: "WAI:WCAG2AA-Conformance",
-      AAA: "WAI:WCAG2AAA-Conformance",
-      wcagVersion: "WAI:standards-guidelines/wcag/#versions",
-    },
-    type: "Evaluation",
-    language: "en",
-    reportToolVersion: "3.0.3",
-    defineScope: {
-      id: "_:defineScope",
-      scope: { description: "", title: "Gemini Nano Audit" },
-      conformanceTarget: "AA",
-      wcagVersion: "2.2",
-    },
-    exploreTarget: {
-      id: "_:exploreTarget",
-      essentialFunctionality: "",
-      pageTypeVariety: "",
-      technologiesReliedUpon: [],
-    },
-    selectSample: {
-      id: "_:selectSample",
-      structuredSample: pages,
-      randomSample: [],
-    },
-    auditSample: allAssertions,
-  };
-}
-
 // --- UTILS ---
+
 function waitForTabLoad(tabId) {
-  return new Promise((r) => setTimeout(r, 1000));
+  return new Promise(async (resolve) => {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.status === "complete") {
+        setTimeout(resolve, 1000);
+        return;
+      }
+    } catch (e) {}
+
+    const listener = (tid, changeInfo) => {
+      if (tid === tabId && changeInfo.status === "complete") {
+        chrome.tabs.onUpdated.removeListener(listener);
+        setTimeout(resolve, 1000);
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
 }
+
 async function getActiveTab() {
-  const t = await chrome.tabs.query({ active: true, currentWindow: true });
-  return t[0];
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tabs[0];
 }
-function updateStatus(c, t, u) {
-  document.getElementById("progress").innerText = `${c}/${t}`;
+
+function updateStatus(current, total, url) {
+  document.getElementById("progress").textContent = `${current}/${total}`;
+  document.getElementById("currentUrl").textContent = url;
 }
-function log(m) {
-  document.getElementById("log").value += `> ${m}\n`;
+
+function log(msg) {
+  const area = document.getElementById("log");
+  area.value += `> ${msg}\n`;
+  area.scrollTop = area.scrollHeight;
 }
+
 function finishAudit() {
-  const report = generateEarlReport(auditResults);
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(report, null, 2)], { type: "application/json" })
-  );
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("startBtn").textContent = "Audit Complete";
+
+  const earlReport = generateEarlReport(auditResults);
+  const blob = new Blob([JSON.stringify(earlReport, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+
   const btn = document.getElementById("downloadBtn");
   btn.style.display = "block";
-  btn.onclick = () =>
-    chrome.downloads.download({ url, filename: "nano-audit-final.json" });
+  btn.onclick = () => {
+    chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
+  };
+
+  log("🏁 Done. Download your report.");
 }
