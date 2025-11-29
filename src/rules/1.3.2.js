@@ -1,97 +1,150 @@
 export const id = "1.3.2";
 export const earlId = "WCAG22:meaningful-sequence";
 
-// 1. HARDENED PROMPT
+// 1 PROMPT
 export const systemPrompt = `
-You are a strict accessibility auditor who writes in plain, easy-to-understand language.
-Task: Check for WCAG 1.3.2 Meaningful Sequence violations based on the provided JSON data.
-The JSON data contains findings about potential issues related to reading order.
+You are a precise accessibility auditor.
+Task: Analyze the JSON for WCAG 1.3.2 Meaningful Sequence violations.
 
-Analyze the findings based on the rules below.
+**Output Style Rules**
+- Keep explanations extremely brief (1-2 sentences).
+- If you find multiple examples, list them as bullet points using a newline character (\\n) before each bullet.
 
-**Rule 1: Potential Incorrect Reading Order**
-- The 'orderingProperties' array contains elements that use CSS properties like 'order', 'float', or 'flex-direction', which can cause a mismatch between the visual order and the DOM order, confusing users of assistive technologies.
-- For each element in 'orderingProperties', this is a potential failure. The 'reason' field indicates the specific CSS property found.
-- If this array is not empty, generate a sentence with this exact format: "The following element(s) use CSS properties that can disrupt the reading sequence: '[text 1]' ('[reason 1]'), '[text 2]' ('[reason 2]')." (Use the 'text' and 'reason' from each element, quoted and joined naturally).
+**Rule 1: CSS Reordering**
+- Check 'orderingProperties'. These are elements using properties like 'order', 'float', 'flex-reverse', or 'absolute position'.
+- If found, write: "CSS properties are used to alter the visual order of content, which may differ from the code order."
+- Then list the text of the elements and the specific CSS reason found.
 
 **Rule 2: Layout Tables**
-- The 'layoutTables' array contains HTML tables that appear to be used for layout, not for data. When linearized by a screen reader, their content may become nonsensical.
-- For each table in 'layoutTables', consider it a failure.
-- If this array is not empty, generate a sentence with this exact format: "A table that appears to be for layout was found, which can create a confusing reading order. A snippet of its content is: '[html snippet 1]'." (Use the 'html' from each element, quoted and joined naturally).
+- Check 'layoutTables'.
+- If found, write: "HTML tables are being used for visual layout purposes instead of tabular data."
 
-**Rule 3: Whitespace-based Layout**
-- The 'elementsWithBadWhitespace' array contains elements using multiple spaces or non-breaking spaces to create a visual layout. This can add confusing pauses or alter the reading order for screen readers.
-- For each element in 'elementsWithBadWhitespace', consider it a failure.
-- If this array is not empty, generate a sentence with this exact format: "The following element(s) use excessive whitespace for formatting, which can disrupt the reading order: '[text 1]', '[text 2]'." (Use the 'text' from each element, quoted and joined naturally).
+**Rule 3: Whitespace Misuse**
+- Check 'elementsWithBadWhitespace'.
+- If found, write: "Words are being spaced out with characters or excessive whitespace (e.g., 'W e l c o m e'), which disrupts screen reader pronunciation."
+- List the affected text snippets.
 
 **Final Output**
-- If all arrays in the input JSON are empty, the final verdict is "PASS".
-- If any array is not empty, the final verdict is "FAIL".
-- Combine all generated failure sentences, each on a new line, for the 'reason'.
-- Return ONLY the raw JSON object in the format {"verdict": "PASS"|"FAIL", "reason": "Your combined explanation(s) here."}
+- If all arrays are empty, verdict is "PASS".
+- If any array has items, verdict is "FAIL".
+- Join all findings into the 'reason' field.
+- Return ONLY valid JSON: {"verdict": "PASS"|"FAIL", "reason": "..."}
 `;
 
 // 2. EXTRACTOR
+
 export function extractor() {
-    const orderingProperties = [];
-    const elements = Array.from(document.querySelectorAll('*'));
+  const orderingProperties = [];
+  const elements = Array.from(document.querySelectorAll("*"));
 
-    for (const el of elements) {
-        if (el.offsetParent === null) continue;
+  for (const el of elements) {
+    if (el.offsetParent === null) continue;
 
-        const style = window.getComputedStyle(el);
-        const order = style.order;
-        const float = style.float;
-        const flexDirection = style.flexDirection;
-
-        let reason = '';
-        if (order !== '0') {
-            reason += `order: ${order}; `;
-        }
-        if (float === 'left' || float === 'right') {
-            reason += `float: ${float}; `;
-        }
-        if (flexDirection === 'row-reverse' || flexDirection === 'column-reverse') {
-            reason += `flex-direction: ${flexDirection}; `;
-        }
-
-        if (reason) {
-            orderingProperties.push({
-                tagName: el.tagName.toLowerCase(),
-                text: el.textContent.trim().substring(0, 100),
-                reason: reason.trim()
-            });
-        }
+    // SKIP: Elements hidden from screen readers
+    if (
+      el.getAttribute("aria-hidden") === "true" ||
+      el.getAttribute("role") === "presentation" ||
+      el.getAttribute("role") === "none"
+    ) {
+      continue;
     }
 
-    // 2. Find potential layout tables
-    const layoutTables = Array.from(document.querySelectorAll('table'))
-        .filter(table => table.getAttribute('role') === 'presentation' || (!table.querySelector('th') && !table.querySelector('caption')))
-        .map(table => ({
-            html: table.outerHTML.substring(0, 500)
-        }));
+    // SKIP: Check if parent hides it
+    let parent = el.parentElement;
+    let isHiddenByParent = false;
+    while (parent) {
+      if (parent.getAttribute("aria-hidden") === "true") {
+        isHiddenByParent = true;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    if (isHiddenByParent) continue;
 
-    // 3. Find elements with suspicious whitespace in text nodes
-    const elementsWithBadWhitespace = [];
-    const treeWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let currentNode;
-    while (currentNode = treeWalker.nextNode()) {
-        const text = currentNode.nodeValue;
-        // Check for more than two consecutive spaces between words, or multiple non-breaking spaces.
-        if (text && (text.match(/\\w\\s{2,}\\w/g) || text.match(/&nbsp;.*&nbsp;/g))) {
-            const parent = currentNode.parentElement;
-            if (parent && parent.offsetParent !== null && !elementsWithBadWhitespace.some(e => e.text === parent.textContent.trim().substring(0, 100))) {
-                 elementsWithBadWhitespace.push({
-                    tagName: parent.tagName.toLowerCase(),
-                    text: parent.textContent.trim().substring(0, 100)
-                });
-            }
-        }
+    const style = window.getComputedStyle(el);
+    const flexDirection = style.flexDirection;
+    const cssOrder = style.order;
+    const cssFloat = style.cssFloat;
+    const position = style.position;
+
+    let reason = "";
+
+    // 1. Check Flex/Grid Order
+    if (cssOrder && cssOrder !== "0" && cssOrder !== "auto") {
+      reason += `CSS order property used (${cssOrder}); `;
     }
 
-    return {
-        orderingProperties,
-        layoutTables,
-        elementsWithBadWhitespace
-    };
+    // 2. Check Flex Direction
+    if (flexDirection === "row-reverse" || flexDirection === "column-reverse") {
+      reason += `flex-direction: ${flexDirection}; `;
+    }
+
+    // 3. Check Floats
+    if (cssFloat && cssFloat !== "none") {
+      reason += `float: ${cssFloat}; `;
+    }
+
+    // 4. Check Absolute/Fixed Positioning (With Noise Filter)
+    if (position === "absolute" || position === "fixed") {
+      // NOISE FILTER: Ignore if the element is likely "safe"
+      const hasText = el.innerText.trim().length > 0;
+      const isTiny = el.offsetWidth < 20 || el.offsetHeight < 20; // Likely an icon or decorative dot
+      const isImage = el.tagName === "IMG" || el.tagName === "SVG";
+
+      // We only flag absolute items if they contain readable text AND are not tiny icons
+      if (hasText && !isTiny) {
+        reason += `position: ${position}; `;
+      }
+      // Exception: If it's a large image, position might matter, but usually 1.3.2 cares about text sequence.
+    }
+
+    if (reason) {
+      orderingProperties.push({
+        text: el.textContent.trim().substring(0, 100),
+        reason: reason.trim(),
+      });
+    }
+  }
+
+  const layoutTables = Array.from(document.querySelectorAll("table"))
+    .filter(
+      (table) =>
+        table.getAttribute("role") === "presentation" ||
+        (!table.querySelector("th") && !table.querySelector("caption"))
+    )
+    .map((table) => ({
+      html: table.outerHTML.substring(0, 500),
+    }));
+
+  const elementsWithBadWhitespace = [];
+  const treeWalker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT
+  );
+  let currentNode;
+  while ((currentNode = treeWalker.nextNode())) {
+    const text = currentNode.nodeValue;
+    if (text && (text.match(/\w\s{2,}\w/g) || text.match(/&nbsp;.*&nbsp;/g))) {
+      const parent = currentNode.parentElement;
+      if (
+        parent &&
+        parent.offsetParent !== null &&
+        !elementsWithBadWhitespace.some(
+          (e) => e.text === parent.textContent.trim().substring(0, 100)
+        )
+      ) {
+        elementsWithBadWhitespace.push({
+          tagName: parent.tagName.toLowerCase(),
+          text: parent.textContent.trim().substring(0, 100),
+        });
+      }
+    }
+  }
+
+  return {
+    // Only send the first 5 items of each to the model
+    orderingProperties: orderingProperties.slice(0, 5),
+    layoutTables: layoutTables.slice(0, 3),
+    elementsWithBadWhitespace: elementsWithBadWhitespace.slice(0, 5),
+  };
 }
