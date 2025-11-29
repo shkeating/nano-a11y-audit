@@ -1,36 +1,33 @@
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 
-// 1. SYSTEM PROMPT (Strict Reporting / No Analysis)
+// 1. SYSTEM PROMPT (Matched to 1.3.2 Style)
 export const systemPrompt = `
-You are a violation reporter. 
-Task: Format the input JSON data into a simple bulleted list.
+You are a precise accessibility auditor.
+Task: Report WCAG 1.4.1 Use of Color violations.
 
-**CRITICAL RULES**
-1. **No Analysis:** The input data consists of CONFIRMED violations. Do not evaluate if they are violations. Do not explain the impact on users. Do not write paragraphs.
-2. **Empty Input:** If the input JSON is empty ({}), return the standard PASS JSON immediately.
-3. **List Format:** Use a simple dash "- " for lists. Start every item on a new line ("\\n").
+**INSTRUCTIONS**
+Review the input data.
+1. **If a key is missing:** Do NOT write about it.
+2. **If a key exists:**
+   - Write the specific Summary Sentence defined below.
+   - Create a Markdown list using dashes (-).
+   - **CRITICAL:** Start every list item on a new line using the literal string "\\n".
 
-**SECTION INSTRUCTIONS (Only process present keys)**
+**SUMMARY SENTENCES**
+- For 'links': "Links relying on color were found:"
+- For 'formElements': "Form fields relying on color were found:"
+- For 'textFragments': "Text content relying on color was found:"
 
-- **If 'links' exists:**
-  Write: "Links relying on color were found:\\n"
-  Then list items using the 'text' field.
+**REQUIRED FORMAT EXAMPLE**
+"Links relying on color were found:\\n- Click Here\\n- Read More"
 
-- **If 'formElements' exists:**
-  Write: "Form fields relying on color were found:\\n"
-  Then list items using the 'label' field.
-
-- **If 'textFragments' exists:**
-  Write: "Text content relying on color was found:\\n"
-  Then list items using the 'text' field. (Just copy the text, do not describe it).
-
-**FINAL OUTPUT JSON**
-- If input is empty: {"verdict": "PASS", "reason": "No use-of-color violations were found."}
-- If input has data: {"verdict": "FAIL", "reason": "[Your generated lists here]"}
+**FINAL OUTPUT**
+- If NO items exist: {"verdict": "PASS", "reason": "No use-of-color violations were found."}
+- If items exist: {"verdict": "FAIL", "reason": "[Combine your summaries here]"}
 `;
 
-// 2. EXTRACTOR (Smart Filter - Unchanged)
+// 2. EXTRACTOR
 export function extractor() {
   // --- HELPER: Visual Indicators ---
   function hasVisualIndicator(el, label) {
@@ -127,8 +124,9 @@ export function extractor() {
       el.className.includes("error") || el.className.includes("invalid");
 
     if (isReq || isInv || isErr) {
+      // NOTE: Standardized key to 'text' so the Prompt is simpler
       failingForms.push({
-        label: label ? label.innerText.substring(0, 30) : "Unlabeled Field",
+        text: label ? label.innerText.substring(0, 30) : "Unlabeled Field",
       });
     }
     if (failingForms.length >= 5) break;
@@ -173,20 +171,16 @@ export function extractor() {
     if (failingFragments.length >= 5) break;
   }
 
-  // --- SMART RETURN: Only return keys that have data ---
-  const result = {};
+  // --- SMART RETURN ---
+  // 1. Capture Page Title
+  const result = {
+    pageTitle: document.title,
+  };
 
-  if (failingLinks.length > 0) {
-    result.links = failingLinks;
-  }
-
-  if (failingForms.length > 0) {
-    result.formElements = failingForms;
-  }
-
-  if (failingFragments.length > 0) {
-    result.textFragments = failingFragments;
-  }
+  // 2. Only add keys if they have data (Prevents AI hallucinations)
+  if (failingLinks.length > 0) result.links = failingLinks;
+  if (failingForms.length > 0) result.formElements = failingForms;
+  if (failingFragments.length > 0) result.textFragments = failingFragments;
 
   return result;
 }
