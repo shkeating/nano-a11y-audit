@@ -1,28 +1,42 @@
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 
-// 1. SYSTEM PROMPT (Restored to match the working 1.3.2 structure)
+// 1. SYSTEM PROMPT (Strict JSON-to-Text Conversion)
 export const systemPrompt = `
-You are a precise accessibility auditor.
-Task: Report WCAG 1.4.1 Use of Color violations.
+You are a Strict JSON-to-Text Converter.
+Task: Output a formatted report based EXACTLY on the provided JSON data keys.
 
-**INSTRUCTIONS**
-Review the input arrays ('links', 'formElements', 'textFragments').
-1. **If an array is empty:** Write NOTHING for that section.
-2. **If an array has items:**
-   - Write a summary sentence (e.g., "Links found relying on color:").
-   - Create a Markdown list using dashes (-).
-   - **CRITICAL:** Start every list item on a new line using the literal string "\\n".
+**DATA MAPPING RULES (Follow Strictly)**
 
-**REQUIRED FORMAT EXAMPLE**
-"We found links relying on color:\\n- [link inner text] \\n- [next link inner text]"
+1. **CHECK key 'links':**
+   - IF EMPTY: Output nothing.
+   - IF HAS DATA:
+     - Print Header: "Links found relying on color:"
+     - Print Items: For each item, print "\\n- " followed by the 'text' value.
+     - End Section: Print "\\n\\n" (Double newline).
 
-**FINAL OUTPUT**
-- If NO items exist in any array: {"verdict": "PASS", "reason": "No use-of-color violations were found."}
-- If items exist: {"verdict": "FAIL", "reason": "[Combine your summaries here]"}
+2. **CHECK key 'formElements':**
+   - IF EMPTY: Output nothing.
+   - IF HAS DATA:
+     - Print Header: "Form fields found relying on color:"
+     - Print Items: For each item, print "\\n- " followed by the 'label' value.
+     - End Section: Print "\\n\\n" (Double newline).
+
+3. **CHECK key 'textFragments':**
+   - IF EMPTY: Output nothing.
+   - IF HAS DATA:
+     - Print Header: "Text content found relying on color:"
+     - Print Items: For each item, print "\\n- " followed by the 'text' value.
+     - End Section: Print "\\n\\n" (Double newline).
+
+**VERDICT LOGIC**
+- If ALL input arrays are empty:
+  Return: {"verdict": "PASS", "reason": "No use-of-color violations were found."}
+- If ANY input array has data:
+  Return: {"verdict": "FAIL", "reason": "[Your formatted text string]"}
 `;
 
-// 2. EXTRACTOR (Robust Version)
+// 2. EXTRACTOR (Refined for False Positives)
 export function extractor() {
   // --- HELPER: Visual Indicators ---
   function hasVisualIndicator(el, label) {
@@ -54,10 +68,8 @@ export function extractor() {
     const s1 = window.getComputedStyle(element);
     const s2 = window.getComputedStyle(parent);
 
-    // If colors match, it's not a color violation
     if (s1.color === s2.color) return false;
 
-    // Check if distinct by anything OTHER than color
     const isDistinct =
       s1.fontWeight !== s2.fontWeight ||
       s1.fontStyle !== s2.fontStyle ||
@@ -74,6 +86,17 @@ export function extractor() {
 
   for (const link of links) {
     if (link.offsetParent === null) continue;
+
+    // FALSE POSITIVE FIX: Ignore links that are headings (h1-h6) or inside them.
+    // These are often page titles/self-links where underline is not standard.
+    const parentTag = link.parentElement ? link.parentElement.tagName : "";
+    if (
+      ["H1", "H2", "H3", "H4", "H5", "H6"].includes(parentTag) ||
+      ["H1", "H2", "H3", "H4", "H5", "H6"].includes(link.tagName)
+    ) {
+      continue;
+    }
+
     const s = window.getComputedStyle(link);
 
     if (
@@ -84,7 +107,12 @@ export function extractor() {
     )
       continue;
 
-    failingLinks.push({ text: link.innerText.trim().substring(0, 30) });
+    // Fix: Ensure we don't push empty text links
+    const linkText = link.innerText.trim();
+    if (linkText.length > 0) {
+      failingLinks.push({ text: linkText.substring(0, 40) });
+    }
+
     if (failingLinks.length >= 5) break;
   }
 
@@ -122,6 +150,7 @@ export function extractor() {
 
   for (const el of allElements) {
     if (el.offsetParent === null) continue;
+    // Explicitly ignore links here so they don't double count
     if (
       [
         "SCRIPT",
@@ -136,7 +165,6 @@ export function extractor() {
     )
       continue;
 
-    // Check strict text nodes (prevents picking up container divs)
     const hasDirectText = Array.from(el.childNodes).some(
       (node) =>
         node.nodeType === Node.TEXT_NODE && node.nodeValue.trim().length > 0
@@ -145,10 +173,14 @@ export function extractor() {
     if (hasDirectText) {
       const parent = el.parentElement;
       if (parent && hasOnlyColorDifference(el, parent)) {
-        failingFragments.push({
-          text: el.innerText.substring(0, 40),
-          tagName: el.tagName.toLowerCase(),
-        });
+        // Fix: Ensure text is not empty
+        const txt = el.innerText.trim();
+        if (txt.length > 0) {
+          failingFragments.push({
+            text: txt.substring(0, 40),
+            tagName: el.tagName.toLowerCase(),
+          });
+        }
       }
     }
     if (failingFragments.length >= 5) break;
