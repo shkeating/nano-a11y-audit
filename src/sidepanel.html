@@ -60,12 +60,21 @@
 </head>
 
 <body>
-    <h2>🔍 Nano Auditor</h2>
+    <h2>Nano A11y Audit</h2>
     <script type="module" src="sidepanel.js"></script>
 
     <div id="setup">
         <p style="font-size: 12px; color: #555;">
-            Upload a CSV of URLs to audit. The extension will visit each page, run checks, automatically download the EARL report, and open the W3C Report Tool to view the results.
+            Upload a CSV of URLs for the pages in your test sample to begin audit. The extension will visit each page in
+            your sample, and will run checks with axe-core and Gemini Nano. It will then download the report data, and
+            open the WCAG EM Report Tool to view the results.
+        </p>
+        <p>
+            For guidance on creating a test sample, please review the W3C Conformance Evaluation Methodology <a
+                href="https://www.w3.org/TR/WCAG-EM/#step2">Step 2:
+                Explore the Website</a> and <a href="https://www.w3.org/TR/WCAG-EM/#step3">Step 3: Select a
+                Representative
+                Sample</a>
         </p>
         <p style="margin-bottom: 5px; font-size: 12px;">1. Load URLs (CSV with 'url' column):</p>
         <input type="file" id="csvFile" accept=".csv" />
