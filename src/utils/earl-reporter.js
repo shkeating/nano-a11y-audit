@@ -3,7 +3,6 @@
  * Handles the generation of the W3C EARL (Evaluation and Report Language) JSON-LD reports.
  */
 
-// 1. THE SAFE ID LIST (Exact IDs extracted from your working manual file)
 const ALL_VALID_IDS = [
   "WCAG22:non-text-content",
   "WCAG22:audio-only-and-video-only-prerecorded",
@@ -84,10 +83,6 @@ const ALL_VALID_IDS = [
   "WCAG21:status-messages",
 ];
 
-/**
- * Generates the EARL Report object compatible with WCAG-EM Report Tool.
- * @param {Array} auditResults - Array of { url, verdict, reason, earlId, pageTitle }
- */
 export function generateEarlReport(auditResults) {
   const date = new Date().toISOString();
   const websiteId = "_:website";
@@ -118,22 +113,55 @@ export function generateEarlReport(auditResults) {
   const allAssertions = [];
 
   ALL_VALID_IDS.forEach((fullId) => {
+    // Get all results for this specific SC (Criteria)
     const relevantResults = auditResults.filter((r) => r.earlId === fullId);
     let hasResult = false;
 
     if (relevantResults.length > 0) {
       hasResult = true;
 
-      // Group results by URL to create consolidated assertions per page
+      // --- [RESTORED] AGGREGATE WEBSITE ASSERTION ---
+      // Check if *any* page in the sample failed this criteria
+      const anyFailures = relevantResults.some((r) => r.verdict === "FAIL");
+      const aggregateOutcome = anyFailures
+        ? { id: "earl:failed", type: ["OutcomeValue", "Fail"], title: "Failed" }
+        : {
+            id: "earl:passed",
+            type: ["OutcomeValue", "Pass"],
+            title: "Passed",
+          };
+
+      allAssertions.push({
+        type: "Assertion",
+        date: date,
+        mode: { type: "TestMode", "@value": "earl:manual" },
+        result: {
+          type: "TestResult",
+          date: date,
+          // If failed, say issues found. If pass, say sample passed.
+          description: anyFailures
+            ? "Issues were found in the sample."
+            : "No issues found in the sample.",
+          outcome: aggregateOutcome,
+        },
+        subject: {
+          id: websiteId, // This targets the 'Entire Sample'
+          type: ["TestSubject", "Website"],
+          title: "Gemini Nano Audit",
+        },
+        test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
+      });
+      // ---------------------------------------------
+
+      // --- [KEPT] PER-PAGE CONSOLIDATED ASSERTIONS (Jules's Logic) ---
       const resultsByUrl = relevantResults.reduce((acc, item) => {
         if (!acc[item.url]) acc[item.url] = [];
         acc[item.url].push(item);
         return acc;
       }, {});
 
-      // Iterate through unique pages that had results for this criterion
       for (const [url, pageResults] of Object.entries(resultsByUrl)) {
-        // Determine aggregate verdict (FAIL overrides PASS)
+        // If Nano passed but Axe failed (or vice versa), the Page is a FAIL.
         const isFailure = pageResults.some((r) => r.verdict === "FAIL");
         const outcomeObj = isFailure
           ? {
@@ -147,14 +175,16 @@ export function generateEarlReport(auditResults) {
               title: "Passed",
             };
 
-        // Combine reasons into a readable summary
-        // Filter for relevant reasons (e.g. only failures if the outcome is fail)
+        // Combine descriptions from Nano and Axe
+        // If it's a failure, only show the failure reasons to keep it clean.
         const reasonsToReport = isFailure
           ? pageResults.filter((r) => r.verdict === "FAIL")
           : pageResults;
 
         const combinedDescription = reasonsToReport
           .map((r) => {
+            // [Nano] Found issues...
+            // [Axe] Contrast insufficient...
             const prefix = r.source ? `[${r.source}] ` : "";
             return `${prefix}${r.reason}`;
           })
@@ -170,13 +200,13 @@ export function generateEarlReport(auditResults) {
             description: combinedDescription,
             outcome: outcomeObj,
           },
-          subject: { id: urlToIdMap[url] }, // Links to the specific Page ID
+          subject: { id: urlToIdMap[url] },
           test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
         });
       }
     }
 
-    // If this ID was NEVER tested (no results found for it), add a global "Untested" assertion
+    // --- UNTESTED ASSERTION ---
     if (!hasResult) {
       allAssertions.push({
         type: "Assertion",
@@ -197,7 +227,6 @@ export function generateEarlReport(auditResults) {
     }
   });
 
-  // 3. RETURN REPORT
   return {
     "@context": {
       reporter: "http://github.com/w3c/wcag-em-report-tool/",
