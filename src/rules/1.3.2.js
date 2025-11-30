@@ -7,11 +7,11 @@ Task: Report WCAG 1.3.2 Meaningful Sequence violations.
 
 **INSTRUCTIONS**
 Review the input arrays.
-1. **If an array is empty:** Write NOTHING.
+1. **If an array is empty or missing:** Write NOTHING.
 2. **If an array has items:**
    - Write a summary sentence explaining the CSS issue.
-   - Create a Markdown list using dashes (-).
-   - **CRITICAL:** Start every list item on a new line using "\\n".
+   - List ONLY the first 2 examples found. Do not list everything.
+   - Use a bulleted format with a new line ("\\n") for each item.
 
 **REQUIRED FORMAT EXAMPLE**
 "CSS properties alter visual order:\\n- Login Button (reordered)\\n- Submit Button (floated)"
@@ -33,7 +33,6 @@ export function extractor() {
     )
       continue;
 
-    // Skip if parent hides it
     let parent = el.parentElement;
     let isHiddenByParent = false;
     while (parent) {
@@ -59,7 +58,6 @@ export function extractor() {
       reason += `flex-direction: ${flexDirection}; `;
     if (cssFloat && cssFloat !== "none") reason += `float: ${cssFloat}; `;
 
-    // Absolute check with noise filter
     if (position === "absolute" || position === "fixed") {
       const hasText = el.innerText.trim().length > 0;
       const isTiny = el.offsetWidth < 20 || el.offsetHeight < 20;
@@ -100,9 +98,14 @@ export function extractor() {
     }
   }
 
-  return {
-    orderingProperties: orderingProperties.slice(0, 5),
-    layoutTables: layoutTables.slice(0, 3),
-    elementsWithBadWhitespace: elementsWithBadWhitespace.slice(0, 5),
-  };
+  // --- RESTORED SMART RETURN ---
+  // Only return keys if they have items.
+  const result = {};
+  if (orderingProperties.length > 0)
+    result.orderingProperties = orderingProperties.slice(0, 5);
+  if (layoutTables.length > 0) result.layoutTables = layoutTables.slice(0, 3);
+  if (elementsWithBadWhitespace.length > 0)
+    result.elementsWithBadWhitespace = elementsWithBadWhitespace.slice(0, 5);
+
+  return result;
 }

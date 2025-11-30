@@ -1,35 +1,35 @@
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 
-// 1. SYSTEM PROMPT (Matched to 1.3.2 Style)
+// 1. SYSTEM PROMPT (Strictly uses computedVerdict)
 export const systemPrompt = `
-You are a precise accessibility auditor.
-Task: Report WCAG 1.4.1 Use of Color violations.
+You are a violation reporter.
+Task: Format the input JSON data into a simple bulleted list.
 
-**INSTRUCTIONS**
-Review the input data.
-1. **If a key is missing:** Do NOT write about it.
-2. **If a key exists:**
-   - Write the specific Summary Sentence defined below.
-   - Create a Markdown list using dashes (-).
-   - **CRITICAL:** Start every list item on a new line using the literal string "\\n".
+**VERDICT INSTRUCTION**
+- The input JSON contains a 'computedVerdict' field.
+- **You MUST use this value** for the output 'verdict'. Do not calculate it yourself.
 
-**SUMMARY SENTENCES**
-- For 'links': "Links relying on color were found:"
-- For 'formElements': "Form fields relying on color were found:"
-- For 'textFragments': "Text content relying on color was found:"
+**SECTION INSTRUCTIONS**
+- **If 'links' has items:**
+  Write: "Links relying on color were found:\\n"
+  Then list items using the 'text' field (Format: "- [text]\\n").
 
-**REQUIRED FORMAT EXAMPLE**
-"Links relying on color were found:\\n- Click Here\\n- Read More"
+- **If 'formElements' has items:**
+  Write: "Form fields relying on color were found:\\n"
+  Then list items using the 'text' field (Format: "- [text]\\n").
 
-**FINAL OUTPUT**
-- If NO items exist: {"verdict": "PASS", "reason": "No use-of-color violations were found."}
-- If items exist: {"verdict": "FAIL", "reason": "[Combine your summaries here]"}
+- **If 'textFragments' has items:**
+  Write: "Text content relying on color was found:\\n"
+  Then list items using the 'text' field (Format: "- [text]\\n").
+
+**FINAL OUTPUT JSON**
+- If computedVerdict is "PASS": {"verdict": "PASS", "reason": "No use-of-color violations were found.", "title": "[pageTitle]"}
+- If computedVerdict is "FAIL": {"verdict": "FAIL", "reason": "[Your generated lists]", "title": "[pageTitle]"}
 `;
 
 // 2. EXTRACTOR
 export function extractor() {
-  // --- HELPER: Visual Indicators ---
   function hasVisualIndicator(el, label) {
     const text = label ? label.innerText.toLowerCase() : "";
     if (
@@ -54,7 +54,6 @@ export function extractor() {
     return false;
   }
 
-  // --- HELPER: Color Difference ---
   function hasOnlyColorDifference(element, parent) {
     const s1 = window.getComputedStyle(element);
     const s2 = window.getComputedStyle(parent);
@@ -71,14 +70,12 @@ export function extractor() {
     return !isDistinct;
   }
 
-  // --- LINK CHECKER ---
   const failingLinks = [];
   const links = Array.from(document.querySelectorAll("a:not(nav a)"));
 
   for (const link of links) {
     if (link.offsetParent === null) continue;
 
-    // Ignore headings (h1-h6) or links inside them
     const parentTag = link.parentElement ? link.parentElement.tagName : "";
     if (
       ["H1", "H2", "H3", "H4", "H5", "H6"].includes(parentTag) ||
@@ -103,7 +100,6 @@ export function extractor() {
     if (failingLinks.length >= 5) break;
   }
 
-  // --- FORM CHECKER ---
   const failingForms = [];
   const inputs = Array.from(
     document.querySelectorAll("input, textarea, select")
@@ -124,7 +120,6 @@ export function extractor() {
       el.className.includes("error") || el.className.includes("invalid");
 
     if (isReq || isInv || isErr) {
-      // NOTE: Standardized key to 'text' so the Prompt is simpler
       failingForms.push({
         text: label ? label.innerText.substring(0, 30) : "Unlabeled Field",
       });
@@ -132,7 +127,6 @@ export function extractor() {
     if (failingForms.length >= 5) break;
   }
 
-  // --- TEXT FRAGMENT CHECKER ---
   const failingFragments = [];
   const allElements = document.body.getElementsByTagName("*");
 
@@ -172,12 +166,16 @@ export function extractor() {
   }
 
   // --- SMART RETURN ---
-  // 1. Capture Page Title
+  const hasFailures =
+    failingLinks.length > 0 ||
+    failingForms.length > 0 ||
+    failingFragments.length > 0;
+
   const result = {
     pageTitle: document.title,
+    computedVerdict: hasFailures ? "FAIL" : "PASS",
   };
 
-  // 2. Only add keys if they have data (Prevents AI hallucinations)
   if (failingLinks.length > 0) result.links = failingLinks;
   if (failingForms.length > 0) result.formElements = failingForms;
   if (failingFragments.length > 0) result.textFragments = failingFragments;

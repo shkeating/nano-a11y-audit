@@ -6,6 +6,7 @@
     "watch": "vite build --watch"
   },
   "dependencies": {
+    "axe-core": "^4.11.0",
     "papaparse": "^5.4.1"
   },
   "devDependencies": {
