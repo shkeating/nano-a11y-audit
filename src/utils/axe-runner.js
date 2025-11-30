@@ -131,9 +131,16 @@ export async function runAxeAudit(tabId) {
       // If still no mapping, stick to a generic or skip?
       // For now, we only report if we can map it to the EARL report requirements.
       if (earlId) {
+        // Build a detailed reason with specific node targets
+        const nodeDetails = violation.nodes.map(node => {
+            const target = node.target.join(', ');
+            const htmlSnippet = node.html ? ` (\`${node.html}\`)` : '';
+            return `- Element: ${target}${htmlSnippet}\n  Fix: ${node.failureSummary || 'Check element'}`;
+        }).join('\n');
+
         mappedResults.push({
           verdict: "FAIL",
-          reason: `${violation.help} (${violation.nodes.length} occurrences). ${violation.description}`,
+          reason: `${violation.help} (${violation.nodes.length} occurrences).\n${violation.description}\n${nodeDetails}`,
           earlId: earlId,
           pageTitle: pageTitle,
           source: "Axe",
