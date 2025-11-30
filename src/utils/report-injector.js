@@ -50,6 +50,12 @@ export function injectReportFunction(reportData) {
       fileInput.dispatchEvent(changeEvent);
 
       console.log("Nano A11y Auditor: Report injected successfully.");
+
+      // Navigate to the view report page after a short delay to allow the tool to process the data
+      setTimeout(() => {
+        window.location.href = "https://www.w3.org/WAI/eval/report-tool/evaluation/view-report";
+      }, 2000);
+
     } else if (attempts >= maxAttempts) {
       clearInterval(intervalId);
       console.error("Nano A11y Auditor: Timed out waiting for file input.");

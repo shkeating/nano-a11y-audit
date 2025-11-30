@@ -85,11 +85,14 @@ The browser will automatically navigate to each page. The logs in the side panel
 
 ### 3. Export & View Results
 
-1. Once the batch is complete, click **"Download Report Data"**.
-2. This downloads a `.json` file.
-3. Go to the [W3C WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
-4. Click Open Report and select your JSON file.
-5. Navigate to Step 4: Audit Sample to see your AI-generated results populated in the official reporting interface.
+The reporting process is fully automated:
+
+1.  Once the batch audit is complete, the extension will automatically download the EARL report (`nano-audit-report.json`).
+2.  It will simultaneously open a new tab to the [W3C WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
+3.  The report data is automatically injected into the tool.
+4.  Finally, the tab will navigate to the **View Report** page, where you can inspect the results across all tested pages.
+
+*(Note: You can still manually download the report using the button if needed.)*
 
 ## 🧪 Current Scope
 
