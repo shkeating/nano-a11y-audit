@@ -17,7 +17,7 @@ Review the input data.
 - For 'mismatchedElements': "Accessible names missing visible text were found:"
 
 **REQUIRED FORMAT EXAMPLE**
-"Accessible names missing visible text were found:\\n- Visible: 'Search', Accessible: 'Find'"
+"Accessible names missing visible text were found:\\n- Visible: '[visible label]', Accessible: '[accessible name]'"
 
 **FINAL OUTPUT**
 - If NO items exist: {"verdict": "PASS", "reason": "No label-in-name violations were found."}
