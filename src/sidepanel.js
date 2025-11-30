@@ -210,16 +210,49 @@ function finishAudit() {
   document.getElementById("startBtn").textContent = "Audit Complete";
 
   const earlReport = generateEarlReport(auditResults);
-  const blob = new Blob([JSON.stringify(earlReport, null, 2)], {
+  const jsonString = JSON.stringify(earlReport, null, 2);
+  const blob = new Blob([jsonString], {
     type: "application/json",
   });
   const url = URL.createObjectURL(blob);
 
+  // 1. Auto-download the JSON file
+  chrome.downloads.download({ url: url, filename: "nano-audit-report.json" }, (downloadId) => {
+    if (chrome.runtime.lastError) {
+      log(`⚠️ Download failed: ${chrome.runtime.lastError.message}`);
+    } else {
+      log(`⬇️ Report downloaded (ID: ${downloadId})`);
+    }
+  });
+
+  // Show download button anyway in case user wants to download again
   const btn = document.getElementById("downloadBtn");
   btn.style.display = "block";
   btn.onclick = () => {
     chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
   };
 
-  log("🏁 Done. Download your report.");
+  log("🏁 Done. Opening W3C Report Tool...");
+
+  // 2. Open W3C Report Tool and inject data
+  const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
+  chrome.tabs.create({ url: reportToolUrl }, (tab) => {
+    // Wait for tab to load
+    const listener = (tabId, changeInfo) => {
+      if (tabId === tab.id && changeInfo.status === "complete") {
+        chrome.tabs.onUpdated.removeListener(listener);
+        log("🚀 Injecting report into W3C Tool...");
+
+        // Send message to the injected content script
+        chrome.tabs.sendMessage(tab.id, { earlReport: earlReport }, (response) => {
+           if (chrome.runtime.lastError) {
+             log(`⚠️ Injection failed (is script loaded?): ${chrome.runtime.lastError.message}`);
+           } else {
+             log("✅ Report injected successfully.");
+           }
+        });
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
 }

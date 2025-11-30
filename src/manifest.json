@@ -11,11 +11,17 @@
     "storage",
     "downloads"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": ["<all_urls>", "https://www.w3.org/*"],
   "side_panel": {
     "default_path": "sidepanel.html"
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.w3.org/WAI/eval/report-tool/*"],
+      "js": ["src/utils/report-injector.js"]
+    }
+  ]
 }
