@@ -3,9 +3,13 @@ export const earlId = "WCAG22:sensory-characteristics";
 
 export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 1.3.3 Sensory Characteristics.
-Task: Identify instructions that rely *solely* on sensory characteristics to be understood.
+Task: Identify **instructions** that rely *solely* on sensory characteristics to be understood.
 
-**CRITERIA**
+**DEFINITION OF AN INSTRUCTION**
+An instruction must tell the user to **DO** something (Click, Use, Select, Look at, Press).
+If the text is just a statement of fact, a label, or a title, IT IS NOT A VIOLATION.
+
+**CRITERIA (Flag ONLY if an action is required)**
 Flag text describing:
 - Shape (round, square, triangle)
 - Size (large, small, big, tiny)
@@ -13,12 +17,26 @@ Flag text describing:
 - Location (on the right, at the bottom, left, top)
 - Sound (beep, chime, ring)
 
+**STRICT NEGATIVE CONSTRAINTS (IGNORE THESE)**
+1. **Test Suite Titles:** IGNORE page titles or test labels like:
+   - "Link only identifiable by colour alone"
+   - "Image with partial text alternative"
+   - "Content identified by location"
+   These are labels for the test case, not instructions to the user.
+
+2. **Alt Text & Image Quality:** DO NOT flag images for having bad or missing alt text. That is WCAG 1.1.1.
+   - Bad: "The text alternative is insufficient..." -> IGNORE.
+   - Good: "Instructions rely on 'green icon'..." -> REPORT.
+
+3. **Link Design:** DO NOT flag links for being color-only. That is WCAG 1.4.1.
+
 **EXAMPLES**
-- Violation: "Click the green button to continue." (Relies solely on color).
-- Violation: "Use the round icon to settings." (Relies solely on shape).
-- Violation: "Instructions are in the right column." (Relies solely on location).
-- Pass: "Click the green 'Start' button." (Passes because it includes the label 'Start').
-- Pass: "Press the Delete key (red button)." (Passes because it identifies the key).
+- Violation: "Click the **green** button." (Action + Color = Fail)
+- Violation: "See the sidebar on the **left**." (Action + Location = Fail)
+- Pass: "Link only identifiable by colour alone." (No action verb = Pass)
+- Pass: "Image with partial text alternative." (No action verb = Pass)
+- Pass: "Red button." (Label only = Pass)
+- Pass: "Click the 'Submit' button (green)." (Has text label 'Submit' = Pass)
 
 **OUTPUT FORMAT**
 Return a JSON object with a "verdict" and a "reason".
@@ -31,22 +49,23 @@ Return a JSON object with a "verdict" and a "reason".
 export function extractor() {
   const potentialInstructions = [];
   // Select elements likely to contain instructions
-  const elements = Array.from(document.querySelectorAll("p, li, span, div, td, th"));
+  const elements = Array.from(
+    document.querySelectorAll("p, li, span, div, td, th")
+  );
 
   for (const el of elements) {
     // Basic visibility check
     if (el.offsetParent === null) continue;
 
-    // Get direct text content or text content if it's a small leaf node
+    // Get direct text content
     const text = el.innerText.trim();
 
-    // Filter: Ignore empty text, script tags (handled by querySelector), and very short strings
+    // Filter: Ignore empty text, script tags, and very short strings
     if (!text || text.length < 10) continue;
 
-    // Heuristic: Instructions often contain imperative verbs or directional words,
-    // but for this rule, we want to capture general text that might contain sensory refs.
-    // We rely on the AI to filter, so we just send candidates.
-    // To avoid duplication, check if we already have this text (simple check)
+    // Filter: Ignore code blocks or technical strings
+    if (text.startsWith("<") || text.includes("{")) continue;
+
     if (potentialInstructions.includes(text)) continue;
 
     potentialInstructions.push(text);

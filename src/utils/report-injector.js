@@ -1,64 +1,97 @@
-
 /**
- * This function is intended to be injected into the W3C Report Tool page.
- * It simulates a file upload to populate the tool with the generated EARL report.
- *
- * @param {Object} reportData - The JSON object containing the EARL report.
+ * Injects report data into the W3C Report Tool.
+ * Uses robust polling to handle SPA loading times.
  */
 export function injectReportFunction(reportData) {
   console.log("Nano A11y Auditor: Injector script running...");
 
-  // Select the element next to the hidden input/control, which acts as the visible button
-  const inputElement = document.getElementById("evaluation_open");
-  if (!inputElement) {
-      console.warn("Nano A11y Auditor: Could not find 'Open Report' input (id=evaluation_open).");
-      return;
-  }
-  const openButton = inputElement.nextElementSibling;
-  if (!openButton) {
-    console.warn("Nano A11y Auditor: Could not find 'Open Report' button (nextElementSibling of id=evaluation_open).");
-    return;
-  }
+  const MAX_ATTEMPTS = 20;
+  let setupAttempts = 0;
 
-  openButton.click();
-  console.log("Nano A11y Auditor: Clicked 'Open Report'. Waiting for file input...");
+  // POLL 1: Find the "Open Report" Button (Handles App Boot Delay)
+  const setupInterval = setInterval(() => {
+    setupAttempts++;
 
-  // Poll for the file input since it appears in a modal
-  const maxAttempts = 20;
-  let attempts = 0;
+    // Strategy A: Semantic Label (Best)
+    let openButton = document.querySelector('label[for="evaluation_open"]');
 
-  const intervalId = setInterval(() => {
-    attempts++;
-    // Look for an input of type file.
-    const fileInput = document.querySelector('input[type="file"]');
+    // Strategy B: Visible Text (Fallback)
+    if (!openButton) {
+      const candidates = Array.from(
+        document.querySelectorAll("button, label, a")
+      );
+      openButton = candidates.find(
+        (el) => el.innerText && el.innerText.trim().includes("Open Report")
+      );
+    }
 
-    if (fileInput) {
-      clearInterval(intervalId);
-      console.log("Nano A11y Auditor: Found file input. Injecting data...");
+    // Strategy C: Legacy Sibling
+    if (!openButton) {
+      const input = document.getElementById("evaluation_open");
+      if (input) openButton = input.nextElementSibling;
+    }
 
-      const jsonString = JSON.stringify(reportData, null, 2);
-      const file = new File([jsonString], "nano-audit-report.json", {
-        type: "application/json",
-      });
-
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-
-      // Dispatch change event to trigger the tool's import logic
-      const changeEvent = new Event("change", { bubbles: true });
-      fileInput.dispatchEvent(changeEvent);
-
-      console.log("Nano A11y Auditor: Report injected successfully.");
-
-      // Navigate to the view report page after a short delay to allow the tool to process the data
-      setTimeout(() => {
-        window.location.href = "https://www.w3.org/WAI/eval/report-tool/evaluation/view-report";
-      }, 2000);
-
-    } else if (attempts >= maxAttempts) {
-      clearInterval(intervalId);
-      console.error("Nano A11y Auditor: Timed out waiting for file input.");
+    if (openButton) {
+      clearInterval(setupInterval);
+      openButton.click();
+      console.log(
+        "Nano A11y Auditor: 'Open Report' clicked. Waiting for file input..."
+      );
+      waitForFileInput(); // Proceed to next step
+    } else if (setupAttempts >= MAX_ATTEMPTS) {
+      clearInterval(setupInterval);
+      console.error(
+        "Nano A11y Auditor: Timed out finding 'Open Report' button."
+      );
     }
   }, 500);
+
+  function waitForFileInput() {
+    let inputAttempts = 0;
+    const inputInterval = setInterval(() => {
+      inputAttempts++;
+      const fileInput = document.querySelector('input[type="file"]');
+
+      if (fileInput) {
+        clearInterval(inputInterval);
+        console.log("Nano A11y Auditor: File input found. Uploading...");
+
+        // Inject Data
+        const jsonString = JSON.stringify(reportData, null, 2);
+        const file = new File([jsonString], "nano-audit-report.json", {
+          type: "application/json",
+        });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInput.files = dataTransfer.files;
+        fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+        console.log("Nano A11y Auditor: Success!");
+        navigateToViewReport(); // Proceed to final step
+      } else if (inputAttempts >= MAX_ATTEMPTS) {
+        clearInterval(inputInterval);
+        console.error("Nano A11y Auditor: Timed out waiting for file input.");
+      }
+    }, 500);
+  }
+
+  function navigateToViewReport() {
+    setTimeout(() => {
+      console.log("Nano A11y Auditor: Navigating to View Report...");
+      let viewBtn = document.querySelector('a[href*="view-report"]');
+
+      if (!viewBtn) {
+        viewBtn = Array.from(document.querySelectorAll("a, button")).find(
+          (el) =>
+            el.innerText && el.innerText.trim().toLowerCase() === "view report"
+        );
+      }
+
+      if (viewBtn) viewBtn.click();
+      else
+        console.warn(
+          "Nano A11y Auditor: Could not auto-navigate to View Report."
+        );
+    }, 2500);
+  }
 }
