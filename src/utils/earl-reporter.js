@@ -129,20 +129,42 @@ export function generateEarlReport(auditResults) {
 
     if (relevantResults.length > 0) {
       hasResult = true;
-      // Generate an assertion for EACH result found
-      relevantResults.forEach((item) => {
-        const outcomeObj =
-          item.verdict === "FAIL"
-            ? {
-                id: "earl:failed",
-                type: ["OutcomeValue", "Fail"],
-                title: "Failed",
-              }
-            : {
-                id: "earl:passed",
-                type: ["OutcomeValue", "Pass"],
-                title: "Passed",
-              };
+
+      // Group results by URL to create consolidated assertions per page
+      const resultsByUrl = relevantResults.reduce((acc, item) => {
+        if (!acc[item.url]) acc[item.url] = [];
+        acc[item.url].push(item);
+        return acc;
+      }, {});
+
+      // Iterate through unique pages that had results for this criterion
+      for (const [url, pageResults] of Object.entries(resultsByUrl)) {
+        // Determine aggregate verdict (FAIL overrides PASS)
+        const isFailure = pageResults.some((r) => r.verdict === "FAIL");
+        const outcomeObj = isFailure
+          ? {
+              id: "earl:failed",
+              type: ["OutcomeValue", "Fail"],
+              title: "Failed",
+            }
+          : {
+              id: "earl:passed",
+              type: ["OutcomeValue", "Pass"],
+              title: "Passed",
+            };
+
+        // Combine reasons into a readable summary
+        // Filter for relevant reasons (e.g. only failures if the outcome is fail)
+        const reasonsToReport = isFailure
+          ? pageResults.filter((r) => r.verdict === "FAIL")
+          : pageResults;
+
+        const combinedDescription = reasonsToReport
+          .map((r) => {
+            const prefix = r.source ? `[${r.source}] ` : "";
+            return `${prefix}${r.reason}`;
+          })
+          .join("\n\n");
 
         allAssertions.push({
           type: "Assertion",
@@ -151,13 +173,13 @@ export function generateEarlReport(auditResults) {
           result: {
             type: "TestResult",
             date: date,
-            description: item.reason,
+            description: combinedDescription,
             outcome: outcomeObj,
           },
-          subject: { id: urlToIdMap[item.url] }, // Links to the specific Page ID
+          subject: { id: urlToIdMap[url] }, // Links to the specific Page ID
           test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
         });
-      });
+      }
     }
 
     // If this ID was NEVER tested (no results found for it), add a global "Untested" assertion
