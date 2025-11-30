@@ -72,7 +72,7 @@ export async function runAxeAudit(tabId) {
     // 1. Inject Axe Core
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ["utils/axe.min.js"],
+      files: ["lib/axe.min.js"],
     });
 
     // 2. Run Axe in the context of the page

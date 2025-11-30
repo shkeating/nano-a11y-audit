@@ -1,186 +1,151 @@
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 
-// 1. SYSTEM PROMPT (Matched to 1.3.2 Style)
+// 1. HARDENED PROMPT
 export const systemPrompt = `
-You are a precise accessibility auditor.
-Task: Report WCAG 1.4.1 Use of Color violations.
+You are a strict accessibility auditor who writes in plain, easy-to-understand language.
+Task: Check for WCAG 1.4.1 violations based on the provided JSON data.
+The JSON has three arrays: 'links', 'formElements', 'textFragments'.
 
-**INSTRUCTIONS**
-Review the input data.
-1. **If a key is missing:** Do NOT write about it.
-2. **If a key exists:**
-   - Write the specific Summary Sentence defined below.
-   - Create a Markdown list using dashes (-).
-   - **CRITICAL:** Start every list item on a new line using the literal string "\\n".
+Analyze each array based on the rules below.
 
-**SUMMARY SENTENCES**
-- For 'links': "Links relying on color were found:"
-- For 'formElements': "Form fields relying on color were found:"
-- For 'textFragments': "Text content relying on color was found:"
+**Rule 1: Links using only color**
+- A link from the 'links' array fails if 'isUnderlined' is false, 'isBold' is false, and 'hasBorder' is false.
+- For each failing link, get its 'text'.
+- If you find any failing links, generate a sentence with this exact format: "The link(s) '[link text 1]' and '[link text 2]' rely only on color to differentiate themselves from other text to communicate visually link interactivity. Add an underline or make them bold." (Use the collected texts, quoted and joined naturally).
 
-**REQUIRED FORMAT EXAMPLE**
-"Links relying on color were found:\\n- Click Here\\n- Read More"
+**Rule 2: Form fields using only color**
+- A form element from the 'formElements' array fails if ('isRequired' is true or 'isInvalid' is true) AND 'hasVisibleLabelAsterisk' is false AND 'hasDescribedByError' is false.
+- For each failing form element, get its 'label'.
+- If you find any failing form elements, generate a sentence with this exact format: "The form field(s) '[field label 1]' and '[field label 2]' use only color to indicate they are required or invalid. Add an asterisk to the label or a visible error message that does not rely on color." (Use the collected labels, quoted and joined naturally).
 
-**FINAL OUTPUT**
-- If NO items exist: {"verdict": "PASS", "reason": "No use-of-color violations were found."}
-- If items exist: {"verdict": "FAIL", "reason": "[Combine your summaries here]"}
+**Rule 3: Text fragments using only color**
+- Any fragment in the 'textFragments' array is considered a failure. These have been pre-identified as being distinguished by color alone.
+- For each failing fragment, get its 'text'.
+- If the 'textFragments' array is not empty, generate a sentence with this exact format: "There are text fragment(s) such as '[fragment text 1]' and '[fragment text 2]' that rely only on color to convey information. Use bold, underline, or other non-color indicators to distinguish them." (Use the collected texts, quoted and joined naturally).
+
+**Final Output**
+- If there are no failures from any of the rules, the final verdict is "PASS".
+- If there are any failures, the final verdict is "FAIL".
+- Combine all generated failure sentences, each on a new line, for the 'reason'.
+- Return ONLY the raw JSON object in the format {"verdict": "PASS"|"FAIL", "reason": "Your combined explanation(s) here."}
 `;
 
 // 2. EXTRACTOR
 export function extractor() {
-  // --- HELPER: Visual Indicators ---
-  function hasVisualIndicator(el, label) {
-    const text = label ? label.innerText.toLowerCase() : "";
-    if (
-      text.includes("*") ||
-      text.includes("required") ||
-      text.includes("error")
-    )
-      return true;
+  // Sample links with unique styles, ignoring links in <nav>, to avoid exceeding token limits
+  const allLinks = Array.from(document.querySelectorAll("a"));
+  const linksOutsideNav = allLinks.filter(link => !link.closest('nav'));
+  const uniqueStyledLinks = new Map();
+  const MAX_LINKS_TO_SAMPLE = 50; // Hard cap for safety
 
-    if (label) {
-      const styles = [
-        window.getComputedStyle(label, "::before"),
-        window.getComputedStyle(label, "::after"),
-      ];
-      if (styles.some((s) => s.content.includes("*"))) return true;
-    }
-
-    const describedBy = el.getAttribute("aria-describedby");
-    if (describedBy && document.getElementById(describedBy)) {
-      return document.getElementById(describedBy).innerText.trim().length > 0;
-    }
-    return false;
-  }
-
-  // --- HELPER: Color Difference ---
-  function hasOnlyColorDifference(element, parent) {
-    const s1 = window.getComputedStyle(element);
-    const s2 = window.getComputedStyle(parent);
-
-    if (s1.color === s2.color) return false;
-
-    const isDistinct =
-      s1.fontWeight !== s2.fontWeight ||
-      s1.fontStyle !== s2.fontStyle ||
-      s1.textDecorationLine !== s2.textDecorationLine ||
-      s1.borderBottomStyle !== s2.borderBottomStyle ||
-      s1.backgroundColor !== s2.backgroundColor;
-
-    return !isDistinct;
-  }
-
-  // --- LINK CHECKER ---
-  const failingLinks = [];
-  const links = Array.from(document.querySelectorAll("a:not(nav a)"));
-
-  for (const link of links) {
-    if (link.offsetParent === null) continue;
-
-    // Ignore headings (h1-h6) or links inside them
-    const parentTag = link.parentElement ? link.parentElement.tagName : "";
-    if (
-      ["H1", "H2", "H3", "H4", "H5", "H6"].includes(parentTag) ||
-      ["H1", "H2", "H3", "H4", "H5", "H6"].includes(link.tagName)
-    ) {
-      continue;
-    }
+  for (const link of linksOutsideNav) {
+    if (link.offsetParent === null) continue; // Ignore non-visible links
 
     const s = window.getComputedStyle(link);
-    if (
-      s.textDecorationLine.includes("underline") ||
-      parseInt(s.fontWeight) >= 700 ||
-      s.fontWeight === "bold" ||
-      s.borderBottomStyle !== "none"
-    )
-      continue;
+    const isBold = s.fontWeight === "700" || s.fontWeight === "bold" || parseInt(s.fontWeight) >= 700;
+    const isUnderlined = s.textDecorationLine.includes("underline");
+    const hasBorder = s.borderBottomStyle !== "none";
 
-    const txt = link.innerText.trim();
-    if (txt.length > 0) {
-      failingLinks.push({ text: txt.substring(0, 40) });
+    const signature = `${s.color}|${s.backgroundColor}|${isBold}|${isUnderlined}|${hasBorder}`;
+
+    if (!uniqueStyledLinks.has(signature)) {
+      uniqueStyledLinks.set(signature, {
+        text: link.innerText.substring(0, 20),
+        color: s.color,
+        isUnderlined: isUnderlined,
+        isBold: isBold,
+        hasBorder: hasBorder,
+      });
     }
-    if (failingLinks.length >= 5) break;
-  }
 
-  // --- FORM CHECKER ---
-  const failingForms = [];
-  const inputs = Array.from(
+    if (uniqueStyledLinks.size >= MAX_LINKS_TO_SAMPLE) {
+        break;
+    }
+  }
+  const links = Array.from(uniqueStyledLinks.values());
+
+  const formElements = Array.from(
     document.querySelectorAll("input, textarea, select")
   );
 
-  for (const el of inputs) {
-    if (el.offsetParent === null) continue;
-    if (["submit", "button", "hidden", "image"].includes(el.type)) continue;
+  function hasOnlyColorDifference(element, parent) {
+    const elementStyle = window.getComputedStyle(element);
+    const parentStyle = window.getComputedStyle(parent);
 
-    const label = el.labels?.[0];
-    if (hasVisualIndicator(el, label)) continue;
-
-    const isReq =
-      el.hasAttribute("required") ||
-      el.getAttribute("aria-required") === "true";
-    const isInv = el.getAttribute("aria-invalid") === "true";
-    const isErr =
-      el.className.includes("error") || el.className.includes("invalid");
-
-    if (isReq || isInv || isErr) {
-      // NOTE: Standardized key to 'text' so the Prompt is simpler
-      failingForms.push({
-        text: label ? label.innerText.substring(0, 30) : "Unlabeled Field",
-      });
+    if (elementStyle.color === parentStyle.color) {
+      return false; // No color difference
     }
-    if (failingForms.length >= 5) break;
+
+    // Check for other differences that provide non-color-based distinction
+    const fontWeightChanged = elementStyle.fontWeight !== parentStyle.fontWeight;
+    const fontStyleChanged = elementStyle.fontStyle !== parentStyle.fontStyle;
+    const textDecorationChanged =
+      elementStyle.textDecorationLine !== parentStyle.textDecorationLine;
+    const borderBottomChanged =
+      elementStyle.borderBottomStyle !== parentStyle.borderBottomStyle;
+    const backgroundChanged =
+      elementStyle.backgroundColor !== parentStyle.backgroundColor;
+    const beforeContentChanged =
+      window.getComputedStyle(element, "::before").content !== "none";
+    const afterContentChanged =
+      window.getComputedStyle(element, "::after").content !== "none";
+
+    return !(
+      fontWeightChanged ||
+      fontStyleChanged ||
+      textDecorationChanged ||
+      borderBottomChanged ||
+      backgroundChanged ||
+      beforeContentChanged ||
+      afterContentChanged
+    );
   }
 
-  // --- TEXT FRAGMENT CHECKER ---
-  const failingFragments = [];
+  const textFragments = [];
   const allElements = document.body.getElementsByTagName("*");
 
   for (const el of allElements) {
-    if (el.offsetParent === null) continue;
-    if (
-      [
-        "SCRIPT",
-        "STYLE",
-        "NOSCRIPT",
-        "A",
-        "BUTTON",
-        "INPUT",
-        "SELECT",
-        "TEXTAREA",
-      ].includes(el.tagName)
-    )
-      continue;
-
-    const hasDirectText = Array.from(el.childNodes).some(
-      (node) =>
-        node.nodeType === Node.TEXT_NODE && node.nodeValue.trim().length > 0
-    );
-
-    if (hasDirectText) {
+    // Check if it's a leaf element in terms of element nodes.
+    if (el.children.length === 0 && el.textContent.trim().length > 0) {
       const parent = el.parentElement;
-      if (parent && hasOnlyColorDifference(el, parent)) {
-        const txt = el.innerText.trim();
-        if (txt.length > 0) {
-          failingFragments.push({
-            text: txt.substring(0, 40),
+      if (parent && parent.children.length > 1) {
+        if (hasOnlyColorDifference(el, parent)) {
+          textFragments.push({
+            text: el.innerText.substring(0, 30),
+            tagName: el.tagName.toLowerCase(),
           });
         }
       }
     }
-    if (failingFragments.length >= 5) break;
   }
 
-  // --- SMART RETURN ---
-  // 1. Capture Page Title
-  const result = {
+  return {
     pageTitle: document.title,
+    links,
+    formElements: formElements.map((el) => {
+      const s = window.getComputedStyle(el);
+      const label = el.labels?.[0];
+      const describedById = el.getAttribute("aria-describedby");
+      let describedByText = "";
+      if (describedById) {
+        const describedByEl = document.getElementById(describedById);
+        if (describedByEl) {
+          describedByText = describedByEl.innerText;
+        }
+      }
+
+      return {
+        tagName: el.tagName.toLowerCase(),
+        label: label?.innerText.substring(0, 30),
+        color: s.color,
+        borderColor: s.borderColor,
+        isRequired: el.required,
+        isInvalid: el.getAttribute("aria-invalid") === "true",
+        hasVisibleLabelAsterisk: label?.innerText.includes("*") ?? false,
+        hasDescribedByError: describedByText.trim().length > 0,
+      };
+    }),
+    textFragments,
   };
-
-  // 2. Only add keys if they have data (Prevents AI hallucinations)
-  if (failingLinks.length > 0) result.links = failingLinks;
-  if (failingForms.length > 0) result.formElements = failingForms;
-  if (failingFragments.length > 0) result.textFragments = failingFragments;
-
-  return result;
 }

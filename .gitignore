@@ -10,8 +10,6 @@ data/results/*.csv
 
 # Ignore your main dataset if it's huge
 data/urls.csv
-node_modules/*
-dist/*
 
 # ignore tester html files for now
 test-files/*.html
