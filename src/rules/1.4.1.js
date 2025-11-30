@@ -1,4 +1,3 @@
-/* src/rules/1.4.1.js */
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 
@@ -30,7 +29,7 @@ Task: Format the input JSON data into a simple bulleted list.
 `;
 
 // 2. EXTRACTOR
-export function extractor() {
+export function extractor(incompleteSelectors = []) {
   // --- HELPERS ---
   function parseRgb(colorStr) {
     const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
@@ -59,45 +58,76 @@ export function extractor() {
     return (lighter + 0.05) / (darker + 0.05);
   }
 
+  /**
+   * REVISED Hover Check
+   * Iterates all rules to simulate cascade (last match wins).
+   */
   function hasValidHoverStyle(element) {
+    let hasCue = false; // Default assumption: no hover cue
+
     for (const sheet of document.styleSheets) {
       try {
         const rules = sheet.cssRules || sheet.rules;
         if (!rules) continue;
+
         for (const rule of rules) {
           if (!rule.selectorText || !rule.selectorText.includes(":hover"))
             continue;
 
-          // Simplified match check: if the rule is for 'a:hover' and we are an 'a'
-          // Ideally we'd use element.matches(rule.selectorText) but we can't match :hover state js
-          // So we check if the element matches the selector *stripped* of :hover
           const selectors = rule.selectorText.split(",");
           for (const sel of selectors) {
             if (!sel.includes(":hover")) continue;
+
+            // Check if this rule applies to our element
             const baseSel = sel.replace(/:hover/g, "").trim();
-            // If baseSel is empty (was just a:hover) or element matches base
-            if (
-              (baseSel === "" || baseSel === "a" || element.matches(baseSel)) &&
-              (rule.style.textDecorationLine?.includes("underline") ||
-                rule.style.textDecoration?.includes("underline") ||
-                rule.style.borderBottomStyle !== "none")
-            ) {
-              return true;
+            const matches =
+              baseSel === "" || baseSel === "a" || element.matches(baseSel);
+
+            if (matches) {
+              const s = rule.style;
+
+              // Check for adding a cue (Underline or Border)
+              if (
+                s.textDecorationLine?.includes("underline") ||
+                s.textDecoration?.includes("underline") ||
+                (s.borderBottomStyle && s.borderBottomStyle !== "none")
+              ) {
+                hasCue = true;
+              }
+              // Check for REMOVING a cue (text-decoration: none)
+              else if (
+                s.textDecorationLine?.includes("none") ||
+                s.textDecoration === "none"
+              ) {
+                hasCue = false;
+              }
             }
           }
         }
       } catch (e) {
+        // CORS blocked
         continue;
       }
     }
-    return false;
+    return hasCue;
   }
 
-  // --- 1. LINK LOGIC (G183) ---
+  // --- 1. LINK LOGIC (Smart Mode) ---
   const failingLinks = [];
-  const links = Array.from(document.querySelectorAll("a:not(nav a)"));
+  let linksToCheck = [];
 
-  for (const link of links) {
+  if (incompleteSelectors && incompleteSelectors.length > 0) {
+    // Only check what Axe flagged as "Incomplete"
+    incompleteSelectors.forEach((sel) => {
+      const el = document.querySelector(sel);
+      if (el) linksToCheck.push(el);
+    });
+  } else {
+    // Fallback: Scan everything
+    linksToCheck = Array.from(document.querySelectorAll("a:not(nav a)"));
+  }
+
+  for (const link of linksToCheck) {
     if (link.offsetParent === null) continue;
     const parent = link.parentElement;
     if (!parent) continue;
@@ -113,6 +143,7 @@ export function extractor() {
       s.borderBottomStyle !== "none" && parseFloat(s.borderBottomWidth) > 0;
     const hasBold = parseInt(s.fontWeight) >= 700 || s.fontWeight === "bold";
 
+    // Static check
     if (hasUnderline || hasBorder) continue;
 
     const linkColor = s.color;
@@ -120,20 +151,21 @@ export function extractor() {
     const ratio = getContrastRatio(linkColor, parentColor);
 
     if (ratio !== null) {
-      // Failure Condition 1: Contrast < 3:1 (Fail regardless of bold/hover)
+      // 1. Hard Fail: Contrast too low (< 3:1)
       if (ratio < 3.0) {
         failingLinks.push({
           text: link.innerText.substring(0, 40),
           issue: `Contrast ${ratio.toFixed(2)}:1 is too low (<3:1).`,
         });
       }
-      // Failure Condition 2: Contrast >= 3:1 but NO additional visual cue (hover/bold)
+      // 2. Conditional Fail: Contrast OK, but NO visual cue on hover
+      // We explicitly check !hasValidHoverStyle here.
       else if (!hasBold && !hasValidHoverStyle(link)) {
         failingLinks.push({
           text: link.innerText.substring(0, 40),
           issue: `Contrast OK (${ratio.toFixed(
             2
-          )}:1) but missing underline on hover.`,
+          )}:1) but missing visual cue on hover.`,
         });
       }
     }
@@ -184,8 +216,64 @@ export function extractor() {
     if (failingForms.length >= 5) break;
   }
 
+  // --- 3. TEXT FRAGMENT LOGIC ---
+  function hasOnlyColorDifference(element, parent) {
+    const s1 = window.getComputedStyle(element);
+    const s2 = window.getComputedStyle(parent);
+    if (s1.color === s2.color) return false;
+
+    return (
+      s1.fontWeight === s2.fontWeight &&
+      s1.fontStyle === s2.fontStyle &&
+      s1.textDecorationLine === s2.textDecorationLine &&
+      s1.borderBottomStyle === s2.borderBottomStyle &&
+      s1.backgroundColor === s2.backgroundColor
+    );
+  }
+
+  const failingFragments = [];
+  const allElements = document.body.getElementsByTagName("*");
+
+  for (const el of allElements) {
+    if (el.offsetParent === null) continue;
+    if (
+      [
+        "SCRIPT",
+        "STYLE",
+        "NOSCRIPT",
+        "A",
+        "BUTTON",
+        "INPUT",
+        "SELECT",
+        "TEXTAREA",
+        "NAV",
+      ].includes(el.tagName)
+    )
+      continue;
+
+    const hasDirectText = Array.from(el.childNodes).some(
+      (node) =>
+        node.nodeType === Node.TEXT_NODE && node.nodeValue.trim().length > 0
+    );
+
+    if (hasDirectText) {
+      const parent = el.parentElement;
+      if (parent && hasOnlyColorDifference(el, parent)) {
+        const txt = el.innerText.trim();
+        if (txt.length > 0) {
+          failingFragments.push({ text: txt.substring(0, 40) });
+        }
+      }
+    }
+    if (failingFragments.length >= 5) break;
+  }
+
   // --- RESULT GENERATION ---
-  const hasFailures = failingLinks.length > 0 || failingForms.length > 0;
+  const hasFailures =
+    failingLinks.length > 0 ||
+    failingForms.length > 0 ||
+    failingFragments.length > 0;
+
   const result = {
     pageTitle: document.title,
     computedVerdict: hasFailures ? "FAIL" : "PASS",
@@ -193,6 +281,7 @@ export function extractor() {
 
   if (failingLinks.length > 0) result.links = failingLinks;
   if (failingForms.length > 0) result.formElements = failingForms;
+  if (failingFragments.length > 0) result.textFragments = failingFragments;
 
   return result;
 }
