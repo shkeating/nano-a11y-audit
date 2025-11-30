@@ -3,7 +3,9 @@
  * Handles the generation of the W3C EARL (Evaluation and Report Language) JSON-LD reports.
  */
 
-const ALL_VALID_IDS = [
+// We keep this list as a baseline for "Untested" assertions (so the report isn't empty).
+// But we will MERGE this with actual results to ensure we cover everything.
+const BASELINE_IDS = [
   "WCAG22:non-text-content",
   "WCAG22:audio-only-and-video-only-prerecorded",
   "WCAG22:captions-prerecorded",
@@ -112,7 +114,11 @@ export function generateEarlReport(auditResults) {
   // 2. GENERATE ALL ASSERTIONS
   const allAssertions = [];
 
-  ALL_VALID_IDS.forEach((fullId) => {
+  // DYNAMIC MERGE: Combine Baseline IDs with any new IDs found in the results
+  const resultIds = new Set(auditResults.map((r) => r.earlId));
+  const combinedIds = new Set([...BASELINE_IDS, ...resultIds]);
+
+  combinedIds.forEach((fullId) => {
     // Get all results for this specific SC (Criteria)
     const relevantResults = auditResults.filter((r) => r.earlId === fullId);
     let hasResult = false;
@@ -120,8 +126,7 @@ export function generateEarlReport(auditResults) {
     if (relevantResults.length > 0) {
       hasResult = true;
 
-      // --- [RESTORED] AGGREGATE WEBSITE ASSERTION ---
-      // Check if *any* page in the sample failed this criteria
+      // --- AGGREGATE WEBSITE ASSERTION ---
       const anyFailures = relevantResults.some((r) => r.verdict === "FAIL");
       const aggregateOutcome = anyFailures
         ? { id: "earl:failed", type: ["OutcomeValue", "Fail"], title: "Failed" }
@@ -138,22 +143,20 @@ export function generateEarlReport(auditResults) {
         result: {
           type: "TestResult",
           date: date,
-          // If failed, say issues found. If pass, say sample passed.
           description: anyFailures
             ? "Issues were found in the sample."
             : "No issues found in the sample.",
           outcome: aggregateOutcome,
         },
         subject: {
-          id: websiteId, // This targets the 'Entire Sample'
+          id: websiteId,
           type: ["TestSubject", "Website"],
           title: "Gemini Nano Audit",
         },
         test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
       });
-      // ---------------------------------------------
 
-      // --- [KEPT] PER-PAGE CONSOLIDATED ASSERTIONS (Jules's Logic) ---
+      // --- PER-PAGE DETAILED ASSERTIONS ---
       const resultsByUrl = relevantResults.reduce((acc, item) => {
         if (!acc[item.url]) acc[item.url] = [];
         acc[item.url].push(item);
@@ -161,7 +164,6 @@ export function generateEarlReport(auditResults) {
       }, {});
 
       for (const [url, pageResults] of Object.entries(resultsByUrl)) {
-        // If Nano passed but Axe failed (or vice versa), the Page is a FAIL.
         const isFailure = pageResults.some((r) => r.verdict === "FAIL");
         const outcomeObj = isFailure
           ? {
@@ -173,20 +175,22 @@ export function generateEarlReport(auditResults) {
               id: "earl:passed",
               type: ["OutcomeValue", "Pass"],
               title: "Passed",
+              // For passes, just use the first "pass" reason or generic text
+              // description: "Pass"
             };
 
-        // Combine descriptions from Nano and Axe
-        // If it's a failure, only show the failure reasons to keep it clean.
-        const reasonsToReport = isFailure
+        // Only show Failure details in the description to keep it readable,
+        // unless it's a pass, then show the pass reason.
+        const itemsToDescribe = isFailure
           ? pageResults.filter((r) => r.verdict === "FAIL")
-          : pageResults;
+          : pageResults; // If all passed, show pass details
 
-        const combinedDescription = reasonsToReport
+        const combinedDescription = itemsToDescribe
           .map((r) => {
-            // [Nano] Found issues...
-            // [Axe] Contrast insufficient...
             const prefix = r.source ? `[${r.source}] ` : "";
-            return `${prefix}${r.reason}`;
+            // NEW: Include Rule ID if available (e.g., "link-in-text-block")
+            const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
+            return `${prefix}${r.reason}${ruleSuffix}`;
           })
           .join("\n\n");
 
@@ -206,7 +210,7 @@ export function generateEarlReport(auditResults) {
       }
     }
 
-    // --- UNTESTED ASSERTION ---
+    // --- UNTESTED ASSERTION (If no results found for this ID) ---
     if (!hasResult) {
       allAssertions.push({
         type: "Assertion",

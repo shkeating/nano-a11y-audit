@@ -1,16 +1,25 @@
 // src/utils/axe-runner.js
 
-// Mapping from Axe tags/rules to EARL IDs used in earl-reporter.js (ALL_VALID_IDS)
+// Comprehensive mapping from Axe tags/rules to EARL IDs used in earl-reporter.js
 const AXE_TO_EARL_MAP = {
-  // 1. Perception
+  // 1.1.1 Non-text Content
   "image-alt": "WCAG22:non-text-content",
-  "svg-img-alt": "WCAG22:non-text-content",
-  "object-alt": "WCAG22:non-text-content",
   "input-image-alt": "WCAG22:non-text-content",
+  "object-alt": "WCAG22:non-text-content",
   "area-alt": "WCAG22:non-text-content",
+  "svg-img-alt": "WCAG22:non-text-content",
+  "role-img-alt": "WCAG22:non-text-content",
+
+  // 1.2.1 Audio-only and Video-only (Prerecorded)
+  // 1.2.2 Captions (Prerecorded)
   "video-caption": "WCAG22:captions-prerecorded",
   "audio-caption": "WCAG22:captions-prerecorded",
-  "video-description": "WCAG22:audio-description-or-media-alternative-prerecorded",
+
+  // 1.2.3 Audio Description or Media Alternative (Prerecorded)
+  "video-description":
+    "WCAG22:audio-description-or-media-alternative-prerecorded",
+
+  // 1.3.1 Info and Relationships
   "aria-allowed-attr": "WCAG22:info-and-relationships",
   "aria-required-attr": "WCAG22:info-and-relationships",
   "aria-required-children": "WCAG22:info-and-relationships",
@@ -18,64 +27,115 @@ const AXE_TO_EARL_MAP = {
   "aria-roles": "WCAG22:info-and-relationships",
   "aria-valid-attr-value": "WCAG22:info-and-relationships",
   "aria-valid-attr": "WCAG22:info-and-relationships",
-  "dlitem": "WCAG22:info-and-relationships",
-  "list": "WCAG22:info-and-relationships",
-  "listitem": "WCAG22:info-and-relationships",
+  "definition-list": "WCAG22:info-and-relationships",
+  dlitem: "WCAG22:info-and-relationships",
+  list: "WCAG22:info-and-relationships",
+  listitem: "WCAG22:info-and-relationships",
   "empty-heading": "WCAG22:info-and-relationships",
   "p-as-heading": "WCAG22:info-and-relationships",
-  "label": "WCAG22:info-and-relationships", // Also labels-or-instructions
+  "th-has-data-cells": "WCAG22:info-and-relationships",
+  "td-headers-attr": "WCAG22:info-and-relationships",
+  "layout-table": "WCAG22:info-and-relationships",
+
+  // 1.3.5 Identify Input Purpose
+  "autocomplete-valid": "WCAG22:identify-input-purpose",
+
+  // 1.4.1 Use of Color
+  "link-in-text-block": "WCAG22:use-of-color",
+
+  // 1.4.2 Audio Control
+  "audio-control": "WCAG22:audio-control",
+
+  // 1.4.3 Contrast (Minimum)
   "color-contrast": "WCAG22:contrast-minimum",
+
+  // 1.4.4 Resize text
+  "meta-viewport": "WCAG22:resize-text",
+
+  // 1.4.10 Reflow
+  "meta-viewport-large": "WCAG22:reflow",
+
+  // 1.4.6 Contrast (Enhanced)
   "color-contrast-enhanced": "WCAG22:contrast-enhanced",
-  "text-spacing": "WCAG22:text-spacing", // Axe rule 'avoid-inline-spacing'
+
+  // 1.4.12 Text Spacing
   "avoid-inline-spacing": "WCAG22:text-spacing",
 
-  // 2. Operable
-  "keyboard": "WCAG22:keyboard",
-  "accesskeys": "WCAG22:character-key-shortcuts", // Not exact but related
-  "focus-order-semantics": "WCAG22:focus-order",
-  "tabindex": "WCAG22:focus-order",
-  "bypass": "WCAG22:bypass-blocks",
-  "frame-title": "WCAG22:page-titled", // Frames should have titles
-  "document-title": "WCAG22:page-titled",
-  "link-name": "WCAG22:link-purpose-in-context",
-  "buttons-must-have-content": "WCAG22:name-role-value", // Not exact match in list
-  "button-name": "WCAG22:name-role-value",
-  "label-title-only": "WCAG22:headings-and-labels", // Form labels
-  "focus-visible": "WCAG22:focus-visible", // Axe doesn't test this well automatically
-  "target-size": "WCAG22:target-size-minimum",
+  // 2.1.1 Keyboard
+  keyboard: "WCAG22:keyboard",
+  accesskeys: "WCAG22:keyboard",
+  "scrollable-region-focusable": "WCAG22:keyboard",
 
-  // 3. Understandable
-  "html-has-lang": "WCAG22:language-of-page",
-  "html-lang-valid": "WCAG22:language-of-page",
-  "valid-lang": "WCAG22:language-of-parts",
-  "on-input": "WCAG22:on-input", // Axe rule?
-  "consistent-navigation": "WCAG22:consistent-navigation",
-  "consistent-identification": "WCAG22:consistent-identification",
+  // 2.2.1 Timing Adjustable
+  "meta-refresh": "WCAG22:timing-adjustable",
+
+  // 2.2.2 Pause, Stop, Hide
+  blink: "WCAG22:pause-stop-hide",
+  marquee: "WCAG22:pause-stop-hide",
+
+  // 2.4.1 Bypass Blocks
+  bypass: "WCAG22:bypass-blocks",
+  "skip-link": "WCAG22:bypass-blocks",
+
+  // 2.4.2 Page Titled
+  "document-title": "WCAG22:page-titled",
+  "frame-title": "WCAG22:page-titled",
+
+  // 2.4.3 Focus Order
+  tabindex: "WCAG22:focus-order",
+  "focus-order-semantics": "WCAG22:focus-order",
+
+  // 2.4.4 Link Purpose (In Context)
+  "link-name": "WCAG22:link-purpose-in-context",
+
+  // 2.4.6 Headings and Labels
+  "label-title-only": "WCAG22:headings-and-labels",
+  "page-has-heading-one": "WCAG22:headings-and-labels",
+
+  // 2.5.3 Label in Name
   "label-content-name-mismatch": "WCAG22:label-in-name",
 
-  // 4. Robust
-  "duplicate-id": "WCAG21:parsing", // 4.1.1 is obsolete in WCAG 2.2 but kept in list
+  // 2.5.8 Target Size (Minimum)
+  "target-size": "WCAG22:target-size-minimum",
+
+  // 3.1.1 Language of Page
+  "html-has-lang": "WCAG22:language-of-page",
+  "html-lang-valid": "WCAG22:language-of-page",
+  "html-xml-lang-mismatch": "WCAG22:language-of-page",
+
+  // 3.1.2 Language of Parts
+  "valid-lang": "WCAG22:language-of-parts",
+
+  // 3.3.2 Labels or Instructions
+  label: "WCAG22:labels-or-instructions",
+  "select-name": "WCAG22:labels-or-instructions",
+
+  // 4.1.1 Parsing (Obsolete in 2.2, but IDs must still be unique)
+  "duplicate-id": "WCAG21:parsing",
   "duplicate-id-active": "WCAG21:parsing",
   "duplicate-id-aria": "WCAG21:parsing",
+
+  // 4.1.2 Name, Role, Value
   "aria-hidden-focus": "WCAG22:name-role-value",
   "aria-input-field-name": "WCAG22:name-role-value",
   "aria-toggle-field-name": "WCAG22:name-role-value",
+  "aria-command-name": "WCAG22:name-role-value",
+  "aria-dialog-name": "WCAG22:name-role-value",
+  "aria-treeitem-name": "WCAG22:name-role-value",
+  "aria-meter-name": "WCAG22:name-role-value",
+  "aria-progressbar-name": "WCAG22:name-role-value",
+  "button-name": "WCAG22:name-role-value",
+  "input-button-name": "WCAG22:name-role-value",
+  "frame-tested": "WCAG22:name-role-value",
 };
 
-/**
- * Injects Axe into the tab and runs the audit.
- * @param {number} tabId - The ID of the tab to audit.
- * @returns {Promise<Array>} - Array of mapped results.
- */
 export async function runAxeAudit(tabId) {
   try {
-    // 1. Inject Axe Core
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ["lib/axe.min.js"],
     });
 
-    // 2. Run Axe in the context of the page
     const execution = await chrome.scripting.executeScript({
       target: { tabId },
       func: async () => {
@@ -84,16 +144,22 @@ export async function runAxeAudit(tabId) {
           axe.run(
             document,
             {
+              iframes: true,
               runOnly: {
                 type: "tag",
-                values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
+                values: [
+                  "wcag2a",
+                  "wcag2aa",
+                  "wcag21a",
+                  "wcag21aa",
+                  "wcag22aa",
+                  "best-practice",
+                ],
               },
             },
             (err, results) => {
-              if (err) {
-                console.error("Axe Error:", err);
-                resolve({ error: err.message });
-              } else {
+              if (err) resolve({ error: err.message });
+              else {
                 results.pageTitle = document.title;
                 resolve(results);
               }
@@ -103,85 +169,69 @@ export async function runAxeAudit(tabId) {
       },
     });
 
-    if (!execution || !execution[0] || !execution[0].result) {
-      throw new Error("Axe execution failed to return results.");
-    }
-
     const axeResults = execution[0].result;
+    if (axeResults.error) throw new Error(axeResults.error);
 
-    if (axeResults.error) {
-      throw new Error(axeResults.error);
-    }
-
-    // 3. Process and map results
     const mappedResults = [];
-    const violations = axeResults.violations || [];
     const pageTitle = axeResults.pageTitle || axeResults.url || "Unknown Page";
 
-    for (const violation of violations) {
-      // Find a mapping
-      let earlId = AXE_TO_EARL_MAP[violation.id];
+    // Helper to process results
+    const processResult = (items, verdict) => {
+      for (const item of items) {
+        let earlId = AXE_TO_EARL_MAP[item.id];
 
-      // If no direct map, try to infer from tags (simplified)
-      if (!earlId && violation.tags) {
-        if (violation.tags.includes("wcag111")) earlId = "WCAG22:non-text-content";
-        // ... add more inferencing if needed, but the map covers common ones
-      }
-
-      // If still no mapping, stick to a generic or skip?
-      // For now, we only report if we can map it to the EARL report requirements.
-      if (earlId) {
-        // Build a detailed reason with specific node targets
-        const nodeDetails = violation.nodes.map(node => {
-            const target = node.target.join(', ');
-            const htmlSnippet = node.html ? ` (\`${node.html}\`)` : '';
-            return `- Element: ${target}${htmlSnippet}\n  Fix: ${node.failureSummary || 'Check element'}`;
-        }).join('\n');
-
-        mappedResults.push({
-          verdict: "FAIL",
-          reason: `${violation.help} (${violation.nodes.length} occurrences).\n${violation.description}\n${nodeDetails}`,
-          earlId: earlId,
-          pageTitle: pageTitle,
-          source: "Axe",
-          ruleId: violation.id
-        });
-      } else {
-          // Optional: Report unmapped violations as "Other" or similar if valuable
-          // For now, ignoring to maintain strict EARL format
-      }
-    }
-
-    // We can also process 'passes' if we want to report PASS verdicts,
-    // but typically EARL reports focus on failures or explicit checks.
-    // The current sidepanel.js logic reports PASS/FAIL per rule.
-    // Axe reports passes, violations, incomplete, inapplicable.
-    // If we want to report PASS for rules that passed, we can iterate axeResults.passes
-
-    const passes = axeResults.passes || [];
-    for (const pass of passes) {
-        let earlId = AXE_TO_EARL_MAP[pass.id];
-        if (earlId) {
-             mappedResults.push({
-                verdict: "PASS",
-                reason: pass.help,
-                earlId: earlId,
-                pageTitle: pageTitle,
-                source: "Axe",
-                ruleId: pass.id
-            });
+        // Fallback mapping inference
+        if (!earlId && item.tags) {
+          if (item.tags.includes("wcag111")) earlId = "WCAG22:non-text-content";
+          else if (item.tags.includes("wcag131"))
+            earlId = "WCAG22:info-and-relationships";
+          else if (item.tags.includes("wcag412"))
+            earlId = "WCAG22:name-role-value";
         }
-    }
+
+        if (earlId) {
+          const nodeDetails = item.nodes
+            .map((node) => {
+              const target = node.target.join(", ");
+              // Truncate overly long HTML snippets
+              const htmlSnippet = node.html
+                ? ` (\`${node.html.substring(0, 100).replace(/\n/g, " ")}\`)`
+                : "";
+              return `- Element: ${target}${htmlSnippet}\n  Fix: ${
+                node.failureSummary || "Check element"
+              }`;
+            })
+            .join("\n");
+
+          mappedResults.push({
+            verdict: verdict, // "FAIL", "PASS", or "INCOMPLETE"
+            reason: `${item.help}\n${item.description}\n${nodeDetails}`,
+            earlId: earlId,
+            pageTitle: pageTitle,
+            source: "Axe",
+            ruleId: item.id,
+            // SAVE THE SELECTORS for Nano to re-check
+            selectors: item.nodes.map((n) => n.target[0]),
+          });
+        }
+      }
+    };
+
+    processResult(axeResults.violations, "FAIL");
+    processResult(axeResults.passes, "PASS");
+    // Capture incomplete items to pass to Nano
+    processResult(axeResults.incomplete, "INCOMPLETE");
 
     return mappedResults;
-
   } catch (err) {
     console.error("Axe Runner Error:", err);
-    return [{
-      verdict: "ERROR",
-      reason: err.message,
-      earlId: "WCAG22:parsing", // Fallback
-      pageTitle: "Error"
-    }];
+    return [
+      {
+        verdict: "ERROR",
+        reason: err.message,
+        earlId: "WCAG21:parsing",
+        pageTitle: "Error",
+      },
+    ];
   }
 }
