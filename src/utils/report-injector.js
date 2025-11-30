@@ -8,10 +8,15 @@
 export function injectReportFunction(reportData) {
   console.log("Nano A11y Auditor: Injector script running...");
 
-  // Select the label for the hidden input/control, which acts as the visible button
-  const openButton = document.querySelector('label[for="evaluation_open"]');
+  // Select the element next to the hidden input/control, which acts as the visible button
+  const inputElement = document.getElementById("evaluation_open");
+  if (!inputElement) {
+      console.warn("Nano A11y Auditor: Could not find 'Open Report' input (id=evaluation_open).");
+      return;
+  }
+  const openButton = inputElement.nextElementSibling;
   if (!openButton) {
-    console.warn("Nano A11y Auditor: Could not find 'Open Report' button (label[for=evaluation_open]).");
+    console.warn("Nano A11y Auditor: Could not find 'Open Report' button (nextElementSibling of id=evaluation_open).");
     return;
   }
 
