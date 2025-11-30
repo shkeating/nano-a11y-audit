@@ -13,3 +13,7 @@ data/urls.csv
 
 # ignore tester html files for now
 test-files/*.html
+
+# ignore generated files
+node_modules/
+dist/
