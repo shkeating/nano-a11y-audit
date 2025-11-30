@@ -55,9 +55,9 @@ const ALL_VALID_IDS = [
   "WCAG22:pointer-cancellation",
   "WCAG22:label-in-name",
   "WCAG22:motion-actuation",
-  "WCAG22:target-size", // Note: 2.5.5 (Enhanced)
+  "WCAG22:target-size",
   "WCAG22:dragging-movements",
-  "WCAG22:target-size-minimum", // Note: 2.5.8 (Minimum)
+  "WCAG22:target-size-minimum",
   "WCAG22:language-of-page",
   "WCAG22:language-of-parts",
   "WCAG22:unusual-words",
@@ -79,9 +79,9 @@ const ALL_VALID_IDS = [
   "WCAG22:redundant-entry",
   "WCAG22:accessible-authentication-minimum",
   "WCAG22:accessible-authentication-enhanced",
-  "WCAG21:parsing", // <--- SPECIAL EXCEPTION (4.1.1)
+  "WCAG21:parsing",
   "WCAG22:name-role-value",
-  "WCAG21:status-messages", // <--- SPECIAL EXCEPTION (4.1.3)
+  "WCAG21:status-messages",
 ];
 
 /**
@@ -93,12 +93,9 @@ export function generateEarlReport(auditResults) {
   const websiteId = "_:website";
 
   // 1. DEFINE PAGES
-  // Extract unique URLs found during the audit
   const uniqueUrls = [...new Set(auditResults.map((r) => r.url))];
 
-  // Create Page Definitions
   const pages = uniqueUrls.map((url, index) => {
-    // Attempt to find a title for this URL from the results
     const foundResult = auditResults.find((r) => r.url === url);
     const title =
       foundResult && foundResult.pageTitle ? foundResult.pageTitle : url;
@@ -112,7 +109,6 @@ export function generateEarlReport(auditResults) {
     };
   });
 
-  // Create a helper map to easily look up Page IDs by URL
   const urlToIdMap = uniqueUrls.reduce((acc, url, index) => {
     acc[url] = `_:page_${index + 1}`;
     return acc;
@@ -121,15 +117,49 @@ export function generateEarlReport(auditResults) {
   // 2. GENERATE ALL ASSERTIONS
   const allAssertions = [];
 
-  // Loop through EVERY valid ID to ensure the matrix is complete
   ALL_VALID_IDS.forEach((fullId) => {
-    // Check if we have any results for this specific Criterion ID across ALL pages
     const relevantResults = auditResults.filter((r) => r.earlId === fullId);
     let hasResult = false;
 
     if (relevantResults.length > 0) {
       hasResult = true;
-      // Generate an assertion for EACH result found
+
+      // --- NEW LOGIC START: CALCULATE AGGREGATE VERDICT ---
+      const anyFailures = relevantResults.some((r) => r.verdict === "FAIL");
+      const aggregateVerdict = anyFailures ? "FAIL" : "PASS";
+
+      // Create the "Entire Sample" (Website) Assertion
+      const aggregateOutcome = anyFailures
+        ? { id: "earl:failed", type: ["OutcomeValue", "Fail"], title: "Failed" }
+        : {
+            id: "earl:passed",
+            type: ["OutcomeValue", "Pass"],
+            title: "Passed",
+          };
+
+      allAssertions.push({
+        type: "Assertion",
+        date: date,
+        mode: { type: "TestMode", "@value": "earl:manual" },
+        result: {
+          type: "TestResult",
+          date: date,
+          description: anyFailures
+            ? "Issues were found in the sample."
+            : "No issues found in the sample.",
+          outcome: aggregateOutcome,
+        },
+        // IMPORTANT: This points to the Website ID, not a specific Page ID
+        subject: {
+          id: websiteId,
+          type: ["TestSubject", "Website"],
+          title: "Gemini Nano Audit",
+        },
+        test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
+      });
+      // --- NEW LOGIC END ---
+
+      // Generate individual page assertions (Existing logic)
       relevantResults.forEach((item) => {
         const outcomeObj =
           item.verdict === "FAIL"
@@ -147,14 +177,14 @@ export function generateEarlReport(auditResults) {
         allAssertions.push({
           type: "Assertion",
           date: date,
-          mode: { type: "TestMode", "@value": "earl:manual" }, // flagging as manual to ensure tool compatibility
+          mode: { type: "TestMode", "@value": "earl:manual" },
           result: {
             type: "TestResult",
             date: date,
             description: item.reason,
             outcome: outcomeObj,
           },
-          subject: { id: urlToIdMap[item.url] }, // Links to the specific Page ID
+          subject: { id: urlToIdMap[item.url] },
           test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
         });
       });
