@@ -1,16 +1,13 @@
 
-console.log("Nano A11y Auditor: Report Injector Loaded");
+/**
+ * This function is intended to be injected into the W3C Report Tool page.
+ * It simulates a file upload to populate the tool with the generated EARL report.
+ *
+ * @param {Object} reportData - The JSON object containing the EARL report.
+ */
+export function injectReportFunction(reportData) {
+  console.log("Nano A11y Auditor: Injector script running...");
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message && message.earlReport) {
-    console.log("Received EARL report, attempting injection...", message.earlReport);
-    injectReport(message.earlReport);
-    // Send response to confirm receipt
-    sendResponse({ status: "received" });
-  }
-});
-
-function injectReport(reportData) {
   const openButton = document.getElementById("evaluation_open");
   if (!openButton) {
     console.warn("Nano A11y Auditor: Could not find 'Open Report' button (id=evaluation_open).");

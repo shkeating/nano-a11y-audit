@@ -2,6 +2,7 @@ import Papa from "papaparse";
 import { RULES } from "./rules/index.js";
 import { generateEarlReport } from "./utils/earl-reporter.js";
 import { runAxeAudit } from "./utils/axe-runner.js";
+import { injectReportFunction } from "./utils/report-injector.js";
 
 let urlQueue = [];
 let auditResults = [];
@@ -237,22 +238,32 @@ function finishAudit() {
   // 2. Open W3C Report Tool and inject data
   const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
   chrome.tabs.create({ url: reportToolUrl }, (tab) => {
-    // Wait for tab to load
-    const listener = (tabId, changeInfo) => {
-      if (tabId === tab.id && changeInfo.status === "complete") {
-        chrome.tabs.onUpdated.removeListener(listener);
-        log("🚀 Injecting report into W3C Tool...");
-
-        // Send message to the injected content script
-        chrome.tabs.sendMessage(tab.id, { earlReport: earlReport }, (response) => {
-           if (chrome.runtime.lastError) {
-             log(`⚠️ Injection failed (is script loaded?): ${chrome.runtime.lastError.message}`);
-           } else {
-             log("✅ Report injected successfully.");
-           }
-        });
-      }
+    const inject = (tabId) => {
+      log("🚀 Injecting report into W3C Tool...");
+      // Inject script programmatically
+      chrome.scripting.executeScript({
+        target: { tabId },
+        func: injectReportFunction,
+        args: [earlReport]
+      }, (results) => {
+         if (chrome.runtime.lastError) {
+           log(`⚠️ Injection failed: ${chrome.runtime.lastError.message}`);
+         } else {
+           log("✅ Report injection script started.");
+         }
+      });
     };
-    chrome.tabs.onUpdated.addListener(listener);
+
+    if (tab.status === 'complete') {
+        inject(tab.id);
+    } else {
+        const listener = (tabId, changeInfo) => {
+          if (tabId === tab.id && changeInfo.status === "complete") {
+            chrome.tabs.onUpdated.removeListener(listener);
+            inject(tabId);
+          }
+        };
+        chrome.tabs.onUpdated.addListener(listener);
+    }
   });
 }
