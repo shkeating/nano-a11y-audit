@@ -3,6 +3,7 @@ import { RULES } from "./rules/index.js";
 import { generateEarlReport } from "./utils/earl-reporter.js";
 import { runAxeAudit } from "./utils/axe-runner.js";
 import { injectReportFunction } from "./utils/report-injector.js";
+import { runPrototypeAudit } from "./nano-prototype.js";
 
 let urlQueue = [];
 let auditResults = [];
@@ -30,7 +31,43 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
   });
 });
 
-// 2. BATCH PROCESS RUNNER
+// 2. PROTOTYPE RUNNER
+document.getElementById("protoBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("protoBtn");
+  btn.disabled = true;
+  btn.textContent = "Running Prototype...";
+  log("🚀 Starting Client-Side Nano Prototype...");
+
+  try {
+    const tab = await getActiveTab();
+
+    // Inject and run the prototype script
+    const injection = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: runPrototypeAudit,
+    });
+
+    if (injection && injection[0] && injection[0].result) {
+      const report = injection[0].result;
+      log(`✅ Prototype Complete. Found ${report.length} issues.`);
+      if (report.length > 0) {
+        log("Issues found:");
+        report.forEach(r => log(`- [${r.type}] ${r.issue}`));
+      }
+    } else {
+      log("⚠️ Prototype finished but returned no data (check console).");
+    }
+
+  } catch (err) {
+    log(`⛔ Prototype Error: ${err.message}`);
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Run Client-Side Prototype";
+  }
+});
+
+// 3. BATCH PROCESS RUNNER
 document.getElementById("startBtn").addEventListener("click", async () => {
   document.getElementById("startBtn").disabled = true;
   document.getElementById("statusArea").style.display = "block";
