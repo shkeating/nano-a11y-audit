@@ -70,8 +70,127 @@ export function extractor() {
     return !isDistinct;
   }
 
+  function isInsideNav(element) {
+    return element.closest("nav") !== null || element.closest('[role="navigation"]') !== null;
+  }
+
+  // Pre-scan stylesheets for hover rules
+  const hoverRules = [];
+  try {
+    for (const sheet of document.styleSheets) {
+      try {
+        const rules = sheet.cssRules || sheet.rules;
+        for (const rule of rules) {
+          if (rule.type === CSSRule.STYLE_RULE && rule.selectorText.includes(":hover")) {
+            // Store selector and style for later checking
+            // We store the raw selector to handle splitting later if needed,
+            // or just iterate and check matches.
+            // Note: Handling comma-separated selectors is important.
+            const selectors = rule.selectorText.split(",");
+            for (const sel of selectors) {
+              if (sel.includes(":hover")) {
+                 hoverRules.push({
+                   selector: sel.trim(),
+                   style: rule.style
+                 });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Cross-origin stylesheet access might fail
+      }
+    }
+  } catch (e) {
+    // Safety catch
+  }
+
+  function checkHoverSafety(link) {
+    // If we couldn't access any rules, assume pass to avoid false positives?
+    // Or if hoverRules is empty, it means no hover styles defined (safe).
+    if (hoverRules.length === 0) return true;
+
+    let hasHoverChange = false;
+    let safeHover = false;
+
+    for (const rule of hoverRules) {
+      // Create a selector that applies to the element by stripping :hover
+      // This is a heuristic.
+      // "a:hover" -> "a"
+      // ".nav-link:hover" -> ".nav-link"
+      // "li:hover a" -> "li a" (NOTE: This implies the li is hovered, but the style applies to a. The link is the subject.)
+      // "a:hover::after" -> "a::after" (matches() might fail on pseudo-element)
+
+      try {
+        const cleanSel = rule.selector.replace(/:hover/g, "");
+        // Filter out pseudo-elements from selector for matching check
+        // e.g. "a::after" -> "a". matches() handles "a".
+        // If cleanSel is "a::after", link.matches("a::after") throws.
+        // We only care about styles applied to the element itself, or if pseudo-element provides cue.
+        // If pseudo-element provides cue, we can't easily check computed style of it from rule.style.
+        // Assume rule applies to element if it matches stripped selector.
+
+        const baseSel = cleanSel.split("::")[0].split(":")[0]; // overly aggressive stripping?
+        // Better: try matching. If it throws, ignore.
+
+        // We'll trust replace(/:hover/g, "") covers most cases.
+        // If it contains ::, element.matches might throw or return false.
+
+        // If the rule is for a pseudo-element (e.g. a:hover::after),
+        // the visual change is on the pseudo-element. This counts as a visual change!
+        // But we can't check 'link.matches' against 'a::after'.
+        // We can check 'link.matches' against 'a'.
+
+        // Let's rely on a simplified check:
+        // If rule.selector contains ::, assume it adds something visual?
+        // Or check if base element matches.
+
+        const isPseudo = rule.selector.includes("::") || (rule.selector.split(":").length > 2 && !rule.selector.includes(":not"));
+
+        // Use a version of selector without pseudos for matching the element
+        const matchSel = rule.selector.replace(/:hover/g, "").split("::")[0];
+
+        if (link.matches(matchSel)) {
+           hasHoverChange = true;
+
+           if (isPseudo) {
+             // If a pseudo-element is involved on hover, assume it adds content/style -> Safe.
+             safeHover = true;
+           } else {
+             // Check properties on the element itself
+             const s = rule.style;
+             const changesColor = s.color !== "";
+             const changesOther =
+               (s.textDecorationLine && s.textDecorationLine !== "none") ||
+               (s.textDecoration && s.textDecoration !== "none") ||
+               (s.borderBottomStyle && s.borderBottomStyle !== "none") ||
+               (s.borderBottom && s.borderBottom !== "none") ||
+               (s.border && s.border !== "none") ||
+               (s.fontWeight && s.fontWeight !== "normal") ||
+               (s.backgroundColor && s.backgroundColor !== "") ||
+               (s.background && s.background !== "") ||
+               (s.outline && s.outline !== "none");
+
+             if (changesOther) {
+               safeHover = true;
+             }
+           }
+        }
+      } catch (e) {
+        // Selector parsing error
+      }
+    }
+
+    // If no hover rules apply, safe (no change).
+    if (!hasHoverChange) return true;
+
+    // If changes found, at least one must be safe.
+    return safeHover;
+  }
+
+
   const failingLinks = [];
-  const links = Array.from(document.querySelectorAll("a:not(nav a)"));
+  const links = Array.from(document.querySelectorAll("a"));
 
   for (const link of links) {
     if (link.offsetParent === null) continue;
@@ -84,19 +203,34 @@ export function extractor() {
       continue;
     }
 
-    const s = window.getComputedStyle(link);
-    if (
-      s.textDecorationLine.includes("underline") ||
-      parseInt(s.fontWeight) >= 700 ||
-      s.fontWeight === "bold" ||
-      s.borderBottomStyle !== "none"
-    )
-      continue;
+    if (isInsideNav(link)) {
+      // Special check for nav links (Hover state)
+      if (!checkHoverSafety(link)) {
+        // Fail if relies on color for hover
+         const txt = link.innerText.trim();
+         if (txt.length > 0) {
+            failingLinks.push({ text: `[Nav Link Hover] ${txt.substring(0, 40)}` });
+         }
+      }
+      // Implicitly passes the default state check (no underline needed)
 
-    const txt = link.innerText.trim();
-    if (txt.length > 0) {
-      failingLinks.push({ text: txt.substring(0, 40) });
+    } else {
+      // Standard check (Default state)
+      const s = window.getComputedStyle(link);
+      if (
+        s.textDecorationLine.includes("underline") ||
+        parseInt(s.fontWeight) >= 700 ||
+        s.fontWeight === "bold" ||
+        s.borderBottomStyle !== "none"
+      )
+        continue;
+
+      const txt = link.innerText.trim();
+      if (txt.length > 0) {
+        failingLinks.push({ text: txt.substring(0, 40) });
+      }
     }
+
     if (failingLinks.length >= 5) break;
   }
 
