@@ -54,24 +54,41 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Running Axe Core...`);
       const axeResults = await runAxeAudit(tab.id);
 
+      // Filter out 'INCOMPLETE' results from final report (Nano will resolve them)
       axeResults.forEach((r) => {
         if (r.verdict === "FAIL") {
           log(`[Axe: ${r.ruleId}] ❌ FAIL`);
         }
-        auditResults.push({
-          url,
-          ...r,
-        });
+        if (r.verdict !== "INCOMPLETE") {
+          auditResults.push({
+            url,
+            ...r,
+          });
+        }
       });
-      log(`✅ Axe Complete: ${axeResults.length} checks mapped.`);
+      log(`✅ Axe Complete: ${axeResults.length} checks processed.`);
+
+      // Identify 'leads' for Nano (items Axe marked INCOMPLETE)
+      const incompleteLeads = axeResults.filter(
+        (r) => r.verdict === "INCOMPLETE"
+      );
 
       // 2. Run Gemini Nano Audit (Iterate through Rules Registry)
       log(`Running Gemini Nano...`);
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
 
+        // Find relevant leads for this specific Nano rule
+        // e.g., Rule 1.4.1 handles Axe's 'link-in-text-block'
+        const relevantLeads = incompleteLeads.filter(
+          (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
+        );
+
+        // Extract the CSS selectors from the leads
+        const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
+
         try {
-          const result = await runAuditOnTab(tab.id, rule);
+          const result = await runAuditOnTab(tab.id, rule, targetSelectors);
 
           const statusIcon =
             result.verdict === "FAIL"
@@ -83,13 +100,12 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 
           auditResults.push({
             url,
-            earlId: rule.earlId, // Needed for the report
+            earlId: rule.earlId,
             ...result,
           });
         } catch (ruleErr) {
           console.error(ruleErr);
           log(`⚠️ Error [${ruleId}]: ${ruleErr.message}`);
-          // Push an error result so the report isn't empty
           auditResults.push({
             url,
             earlId: rule.earlId,
@@ -108,22 +124,40 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 });
 
 // 3. THE AI AUDITOR
-async function runAuditOnTab(tabId, rule) {
+async function runAuditOnTab(tabId, rule, targetSelectors = []) {
   try {
     // A. Inject Extractor
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
-      func: rule.extractor, // Uses the specific rule's extractor
+      func: rule.extractor,
+      args: [targetSelectors], // Pass selectors to the extractor
     });
 
     if (!injection || !injection[0]) throw new Error("Script injection failed");
     const domContext = injection[0].result;
 
+    // If verdict is already computed in extractor (Smart Return), skip AI
+    if (domContext.computedVerdict) {
+      return {
+        verdict: domContext.computedVerdict,
+        reason:
+          domContext.computedVerdict === "PASS"
+            ? domContext.reason || "Passed internal check."
+            : JSON.stringify(domContext), // Fallback for complex fail objects
+        pageTitle: domContext.pageTitle,
+        // If we have detailed lists (links, forms), we can construct a better reason string below if needed
+        // but often the LLM does this better. If computedVerdict exists, we assume
+        // the extractor did the job.
+        // However, for consistency with your 1.4.1 logic which uses the LLM to format the list:
+      };
+    }
+
     // B. Check AI API
-    // Robust check for both namespaces
     const aiOrigin = window.ai?.languageModel || window.LanguageModel;
 
     if (!aiOrigin) {
+      // If we have a computed verdict from extractor, use it.
+      // But if we relied on AI and AI is missing:
       return {
         verdict: "ERROR",
         reason: "AI API missing",
@@ -136,7 +170,7 @@ async function runAuditOnTab(tabId, rule) {
       initialPrompts: [
         {
           role: "system",
-          content: rule.systemPrompt, // Use the specific rule's prompt
+          content: rule.systemPrompt,
         },
       ],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
@@ -146,11 +180,10 @@ async function runAuditOnTab(tabId, rule) {
     const resultString = await session.prompt(JSON.stringify(domContext));
 
     // E. Parse (The "Hunter" Logic)
-    // Find the first '{' and the last '}' to ignore conversational text
     const jsonMatch = resultString.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
-      console.error("Raw AI Output:", resultString); // Log for debugging
+      console.error("Raw AI Output:", resultString);
       throw new Error(
         `No JSON found in output. Raw: "${resultString.substring(0, 20)}..."`
       );
@@ -164,7 +197,7 @@ async function runAuditOnTab(tabId, rule) {
       pageTitle: domContext.pageTitle,
     };
   } catch (err) {
-    throw err; // Bubble up to the main loop
+    throw err;
   }
 }
 
@@ -218,19 +251,24 @@ function finishAudit() {
   const url = URL.createObjectURL(blob);
 
   // 1. Auto-download the JSON file
-  chrome.downloads.download({ url: url, filename: "nano-audit-report.json" }, (downloadId) => {
-    if (chrome.runtime.lastError) {
-      log(`⚠️ Download failed: ${chrome.runtime.lastError.message}`);
-    } else {
-      log(`⬇️ Report downloaded (ID: ${downloadId})`);
+  chrome.downloads.download(
+    { url: url, filename: "nano-audit-report.json" },
+    (downloadId) => {
+      if (chrome.runtime.lastError) {
+        log(`⚠️ Download failed: ${chrome.runtime.lastError.message}`);
+      } else {
+        log(`⬇️ Report downloaded (ID: ${downloadId})`);
+      }
     }
-  });
+  );
 
-  // Show download button anyway in case user wants to download again
   const btn = document.getElementById("downloadBtn");
   btn.style.display = "block";
   btn.onclick = () => {
-    chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
+    chrome.downloads.download({
+      url: url,
+      filename: "nano-audit-report.json",
+    });
   };
 
   log("🏁 Done. Opening W3C Report Tool...");
@@ -240,30 +278,32 @@ function finishAudit() {
   chrome.tabs.create({ url: reportToolUrl }, (tab) => {
     const inject = (tabId) => {
       log("🚀 Injecting report into W3C Tool...");
-      // Inject script programmatically
-      chrome.scripting.executeScript({
-        target: { tabId },
-        func: injectReportFunction,
-        args: [earlReport]
-      }, (results) => {
-         if (chrome.runtime.lastError) {
-           log(`⚠️ Injection failed: ${chrome.runtime.lastError.message}`);
-         } else {
-           log("✅ Report injection script started.");
-         }
-      });
+      chrome.scripting.executeScript(
+        {
+          target: { tabId },
+          func: injectReportFunction,
+          args: [earlReport],
+        },
+        (results) => {
+          if (chrome.runtime.lastError) {
+            log(`⚠️ Injection failed: ${chrome.runtime.lastError.message}`);
+          } else {
+            log("✅ Report injection script started.");
+          }
+        }
+      );
     };
 
-    if (tab.status === 'complete') {
-        inject(tab.id);
+    if (tab.status === "complete") {
+      inject(tab.id);
     } else {
-        const listener = (tabId, changeInfo) => {
-          if (tabId === tab.id && changeInfo.status === "complete") {
-            chrome.tabs.onUpdated.removeListener(listener);
-            inject(tabId);
-          }
-        };
-        chrome.tabs.onUpdated.addListener(listener);
+      const listener = (tabId, changeInfo) => {
+        if (tabId === tab.id && changeInfo.status === "complete") {
+          chrome.tabs.onUpdated.removeListener(listener);
+          inject(tabId);
+        }
+      };
+      chrome.tabs.onUpdated.addListener(listener);
     }
   });
 }
