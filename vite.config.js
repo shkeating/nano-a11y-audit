@@ -12,12 +12,11 @@ export default defineConfig({
           src: "manifest.json",
           dest: ".",
         },
-        // ,{
-        //   // 2. Copy icons if you have them (e.g. src/icons/...)
-        //   // If you don't have an icons folder yet, you can comment this out
-        //   src: "icons/*",
-        //   dest: "icons",
-        // },
+        {
+          // 2. Copy axe-core from node_modules
+          src: "../node_modules/axe-core/axe.min.js",
+          dest: "lib",
+        },
       ],
     }),
   ],

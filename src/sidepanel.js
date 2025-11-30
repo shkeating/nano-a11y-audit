@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import { RULES } from "./rules/index.js";
 import { generateEarlReport } from "./utils/earl-reporter.js";
+import { runAxeAudit } from "./utils/axe-runner.js";
 
 let urlQueue = [];
 let auditResults = [];
@@ -48,7 +49,23 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 
       log(`Analyzing DOM...`);
 
-      // Iterate through the Rules Registry
+      // 1. Run Axe Core Audit
+      log(`Running Axe Core...`);
+      const axeResults = await runAxeAudit(tab.id);
+
+      axeResults.forEach((r) => {
+        if (r.verdict === "FAIL") {
+          log(`[Axe: ${r.ruleId}] ❌ FAIL`);
+        }
+        auditResults.push({
+          url,
+          ...r,
+        });
+      });
+      log(`✅ Axe Complete: ${axeResults.length} checks mapped.`);
+
+      // 2. Run Gemini Nano Audit (Iterate through Rules Registry)
+      log(`Running Gemini Nano...`);
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
 
@@ -61,7 +78,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               : result.verdict === "PASS"
               ? "✅"
               : "⚠️";
-          log(`[${ruleId}] ${statusIcon} ${result.verdict}`);
+          log(`[Nano: ${ruleId}] ${statusIcon} ${result.verdict}`);
 
           auditResults.push({
             url,
