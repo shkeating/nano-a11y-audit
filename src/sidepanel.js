@@ -79,7 +79,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         const rule = RULES[ruleId];
 
         // Find relevant leads for this specific Nano rule
-        // e.g., Rule 1.4.1 handles Axe's 'link-in-text-block'
         const relevantLeads = incompleteLeads.filter(
           (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
         );
@@ -130,34 +129,35 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
       func: rule.extractor,
-      args: [targetSelectors], // Pass selectors to the extractor
+      args: [targetSelectors],
     });
 
     if (!injection || !injection[0]) throw new Error("Script injection failed");
     const domContext = injection[0].result;
 
-    // If verdict is already computed in extractor (Smart Return), skip AI
-    if (domContext.computedVerdict) {
+    // --- SMART RETURN LOGIC (FIXED) ---
+    // Only skip AI if it's a PASS. If it's a FAIL, let AI format the list.
+    if (domContext.computedVerdict === "PASS") {
       return {
-        verdict: domContext.computedVerdict,
-        reason:
-          domContext.computedVerdict === "PASS"
-            ? domContext.reason || "Passed internal check."
-            : JSON.stringify(domContext), // Fallback for complex fail objects
+        verdict: "PASS",
+        reason: domContext.reason || "Passed internal check.",
         pageTitle: domContext.pageTitle,
-        // If we have detailed lists (links, forms), we can construct a better reason string below if needed
-        // but often the LLM does this better. If computedVerdict exists, we assume
-        // the extractor did the job.
-        // However, for consistency with your 1.4.1 logic which uses the LLM to format the list:
       };
     }
+    // If FAIL, fall through to AI block to generate the human-readable description.
 
     // B. Check AI API
     const aiOrigin = window.ai?.languageModel || window.LanguageModel;
 
     if (!aiOrigin) {
-      // If we have a computed verdict from extractor, use it.
-      // But if we relied on AI and AI is missing:
+      // Fallback if AI is missing but we have a computed verdict
+      if (domContext.computedVerdict) {
+        return {
+          verdict: domContext.computedVerdict,
+          reason: JSON.stringify(domContext), // Raw JSON fallback
+          pageTitle: domContext.pageTitle,
+        };
+      }
       return {
         verdict: "ERROR",
         reason: "AI API missing",
@@ -179,7 +179,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     // D. Prompt
     const resultString = await session.prompt(JSON.stringify(domContext));
 
-    // E. Parse (The "Hunter" Logic)
+    // E. Parse
     const jsonMatch = resultString.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
@@ -250,7 +250,7 @@ function finishAudit() {
   });
   const url = URL.createObjectURL(blob);
 
-  // 1. Auto-download the JSON file
+  // Auto-download
   chrome.downloads.download(
     { url: url, filename: "nano-audit-report.json" },
     (downloadId) => {
@@ -273,7 +273,6 @@ function finishAudit() {
 
   log("🏁 Done. Opening W3C Report Tool...");
 
-  // 2. Open W3C Report Tool and inject data
   const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
   chrome.tabs.create({ url: reportToolUrl }, (tab) => {
     const inject = (tabId) => {
