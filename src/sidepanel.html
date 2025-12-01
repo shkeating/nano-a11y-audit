@@ -23,7 +23,25 @@
         </p>
         <p style="margin-bottom: 5px; font-size: 12px;">1. Load URLs (CSV with 'url' column):</p>
         <input type="file" id="csvFile" accept=".csv" />
-        <button id="startBtn">Start Batch Audit</button>
+
+        <fieldset style="margin-top: 15px; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
+            <legend style="font-size: 12px; font-weight: bold; padding: 0 5px;">Report Output</legend>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 5px;">
+                <label style="font-size: 12px; display: flex; align-items: center; gap: 5px;">
+                    <input type="checkbox" id="includePassed"> Passed
+                </label>
+                <label style="font-size: 12px; display: flex; align-items: center; gap: 5px;">
+                    <input type="checkbox" id="includeNotPresent"> Not Present
+                </label>
+            </div>
+
+            <p style="font-size: 11px; color: #666; margin: 0; font-style: italic;">
+                Note: Failed criteria will always include detailed report descriptions.
+            </p>
+        </fieldset>
+
+        <button id="startBtn" style="margin-top: 15px;">Start Batch Audit</button>
     </div>
 
     <div id="statusArea" class="status-box" style="display:none;">
