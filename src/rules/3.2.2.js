@@ -36,21 +36,33 @@ export function extractor() {
     "dispatchEvent(new Event('submit'))",
   ];
 
-  // We only care about user-input fields
-  const inputs = Array.from(
-    document.querySelectorAll("select, input, textarea")
+  // 1. APPLICABILITY CHECK
+  // We look for standard inputs OR any element with the relevant event handlers.
+  const applicableElements = Array.from(
+    document.querySelectorAll(
+      "select, input, textarea, [contenteditable], [onchange], [oninput], [onblur]"
+    )
   );
 
-  for (const el of inputs) {
+  if (applicableElements.length === 0) {
+    return {
+      computedVerdict: "PASS",
+      reason:
+        "Rule not applicable: No interactive inputs or input-handlers found.",
+      pageTitle: document.title,
+    };
+  }
+
+  // 2. AUDIT LOOP
+  for (const el of applicableElements) {
     if (el.offsetParent === null) continue; // Skip hidden
 
     // Check inline event handlers (common in F36/F37 failures)
-    // We check onchange, oninput, onblur (focus loss)
     const handlers = [
       el.getAttribute("onchange"),
       el.getAttribute("oninput"),
       el.getAttribute("onblur"),
-      el.getAttribute("onclick"), // Sometimes used on radios/checkboxes
+      el.getAttribute("onclick"), // Sometimes used on radios/checkboxes/options
     ];
 
     let detectedIssue = null;
@@ -92,7 +104,10 @@ export function extractor() {
   if (riskyInputs.length === 0) {
     return {
       computedVerdict: "PASS",
-      reason: "No suspicious 'on input' handlers found.",
+      reason:
+        "No suspicious 'on input' handlers found in " +
+        applicableElements.length +
+        " candidate elements.",
       pageTitle: document.title,
     };
   }
