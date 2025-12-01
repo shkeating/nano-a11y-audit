@@ -1,4 +1,4 @@
-export const id = "1.3.4";
+export const id = "1.3.4-portrait";
 export const earlId = "WCAG22:orientation";
 export const relevantElements = [
   "div",
@@ -12,11 +12,11 @@ export const relevantElements = [
 
 export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 1.3.4 Orientation.
-Task: Identify if the page restricts access based on device orientation (e.g., "Please rotate your device").
+Task: Identify if the page restricts access based on device orientation.
 
 **CRITERIA**
-- Content must not be restricted to a single orientation (Portrait or Landscape) unless essential (e.g., a piano app).
-- Messages like "Please rotate to landscape" or "This site only works in portrait" are violations.
+- The user is currently in **LANDSCAPE** mode.
+- Fail if you see a message demanding the user switch to PORTRAIT.
 
 **INSTRUCTIONS**
 Review the 'potentialRestrictions' list.
@@ -25,25 +25,23 @@ Review the 'potentialRestrictions' list.
 
 **OUTPUT FORMAT**
 Return a JSON object:
-- If violations: {"verdict": "FAIL", "reason": "Orientation restriction detected:\\n- [Quote Text]"}
-- If no violations: {"verdict": "PASS", "reason": "No orientation restrictions found."}
+- If violations: {"verdict": "FAIL", "reason": "Orientation restriction (Forces Portrait) detected:\\n- [Quote Text]"}
+- If no violations: {"verdict": "PASS", "reason": "No portrait-only restrictions found."}
 `;
 
-/**
- * SETUP: Force Portrait Mode (Most common failure is forcing Landscape)
- */
 export async function setup(tabId) {
   try {
     await chrome.debugger.attach({ tabId }, "1.3");
+    // FORCE LANDSCAPE MODE
     await chrome.debugger.sendCommand(
       { tabId },
       "Emulation.setDeviceMetricsOverride",
       {
-        width: 375, // Mobile Width
-        height: 812, // Mobile Height (Portrait)
+        width: 812,
+        height: 375,
         deviceScaleFactor: 3,
         mobile: true,
-        screenOrientation: { type: "portraitPrimary", angle: 0 },
+        screenOrientation: { type: "landscapePrimary", angle: 90 },
       }
     );
   } catch (e) {
@@ -77,38 +75,28 @@ export function extractor() {
   const candidates = Array.from(
     document.querySelectorAll("div, p, h1, h2, h3, span, dialog")
   );
-
-  const SUSPICIOUS_KEYWORDS = [
-    "rotate",
-    "orientation",
-    "landscape",
-    "portrait",
-    "turn your device",
-  ];
+  // Keywords for "Forces Portrait"
+  const SUSPICIOUS_KEYWORDS = ["rotate", "portrait", "turn your device"];
 
   for (const el of candidates) {
     if (!isVisible(el)) continue;
-
     const text = el.innerText.toLowerCase();
-    if (text.length < 10 || text.length > 100) continue;
+    if (text.length < 10 || text.length > 150) continue;
 
     if (SUSPICIOUS_KEYWORDS.some((kw) => text.includes(kw))) {
-      // Dedup
       const cleanText = el.innerText.trim();
-      if (!potentialRestrictions.includes(cleanText)) {
+      if (!potentialRestrictions.includes(cleanText))
         potentialRestrictions.push(cleanText);
-      }
     }
   }
 
   if (potentialRestrictions.length === 0) {
     return {
       computedVerdict: "PASS",
-      reason: "No 'rotate device' messages found in Portrait mode.",
+      reason: "No restrictions found.",
       pageTitle: document.title,
     };
   }
-
   return {
     pageTitle: document.title,
     potentialRestrictions: potentialRestrictions,
