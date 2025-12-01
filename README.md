@@ -136,6 +136,7 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `1.3.3 Sensory Characteristics` | Checks for instructions that rely solely on shape, size, color, location, or sound.         |
 | **Gemini Nano** | `1.4.1 Use of Color`            | Checks if links or form fields rely only on color as a distinguishing visual cue.           |
 | **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.       |
+| **Gemini Nano** | `2.4.4 Link Purpose`            | Checks if generic links ("click here") have sufficient context from surrounding text.       |
 | **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                 |
 | **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events. |
 
@@ -156,6 +157,7 @@ nano-a11y-audit/
 │   │   ├── 1.3.3.js        # Sensory Characteristics Rule
 │   │   ├── 1.4.1.js        # Use of Color Rule
 │   │   ├── 2.2.2.js        # Pause, Stop, Hide Rule
+│   │   ├── 2.4.4.js        # Link Purpose Rule
 │   │   ├── 2.5.3.js        # Label in Name Rule
 │   │   ├── 3.2.2.js        # On Input Rule
 │   │   └── index.js        # Rule Registry

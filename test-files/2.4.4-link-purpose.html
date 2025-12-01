@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WCAG 2.4.4 Link Purpose (In Context) Test</title>
+</head>
+<body>
+    <h1>Link Purpose Test</h1>
+
+    <h2>Passing Examples</h2>
+    <!-- 1. Descriptive Link Text -->
+    <p>
+        <a href="#">Download the 2023 Annual Report (PDF)</a>
+    </p>
+
+    <!-- 2. Generic Text with Context in Sentence -->
+    <p>
+        To learn more about our privacy policy, <a href="#">click here</a>.
+    </p>
+
+    <!-- 3. Generic Text with Aria-Label -->
+    <p>
+        <a href="#" aria-label="Read more about our sustainability initiatives">Read more</a>
+    </p>
+
+    <!-- 4. Generic Text with Aria-DescribedBy -->
+    <p id="desc1">Detailed technical specifications for the product.</p>
+    <p>
+        <a href="#" aria-describedby="desc1">More info</a>
+    </p>
+
+    <!-- 5. Generic Text with Aria-LabelledBy -->
+    <h3 id="head1">Pricing Plans</h3>
+    <a href="#" aria-labelledby="head1">View</a>
+
+    <h2>Failing Examples</h2>
+    <!-- 1. Generic Text, Isolated (No Context) -->
+    <div>
+        <a href="#">Click here</a>
+    </div>
+
+    <!-- 2. Generic Text, Vague Context -->
+    <div>
+        <p>Some random text.</p>
+        <a href="#">Read more</a>
+    </div>
+
+    <!-- 3. Generic Text in List without specific context -->
+    <ul>
+        <li><a href="#">Info</a></li>
+        <li><a href="#">Details</a></li>
+    </ul>
+
+    <!-- 4. Generic Text, Context exists but is far away (not programmatic context) -->
+    <h3>Chapter 1</h3>
+    <!-- ... lots of content ... -->
+    <div>
+        <a href="#">Go</a>
+    </div>
+
+</body>
+</html>

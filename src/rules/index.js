@@ -9,6 +9,7 @@ import * as Rule134P from "./1.3.4-portrait.js";
 import * as Rule1410 from "./1.4.10.js";
 import * as Rule1412 from "./1.4.12.js";
 import * as Rule245 from "./2.4.5.js";
+import * as Rule244 from "./2.4.4.js";
 
 export const RULES = {
   [Rule141.id]: Rule141,
@@ -22,6 +23,7 @@ export const RULES = {
   [Rule245.id]: Rule245,
   [Rule253.id]: Rule253,
   [Rule322.id]: Rule322,
+  [Rule244.id]: Rule244,
 };
 
 export const RULE_LIST = Object.values(RULES);
