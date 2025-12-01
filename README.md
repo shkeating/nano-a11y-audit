@@ -1,9 +1,7 @@
 # Gemini Nano A11y Auditor
 
-Browser-Native Accessibility Testing Tool with On-Device Generative AI
-powered by axe-core & gemini nano
-
-<img width="2910" height="1572" alt="frame_generic_light (14)" src="https://github.com/user-attachments/assets/f9f34697-92d8-4004-8c3a-1475bfb65b7f" />
+**Browser-Native Accessibility Testing Tool with On-Device Generative AI**
+*Powered by Axe-Core & Gemini Nano*
 
 ## Overview
 
@@ -20,10 +18,12 @@ This architecture ensures comprehensive test coverage while maintaining **zero l
 
 - **Batch Processing:** Accepts a CSV of URLs and automatically navigates the browser to test them sequentially.
 - **Hybrid Auditing Engine:**
-  - **Axe Core Integration:** Runs a full suite of established, automated accessibility checks on each page.
-  - **On-Device Generative AI:** Injects rule-specific extractor scripts to gather targeted DOM and CSS context. This data is then passed to the local Gemini Nano model to reason about nuanced criteria (e.g., Use of Color, Meaningful Sequence) without sending data to the cloud.
+    - **Axe Core Integration:** Runs a full suite of established, automated accessibility checks on each page.
+    - **On-Device Generative AI:** Injects rule-specific extractor scripts to gather targeted DOM and CSS context. This data is then passed to the local Gemini Nano model to reason about nuanced criteria (e.g., Use of Color, Meaningful Sequence) without sending data to the cloud.
 - **Modular Rule System:** Features a clean, extensible registry for defining new AI-powered checks, each with its own data extractor and instruction prompt.
-- **Interoperable Reporting:** Consolidates findings from both Axe and Gemini Nano into a single JSON-LD report compliant with the **W3C EARL standard**. This report can be directly imported into tools like the [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
+- **Automated Reporting:**
+    - Consolidates findings from both Axe and Gemini Nano into a single **JSON-LD (EARL)** report.
+    - Automatically uploads this report to the [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/) for easy viewing and analysis.
 
 ---
 
@@ -39,7 +39,7 @@ The tool is orchestrated by a **Side Panel Controller** that manages the entire 
     c. Iterates through the **Rules Registry** (`src/rules/index.js`). For each registered AI rule, it injects a rule-specific **Extractor Script** to collect relevant DOM properties and CSS styles.
     d. Prompts the **Gemini Nano language model** with the extracted context and a specialized system prompt designed for that rule.
 4.  **Report Aggregation:** Results from both Axe and all Nano-powered checks are collected.
-5.  **Report Generation:** Upon completion, the **EARL Reporter** (`utils/earl-reporter.js`) generates a unified JSON-LD report, which the user can download.
+5.  **Automated Submission:** Upon completion, the tool automates the submission of the generated JSON-LD report to the W3C Report Tool.
 
 ---
 
@@ -55,17 +55,33 @@ This extension relies on experimental browser features. It **will not work** in 
     - Go to `chrome://components`.
     - Find **Optimization Guide On Device Model**.
     - Click **Check for Update** to download the Gemini Nano model (~1.5GB).
-    - _Note: Ensure the version is listed (e.g., 2024.9.25.x) and not 0.0.0.0._
+    - *Note: Ensure the version is listed (e.g., 2024.9.25.x) and not 0.0.0.0.*
 
 ---
 
 ## Installation
 
-1.  Clone this repository.
-2.  Open Chrome Canary and navigate to `chrome://extensions`.
-3.  Enable **Developer Mode** (top right toggle).
-4.  Click **Load Unpacked**.
-5.  Select the `src` folder from this project.
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository-url>
+    cd nano-a11y-audit
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Build the project:**
+    ```bash
+    npm run build
+    ```
+
+4.  **Load into Chrome:**
+    - Open Chrome Canary and navigate to `chrome://extensions`.
+    - Enable **Developer Mode** (top right toggle).
+    - Click **Load Unpacked**.
+    - Select the `dist` folder created by the build process.
 
 ---
 
@@ -73,7 +89,7 @@ This extension relies on experimental browser features. It **will not work** in 
 
 ### 1. Prepare your Data
 
-Create a CSV file. It **must** have a header row named `url`. 
+Create a CSV file. It **must** have a header row named `url`.
 
 ```csv
 url
@@ -83,51 +99,75 @@ http://localhost:8000/my-test-page.html
 
 ### 2. Start the Tool
 
-1. Click the **Nano Auditor** icon in the Chrome toolbar to open the Side Panel.
-2. Click **Choose File** and select your CSV.
-3. Click **Start Batch Audit**.
+1.  Click the **Nano Auditor** icon in the Chrome toolbar to open the Side Panel.
+2.  Click **Choose File** and select your CSV.
+3.  Click **Start Batch Audit**.
 
 The browser will automatically navigate to each page. The logs in the side panel will show real-time progress for both Axe and Nano checks.
 
-### 3. Export & View Results
+### 3. View Results
 
-1.  Once the batch is complete, click **"Download Report Data"**.
-2.  This downloads a `nano-audit-report.json` file.
-3.  Go to the [W3C WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
-4.  Click **Open Report** and select your JSON file.
-5.  Navigate to **Step 4: Audit Sample** to see your consolidated AI-generated and Axe results.
+1.  Once the batch is complete, the tool automatically downloads a `nano-audit-report.json` file.
+2.  It then opens the [W3C WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/) in a new tab.
+3.  It automatically injects the report data into the tool.
+4.  Navigate to **Step 4: Audit Sample** (or View Report) to see your consolidated AI-generated and Axe results.
+
+---
 
 ## Auditing Scope
 
-The hybrid engine provides broad coverage. The current scope is focused on:
+The hybrid engine provides broad coverage. The current scope includes:
 
-| Engine          | Rule ID/Criterion           | Implementation Strategy                                                                     |
-| --------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
-| **Axe Core**    | `~40+ Rules`                | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels). |
-| **Gemini Nano** | `1.3.2 Meaningful Sequence` | Checks for CSS properties that can disrupt logical reading order (e.g., `float: right`).    |
-| **Gemini Nano** | `1.4.1 Use of Color`        | Checks if links or form fields rely only on color as a distinguishing visual cue.           |
+| Engine          | Rule ID/Criterion                     | Implementation Strategy                                                                     |
+| --------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Axe Core**    | ~40+ Rules                            | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels). |
+| **Gemini Nano** | `1.3.2 Meaningful Sequence`           | Checks for CSS properties (order, float, position) that disrupt logical reading order.      |
+| **Gemini Nano** | `1.3.3 Sensory Characteristics`       | Checks for instructions that rely solely on shape, size, color, location, or sound.         |
+| **Gemini Nano** | `1.4.1 Use of Color`                  | Checks if links or form fields rely only on color as a distinguishing visual cue.           |
+| **Gemini Nano** | `2.5.3 Label in Name`                 | Checks if the accessible name of a control contains its visible text label.                 |
+
+---
 
 ## Project Structure
 
 ```
 nano-a11y-audit/
 ├── src/
-│   ├── manifest.json       # Extension config, permissions, and side panel declaration
-│   ├── sidepanel.html      # The main UI (file input, logs, buttons)
-│   ├── sidepanel.js        # The core controller for the audit process
-│   ├── background.js       # Service worker to enable the side panel
-│   ├── lib/
-│   │   └── papaparse.min.js# CSV parsing library
-│   ├── rules/
-│   │   ├── 1.3.2.js        # AI rule for Meaningful Sequence
-│   │   ├── 1.4.1.js        # AI rule for Use of Color
-│   │   └── index.js        # The central registry for all AI rules
+│   ├── manifest.json       # Extension config, permissions
+│   ├── sidepanel.html      # Main UI (file input, logs)
+│   ├── sidepanel.js        # Core controller for the audit process
+│   ├── background.js       # Service worker
+│   ├── lib/                # Static assets (copied to dist/)
+│   ├── rules/              # AI Rule definitions
+│   │   ├── 1.3.2.js        # Meaningful Sequence Rule
+│   │   ├── 1.3.3.js        # Sensory Characteristics Rule
+│   │   ├── 1.4.1.js        # Use of Color Rule
+│   │   ├── 2.5.3.js        # Label in Name Rule
+│   │   └── index.js        # Rule Registry
 │   └── utils/
-│       ├── axe-runner.js   # Injects and runs the Axe Core audit
-│       ├── axe.min.js      # The Axe Core library
-│       └── earl-reporter.js# Generates the final JSON-LD report
-├── data/
-│   └── ...                 # Sample data for testing
-├── package.json            # Project dependencies and scripts
-└── README.md               # This file
+│       ├── axe-runner.js   # Axe Core injection & execution
+│       ├── earl-reporter.js# JSON-LD report generation
+│       └── report-injector.js # W3C Tool automation
+├── dist/                   # Build output (Load this in Chrome)
+├── vite.config.js          # Build configuration
+└── package.json            # Dependencies and scripts
 ```
+
+---
+
+## Development
+
+### Adding a New Rule
+
+To add a new AI-powered accessibility check:
+
+1.  **Create a new file** in `src/rules/` (e.g., `src/rules/1.4.3.js`).
+2.  **Export the required fields**:
+    - `id`: The WCAG criterion ID (e.g., `"1.4.3"`).
+    - `earlId`: A unique string for the report (e.g., `"WCAG22:contrast-minimum"`).
+    - `systemPrompt`: The instructions for Gemini Nano.
+    - `extractor`: A function that returns the data needed for the prompt.
+3.  **Register the rule**:
+    - Import the new file in `src/rules/index.js`.
+    - Add it to the `RULES` object.
+4.  **Rebuild**: Run `npm run build` to update the extension.
