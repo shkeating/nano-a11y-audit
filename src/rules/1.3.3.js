@@ -1,3 +1,5 @@
+import { isVisible } from "../utils/dom.js";
+
 export const id = "1.3.3";
 export const earlId = "WCAG22:sensory-characteristics";
 
@@ -48,29 +50,23 @@ Return a JSON object with a "verdict" and a "reason".
 
 export function extractor() {
   const potentialInstructions = [];
-  // Select elements likely to contain instructions
   const elements = Array.from(
     document.querySelectorAll("p, li, span, div, td, th")
   );
 
   for (const el of elements) {
-    // Basic visibility check
-    if (el.offsetParent === null) continue;
+    // USAGE: Imported visibility check
+    if (!isVisible(el)) continue;
 
-    // Get direct text content
     const text = el.innerText.trim();
 
-    // Filter: Ignore empty text, script tags, and very short strings
     if (!text || text.length < 10) continue;
-
-    // Filter: Ignore code blocks or technical strings
     if (text.startsWith("<") || text.includes("{")) continue;
 
     if (potentialInstructions.includes(text)) continue;
 
     potentialInstructions.push(text);
 
-    // Limit to keep context window small
     if (potentialInstructions.length >= 20) break;
   }
 

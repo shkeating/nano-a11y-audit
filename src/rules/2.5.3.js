@@ -1,3 +1,5 @@
+import { cleanText, isVisible } from "../utils/dom.js";
+
 export const id = "2.5.3";
 export const earlId = "WCAG22:label-in-name";
 
@@ -68,21 +70,23 @@ export function extractor() {
           .join(" ");
       }
 
-      // B. Heuristic: Check for "Orphaned" Visual Labels (Common Failure Pattern)
-      // If the code is broken (missing 'for' attribute), the user still SEES the label.
-      // We check the immediately preceding element.
+      // B. Heuristic: Check for "Orphaned" Visual Labels
       let prev = el.previousElementSibling;
       while (
         prev &&
         (prev.tagName === "BR" ||
           (prev.tagName === "SPAN" && prev.innerText.length < 2))
       ) {
-        // Skip tiny spans or breaks
         prev = prev.previousElementSibling;
       }
 
       if (prev && prev.tagName === "LABEL") {
         return prev.innerText;
+      }
+
+      // C. Check Placeholder
+      if (el.hasAttribute("placeholder")) {
+        return el.getAttribute("placeholder");
       }
 
       return "";
@@ -100,27 +104,19 @@ export function extractor() {
   const mismatchedElements = [];
 
   for (const el of elements) {
-    if (el.offsetParent === null) continue;
+    // USAGE: Imported visibility check
+    if (!isVisible(el)) continue;
 
-    // 1. Get Visible Text
     const visibleRaw = getVisibleLabel(el);
     if (!visibleRaw || !visibleRaw.trim()) continue;
 
-    // 2. Get Accessible Name (Overrides only)
     const accessibleRaw = getOverrideName(el);
     if (!accessibleRaw) continue;
 
-    // 3. Compare (Cleaned)
-    const clean = (str) =>
-      str
-        .toLowerCase()
-        .replace(/[\W_]+/g, " ")
-        .trim();
+    // USAGE: Imported text cleaner
+    const visible = cleanText(visibleRaw);
+    const accessible = cleanText(accessibleRaw);
 
-    const visible = clean(visibleRaw);
-    const accessible = clean(accessibleRaw);
-
-    // Logic: The accessible name must contain the visible label text
     if (visible.length > 0 && !accessible.includes(visible)) {
       mismatchedElements.push({
         visible: visibleRaw.trim().substring(0, 50),

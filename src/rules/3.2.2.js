@@ -1,3 +1,5 @@
+import { isVisible } from "../utils/dom.js";
+
 export const id = "3.2.2";
 export const earlId = "WCAG22:on-input";
 
@@ -25,7 +27,6 @@ Return a JSON object:
 export function extractor() {
   const riskyInputs = [];
 
-  // Keywords that signal a context change
   const SUSPICIOUS_PATTERNS = [
     "submit(",
     "submit()",
@@ -37,7 +38,6 @@ export function extractor() {
   ];
 
   // 1. APPLICABILITY CHECK
-  // We look for standard inputs OR any element with the relevant event handlers.
   const applicableElements = Array.from(
     document.querySelectorAll(
       "select, input, textarea, [contenteditable], [onchange], [oninput], [onblur]"
@@ -55,14 +55,14 @@ export function extractor() {
 
   // 2. AUDIT LOOP
   for (const el of applicableElements) {
-    if (el.offsetParent === null) continue; // Skip hidden
+    // USAGE: Imported visibility check
+    if (!isVisible(el)) continue;
 
-    // Check inline event handlers (common in F36/F37 failures)
     const handlers = [
       el.getAttribute("onchange"),
       el.getAttribute("oninput"),
       el.getAttribute("onblur"),
-      el.getAttribute("onclick"), // Sometimes used on radios/checkboxes/options
+      el.getAttribute("onclick"),
     ];
 
     let detectedIssue = null;
@@ -71,7 +71,6 @@ export function extractor() {
       if (!code) continue;
       const lowerCode = code.toLowerCase();
 
-      // Check if the handler contains a forbidden pattern
       for (const pattern of SUSPICIOUS_PATTERNS) {
         if (lowerCode.includes(pattern.toLowerCase())) {
           detectedIssue = `Handler code contains: "${pattern}"`;
@@ -82,12 +81,10 @@ export function extractor() {
     }
 
     if (detectedIssue) {
-      // Get a friendly name for the element
       let name = el.tagName.toLowerCase();
       if (el.id) name += `#${el.id}`;
       else if (el.name) name += `[name="${el.name}"]`;
 
-      // Get label if possible
       const labelText =
         el.labels && el.labels[0] ? ` ("${el.labels[0].innerText}")` : "";
 
@@ -100,7 +97,6 @@ export function extractor() {
     }
   }
 
-  // --- RESULT ---
   if (riskyInputs.length === 0) {
     return {
       computedVerdict: "PASS",
