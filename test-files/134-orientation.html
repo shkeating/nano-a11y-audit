@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SC 1.3.4 | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        /* FAILURE: Restricting content in Portrait mode */
+        @media (orientation: portrait) {
+            .portrait-lock {
+                display: block !important;
+            }
+
+            .main-content {
+                display: none;
+            }
+        }
+
+        /* The "Lock" Overlay */
+        .portrait-lock {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #333;
+            color: white;
+            text-align: center;
+            padding-top: 30%;
+            z-index: 9999;
+        }
+
+        .rotate-icon {
+            font-size: 50px;
+            display: block;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="portrait-lock">
+        <span class="rotate-icon">🔄</span>
+        <h1>Please Rotate Your Device</h1>
+        <p>This website is only available in Landscape mode.</p>
+    </div>
+
+    <div class="main-content">
+        <h1>SC 1.3.4 Failures: Orientation</h1>
+
+        <div class="test-case" data-rule="1.3.4" data-failure="Restricted Orientation">
+            <h3>Orientation Lock Detected</h3>
+            <p>If you resize your window so height > width (Portrait), the content disappears and a "Rotate" message
+                appears.</p>
+            <p>This fails WCAG 1.3.4 because the content is restricted to a specific orientation without an essential
+                reason.</p>
+        </div>
+
+        <div class="test-case" data-rule="1.3.4" data-failure="None">
+            <h3>Passing Example</h3>
+            <p>This text is visible in both orientations (when not blocked by the global failure above).</p>
+        </div>
+    </div>
+</body>
+
+</html>
