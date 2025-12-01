@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WCAG 2.4.6 Test Case: Headings and Labels</title>
+</head>
+<body>
+  <header>
+    <h1>Nano Auditor Test Page</h1>
+  </header>
+
+  <main>
+    <!-- PASS: Descriptive Heading -->
+    <section>
+      <h2>About Our Company</h2>
+      <p>We build accessible software.</p>
+    </section>
+
+    <!-- FAIL: Generic Heading -->
+    <section>
+      <h3>Section</h3>
+      <p>This section has a generic heading that doesn't describe the content.</p>
+    </section>
+
+    <!-- FAIL: Empty Heading (often caught by Axe, but technically also non-descriptive) -->
+    <section>
+      <h4></h4>
+      <p>The heading above is empty.</p>
+    </section>
+
+    <!-- PASS: Descriptive Label -->
+    <form>
+      <div>
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username">
+      </div>
+
+      <!-- PASS: Descriptive Button -->
+      <button>Submit Application</button>
+
+      <!-- FAIL: Non-descriptive Label (Generic) -->
+      <div>
+        <label for="generic-input">Field 1:</label>
+        <input type="text" id="generic-input" name="field1">
+      </div>
+
+      <!-- FAIL: Non-descriptive ARIA Label -->
+      <div>
+        <input type="text" aria-label="input">
+      </div>
+
+      <!-- FAIL: Non-descriptive Placeholder as Label (bad practice, but testing descriptive-ness) -->
+      <div>
+        <input type="text" aria-label="text box">
+      </div>
+
+      <!-- PASS: Search with icon-like label (simulated) -->
+      <div>
+        <input type="text" aria-label="Search">
+        <button aria-label="Search">🔍</button>
+      </div>
+    </form>
+
+    <!-- FAIL: Placeholder Heading -->
+    <h5>Untitled Document</h5>
+    <p>Content goes here.</p>
+
+  </main>
+</body>
+</html>
