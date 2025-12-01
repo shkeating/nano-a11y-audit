@@ -1,7 +1,9 @@
 # Gemini Nano A11y Auditor
 
-**Browser-Native Accessibility Testing Tool with On-Device Generative AI**
+Browser-Native Accessibility Testing Tool with On-Device Generative AI
 powered by axe-core & gemini nano
+
+<img width="2910" height="1572" alt="frame_generic_light (14)" src="https://github.com/user-attachments/assets/f9f34697-92d8-4004-8c3a-1475bfb65b7f" />
 
 ## Overview
 
