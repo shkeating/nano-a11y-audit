@@ -1,5 +1,3 @@
-import { isVisible } from "../utils/dom.js";
-
 export const id = "3.2.2";
 export const earlId = "WCAG22:on-input";
 export const relevantElements = [
@@ -34,8 +32,18 @@ Return a JSON object:
 `;
 
 export function extractor() {
-  const riskyInputs = [];
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    const style = window.getComputedStyle(el);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0"
+    );
+  }
 
+  const riskyInputs = [];
   const SUSPICIOUS_PATTERNS = [
     "submit(",
     "submit()",
@@ -46,13 +54,20 @@ export function extractor() {
     "dispatchEvent(new Event('submit'))",
   ];
 
-  // We can rely on the Side Panel's pre-flight check,
-  // but grabbing them again here is cheap.
   const applicableElements = Array.from(
     document.querySelectorAll(
       "select, input, textarea, [contenteditable], [onchange], [oninput], [onblur]"
     )
   );
+
+  if (applicableElements.length === 0) {
+    return {
+      computedVerdict: "PASS",
+      reason:
+        "Rule not applicable: No interactive inputs or input-handlers found.",
+      pageTitle: document.title,
+    };
+  }
 
   for (const el of applicableElements) {
     if (!isVisible(el)) continue;
@@ -69,7 +84,6 @@ export function extractor() {
     for (const code of handlers) {
       if (!code) continue;
       const lowerCode = code.toLowerCase();
-
       for (const pattern of SUSPICIOUS_PATTERNS) {
         if (lowerCode.includes(pattern.toLowerCase())) {
           detectedIssue = `Handler code contains: "${pattern}"`;

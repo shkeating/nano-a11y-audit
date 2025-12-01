@@ -1,5 +1,3 @@
-import { isVisible } from "../utils/dom.js";
-
 export const id = "2.2.2";
 export const earlId = "WCAG22:pause-stop-hide";
 
@@ -26,6 +24,18 @@ Return a JSON object:
 export function extractor() {
   const movingElements = [];
 
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    if (el.tagName === "BODY" || el.tagName === "HTML") return true;
+    const style = window.getComputedStyle(el);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0"
+    );
+  }
+
   function parseDuration(timeStr) {
     if (!timeStr) return 0;
     const floatVal = parseFloat(timeStr);
@@ -50,8 +60,6 @@ export function extractor() {
 
   for (const el of allElements) {
     if (["SCRIPT", "STYLE", "LINK", "META"].includes(el.tagName)) continue;
-
-    // USAGE: Imported helper
     if (!isVisible(el)) continue;
 
     const style = window.getComputedStyle(el);
@@ -84,8 +92,6 @@ export function extractor() {
   const svgAnims = document.querySelectorAll("animate, animateTransform");
   svgAnims.forEach((anim) => {
     const parentSvg = anim.closest("svg");
-
-    // USAGE: Imported helper
     if (!parentSvg || !isVisible(parentSvg)) return;
 
     const dur = parseDuration(anim.getAttribute("dur"));
@@ -112,9 +118,7 @@ export function extractor() {
   ];
 
   for (const el of allElements) {
-    // USAGE: Imported helper
     if (!isVisible(el)) continue;
-
     const id = (el.id || "").toLowerCase();
     const className = (el.className || "").toString().toLowerCase();
 

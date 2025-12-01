@@ -1,5 +1,3 @@
-import { cleanText, isVisible } from "../utils/dom.js";
-
 export const id = "2.5.3";
 export const earlId = "WCAG22:label-in-name";
 export const relevantElements = [
@@ -36,6 +34,25 @@ Review the input data.
 `;
 
 export function extractor() {
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    const style = window.getComputedStyle(el);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0"
+    );
+  }
+
+  function cleanText(str) {
+    if (!str) return "";
+    return str
+      .toLowerCase()
+      .replace(/[\W_]+/g, " ")
+      .trim();
+  }
+
   function getOverrideName(el) {
     if (el.hasAttribute("aria-labelledby")) {
       const ids = el.getAttribute("aria-labelledby").split(" ");
@@ -64,13 +81,11 @@ export function extractor() {
       if (["submit", "reset", "button"].includes(type)) {
         return el.value;
       }
-
       if (el.labels && el.labels.length > 0) {
         return Array.from(el.labels)
           .map((l) => l.innerText)
           .join(" ");
       }
-
       let prev = el.previousElementSibling;
       while (
         prev &&
@@ -79,15 +94,12 @@ export function extractor() {
       ) {
         prev = prev.previousElementSibling;
       }
-
       if (prev && prev.tagName === "LABEL") {
         return prev.innerText;
       }
-
       if (el.hasAttribute("placeholder")) {
         return el.getAttribute("placeholder");
       }
-
       return "";
     }
     return el.innerText;
@@ -122,9 +134,7 @@ export function extractor() {
     if (mismatchedElements.length >= 5) break;
   }
 
-  const result = {
-    pageTitle: document.title,
-  };
+  const result = { pageTitle: document.title };
 
   if (mismatchedElements.length > 0) {
     result.mismatchedElements = mismatchedElements;

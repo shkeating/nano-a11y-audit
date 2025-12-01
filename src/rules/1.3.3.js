@@ -1,5 +1,3 @@
-import { isVisible } from "../utils/dom.js";
-
 export const id = "1.3.3";
 export const earlId = "WCAG22:sensory-characteristics";
 export const relevantElements = ["p", "li", "span", "div", "td", "th"];
@@ -50,6 +48,18 @@ Return a JSON object with a "verdict" and a "reason".
 `;
 
 export function extractor() {
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    if (el.tagName === "BODY" || el.tagName === "HTML") return true;
+    const style = window.getComputedStyle(el);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0"
+    );
+  }
+
   const potentialInstructions = [];
   const elements = Array.from(
     document.querySelectorAll("p, li, span, div, td, th")

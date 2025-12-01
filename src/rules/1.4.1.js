@@ -1,5 +1,3 @@
-import { getContrastRatio } from "../utils/dom.js";
-
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 export const relevantElements = ["a", "button", "input", "select", "textarea"];
@@ -31,46 +29,58 @@ Task: Format the input JSON data into a simple bulleted list.
 `;
 
 export function extractor(incompleteSelectors = []) {
-  /**
-   * CASCADE-AWARE HOVER CHECK
-   * Simulates CSS specificity by letting later rules override earlier ones.
-   */
+  // --- HELPERS (Restored) ---
+  function parseRgb(colorStr) {
+    const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    return match
+      ? [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])]
+      : null;
+  }
+
+  function getLuminance(r, g, b) {
+    const a = [r, g, b].map((v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+  }
+
+  function getContrastRatio(fgColor, bgColor) {
+    const rgb1 = parseRgb(fgColor);
+    const rgb2 = parseRgb(bgColor);
+    if (!rgb1 || !rgb2) return null;
+    const l1 = getLuminance(rgb1[0], rgb1[1], rgb1[2]);
+    const l2 = getLuminance(rgb2[0], rgb2[1], rgb2[2]);
+    const lighter = Math.max(l1, l2);
+    const darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
   function hasValidHoverStyle(element) {
     let hasCue = false;
-
     for (const sheet of document.styleSheets) {
       try {
         const rules = sheet.cssRules || sheet.rules;
         if (!rules) continue;
-
         for (const rule of rules) {
           if (!rule.selectorText || !rule.selectorText.includes(":hover"))
             continue;
-
           const selectors = rule.selectorText.split(",");
           for (const sel of selectors) {
             if (!sel.includes(":hover")) continue;
-
-            // Check if this rule applies to our element
             const baseSel = sel.replace(/:hover/g, "").trim();
-            const matches =
-              baseSel === "" || baseSel === "a" || element.matches(baseSel);
-
-            if (matches) {
+            if (baseSel === "" || baseSel === "a" || element.matches(baseSel)) {
               const s = rule.style;
-
-              // 1. Does this rule ADD a visual cue?
               if (
                 s.textDecorationLine?.includes("underline") ||
                 s.textDecoration?.includes("underline") ||
                 (s.borderBottomStyle && s.borderBottomStyle !== "none")
               ) {
                 hasCue = true;
-              }
-              // 2. Does this rule REMOVE the visual cue?
-              else if (
-                s.textDecorationLine?.includes("none") ||
-                s.textDecoration === "none"
+              } else if (
+                (s.textDecorationLine?.includes("none") ||
+                  s.textDecoration === "none") &&
+                (s.borderBottomStyle === "none" || !s.borderBottomStyle)
               ) {
                 hasCue = false;
               }
@@ -78,14 +88,13 @@ export function extractor(incompleteSelectors = []) {
           }
         }
       } catch (e) {
-        // CORS blocked
         continue;
       }
     }
     return hasCue;
   }
 
-  // --- 1. LINK LOGIC (Smart Mode) ---
+  // --- 1. LINK LOGIC ---
   const failingLinks = [];
   let linksToCheck = [];
 
@@ -102,22 +111,17 @@ export function extractor(incompleteSelectors = []) {
     if (link.offsetParent === null) continue;
     const parent = link.parentElement;
     if (!parent) continue;
-
-    const parentTag = parent.tagName;
-    if (["H1", "H2", "H3", "H4", "H5", "H6"].includes(parentTag)) continue;
+    if (["H1", "H2", "H3", "H4", "H5", "H6"].includes(parent.tagName)) continue;
 
     const s = window.getComputedStyle(link);
-    const hasUnderline =
+    const hasStaticCue =
       s.textDecorationLine.includes("underline") ||
-      s.textDecoration.includes("underline");
-    const hasBorder =
-      s.borderBottomStyle !== "none" && parseFloat(s.borderBottomWidth) > 0;
+      s.textDecoration.includes("underline") ||
+      (s.borderBottomStyle !== "none" && parseFloat(s.borderBottomWidth) > 0);
     const hasBold = parseInt(s.fontWeight) >= 700 || s.fontWeight === "bold";
 
-    // Static check
-    if (hasUnderline || hasBorder) continue;
+    if (hasStaticCue) continue;
 
-    // USAGE: Imported helper from dom.js
     const ratio = getContrastRatio(
       s.color,
       window.getComputedStyle(parent).color
@@ -173,11 +177,11 @@ export function extractor(incompleteSelectors = []) {
     const isReq =
       el.hasAttribute("required") ||
       el.getAttribute("aria-required") === "true";
-    const isInv = el.getAttribute("aria-invalid") === "true";
     const isErr =
-      el.className.includes("error") || el.className.includes("invalid");
+      el.getAttribute("aria-invalid") === "true" ||
+      el.className.includes("error");
 
-    if (isReq || isInv || isErr) {
+    if (isReq || isErr) {
       failingForms.push({
         text: label ? label.innerText.substring(0, 30) : "Unlabeled Field",
       });
@@ -185,12 +189,11 @@ export function extractor(incompleteSelectors = []) {
     if (failingForms.length >= 5) break;
   }
 
-  // --- 3. TEXT FRAGMENT LOGIC ---
+  // --- 3. TEXT FRAGMENTS ---
   function hasOnlyColorDifference(element, parent) {
     const s1 = window.getComputedStyle(element);
     const s2 = window.getComputedStyle(parent);
     if (s1.color === s2.color) return false;
-
     return (
       s1.fontWeight === s2.fontWeight &&
       s1.fontStyle === s2.fontStyle &&
@@ -202,36 +205,19 @@ export function extractor(incompleteSelectors = []) {
 
   const failingFragments = [];
   const allElements = document.body.getElementsByTagName("*");
-
   for (const el of allElements) {
-    if (el.offsetParent === null) continue;
     if (
-      [
-        "SCRIPT",
-        "STYLE",
-        "NOSCRIPT",
-        "A",
-        "BUTTON",
-        "INPUT",
-        "SELECT",
-        "TEXTAREA",
-        "NAV",
-      ].includes(el.tagName)
+      el.offsetParent === null ||
+      ["SCRIPT", "STYLE", "A", "BUTTON", "INPUT", "NAV"].includes(el.tagName)
     )
       continue;
 
     const hasDirectText = Array.from(el.childNodes).some(
-      (node) =>
-        node.nodeType === Node.TEXT_NODE && node.nodeValue.trim().length > 0
+      (n) => n.nodeType === 3 && n.nodeValue.trim().length > 0
     );
-
-    if (hasDirectText) {
-      const parent = el.parentElement;
-      if (parent && hasOnlyColorDifference(el, parent)) {
-        const txt = el.innerText.trim();
-        if (txt.length > 0) {
-          failingFragments.push({ text: txt.substring(0, 40) });
-        }
+    if (hasDirectText && el.parentElement) {
+      if (hasOnlyColorDifference(el, el.parentElement)) {
+        failingFragments.push({ text: el.innerText.substring(0, 40) });
       }
     }
     if (failingFragments.length >= 5) break;
@@ -241,7 +227,6 @@ export function extractor(incompleteSelectors = []) {
     failingLinks.length > 0 ||
     failingForms.length > 0 ||
     failingFragments.length > 0;
-
   const result = {
     pageTitle: document.title,
     computedVerdict: hasFailures ? "FAIL" : "PASS",
