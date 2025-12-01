@@ -1,8 +1,9 @@
+import { getContrastRatio } from "../utils/dom.js";
+
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 export const relevantElements = ["a", "button", "input", "select", "textarea"];
 
-// 1. SYSTEM PROMPT
 export const systemPrompt = `
 You are a violation reporter.
 Task: Format the input JSON data into a simple bulleted list.
@@ -29,42 +30,13 @@ Task: Format the input JSON data into a simple bulleted list.
 - If computedVerdict is "FAIL": {"verdict": "FAIL", "reason": "[Your generated lists]", "title": "[pageTitle]"}
 `;
 
-// 2. EXTRACTOR
 export function extractor(incompleteSelectors = []) {
-  // --- HELPERS ---
-  function parseRgb(colorStr) {
-    const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    return match
-      ? [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])]
-      : null;
-  }
-
-  function getLuminance(r, g, b) {
-    const a = [r, g, b].map((v) => {
-      v /= 255;
-      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-    });
-    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-  }
-
-  function getContrastRatio(fgColor, bgColor) {
-    const rgb1 = parseRgb(fgColor);
-    const rgb2 = parseRgb(bgColor);
-    if (!rgb1 || !rgb2) return null;
-
-    const l1 = getLuminance(rgb1[0], rgb1[1], rgb1[2]);
-    const l2 = getLuminance(rgb2[0], rgb2[1], rgb2[2]);
-    const lighter = Math.max(l1, l2);
-    const darker = Math.min(l1, l2);
-    return (lighter + 0.05) / (darker + 0.05);
-  }
-
   /**
-   * REVISED Hover Check
-   * Iterates all rules to simulate cascade (last match wins).
+   * CASCADE-AWARE HOVER CHECK
+   * Simulates CSS specificity by letting later rules override earlier ones.
    */
   function hasValidHoverStyle(element) {
-    let hasCue = false; // Default assumption: no hover cue
+    let hasCue = false;
 
     for (const sheet of document.styleSheets) {
       try {
@@ -87,7 +59,7 @@ export function extractor(incompleteSelectors = []) {
             if (matches) {
               const s = rule.style;
 
-              // Check for adding a cue (Underline or Border)
+              // 1. Does this rule ADD a visual cue?
               if (
                 s.textDecorationLine?.includes("underline") ||
                 s.textDecoration?.includes("underline") ||
@@ -95,7 +67,7 @@ export function extractor(incompleteSelectors = []) {
               ) {
                 hasCue = true;
               }
-              // Check for REMOVING a cue (text-decoration: none)
+              // 2. Does this rule REMOVE the visual cue?
               else if (
                 s.textDecorationLine?.includes("none") ||
                 s.textDecoration === "none"
@@ -118,13 +90,11 @@ export function extractor(incompleteSelectors = []) {
   let linksToCheck = [];
 
   if (incompleteSelectors && incompleteSelectors.length > 0) {
-    // Only check what Axe flagged as "Incomplete"
     incompleteSelectors.forEach((sel) => {
       const el = document.querySelector(sel);
       if (el) linksToCheck.push(el);
     });
   } else {
-    // Fallback: Scan everything
     linksToCheck = Array.from(document.querySelectorAll("a:not(nav a)"));
   }
 
@@ -147,21 +117,19 @@ export function extractor(incompleteSelectors = []) {
     // Static check
     if (hasUnderline || hasBorder) continue;
 
-    const linkColor = s.color;
-    const parentColor = window.getComputedStyle(parent).color;
-    const ratio = getContrastRatio(linkColor, parentColor);
+    // USAGE: Imported helper from dom.js
+    const ratio = getContrastRatio(
+      s.color,
+      window.getComputedStyle(parent).color
+    );
 
     if (ratio !== null) {
-      // 1. Hard Fail: Contrast too low (< 3:1)
       if (ratio < 3.0) {
         failingLinks.push({
           text: link.innerText.substring(0, 40),
           issue: `Contrast ${ratio.toFixed(2)}:1 is too low (<3:1).`,
         });
-      }
-      // 2. Conditional Fail: Contrast OK, but NO visual cue on hover
-      // We explicitly check !hasValidHoverStyle here.
-      else if (!hasBold && !hasValidHoverStyle(link)) {
+      } else if (!hasBold && !hasValidHoverStyle(link)) {
         failingLinks.push({
           text: link.innerText.substring(0, 40),
           issue: `Contrast OK (${ratio.toFixed(
@@ -269,7 +237,6 @@ export function extractor(incompleteSelectors = []) {
     if (failingFragments.length >= 5) break;
   }
 
-  // --- RESULT GENERATION ---
   const hasFailures =
     failingLinks.length > 0 ||
     failingForms.length > 0 ||
