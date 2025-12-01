@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SC 1.3.2 | Accessibility Test Lab</title>
+    <style>
+        .flex-reverse {
+            display: flex;
+            flex-direction: row-reverse;
+            gap: 10px;
+        }
+
+        .grid-order {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .order-last {
+            order: 2;
+        }
+
+        .order-first {
+            order: 1;
+        }
+
+        .float-right {
+            float: right;
+        }
+
+        .absolute-pos {
+            position: relative;
+            height: 50px;
+        }
+
+        .abs-child {
+            position: absolute;
+            right: 0;
+            top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <section>
+        <h2>SC 1.3.2 Failures: Meaningful Sequence</h2>
+
+        <div class="test-case" data-rule="1.3.2" data-failure="C27">
+            <h3>Flex Direction Reverse</h3>
+            <p>DOM Order: 1, 2, 3. Visual Order: 3, 2, 1.</p>
+            <div class="flex-reverse">
+                <div>Item 1 (Start)</div>
+                <div>Item 2 (Middle)</div>
+                <div>Item 3 (End)</div>
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.3.2" data-failure="C27">
+            <h3>CSS Order Property</h3>
+            <p>DOM Order: A, B. Visual Order: B, A.</p>
+            <div class="grid-order">
+                <div class="order-last">Item A (DOM First)</div>
+                <div class="order-first">Item B (DOM Last)</div>
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.3.2" data-failure="Floats">
+            <h3>CSS Floats</h3>
+            <div class="float-right">Floated Right (Visual Start)</div>
+            <div>Standard Block (Visual End)</div>
+        </div>
+
+        <div class="test-case" data-rule="1.3.2" data-failure="Positioning">
+            <h3>Absolute Positioning</h3>
+            <div class="absolute-pos">
+                <div>Static Text</div>
+                <div class="abs-child">Positioned Text (Visually Disconnected)</div>
+            </div>
+        </div>
+    </section>
+</body>
+
+</html>

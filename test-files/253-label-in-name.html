@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SC 2.5.3 | Accessibility Test Lab</title>
+</head>
+
+<body>
+    <section>
+        <h2>SC 2.5.3 Failures: Label in Name</h2>
+
+        <div class="test-case" data-rule="2.5.3" data-failure="F96">
+            <h3>Mismatch (aria-label)</h3>
+            <button aria-label="Find">Search</button>
+        </div>
+
+        <div class="test-case" data-rule="2.5.3" data-failure="F96">
+            <h3>Mismatch (aria-labelledby)</h3>
+            <span id="hidden-label" hidden>File Chooser</span>
+            <button aria-labelledby="hidden-label">Upload</button>
+        </div>
+
+        <div class="test-case" data-rule="2.5.3" data-failure="F96">
+            <h3>Mismatch (Image Alt)</h3>
+            <button>
+                <img src="gear.png" alt="Preferences">
+                <span>Settings</span>
+            </button>
+        </div>
+
+        <div class="test-case" data-rule="2.5.3" data-failure="None">
+            <h3>Passing Example</h3>
+            <button aria-label="Submit Form">Submit</button>
+        </div>
+    </section>
+</body>
+
+</html>
