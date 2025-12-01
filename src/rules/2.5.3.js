@@ -25,8 +25,11 @@ Review the input data.
 `;
 
 export function extractor() {
-  function getAccessibleName(el) {
-    // Priority 1: aria-labelledby
+  /**
+   * Gets the Accessible Name (Focus on Overrides)
+   */
+  function getOverrideName(el) {
+    // 1. aria-labelledby
     if (el.hasAttribute("aria-labelledby")) {
       const ids = el.getAttribute("aria-labelledby").split(" ");
       const parts = ids.map((id) => {
@@ -35,11 +38,11 @@ export function extractor() {
       });
       return parts.join(" ").trim();
     }
-    // Priority 2: aria-label
+    // 2. aria-label
     if (el.hasAttribute("aria-label")) {
       return el.getAttribute("aria-label").trim();
     }
-    // Priority 3: alt (specifically mentioned in prompt)
+    // 3. alt
     if (el.hasAttribute("alt")) {
       return el.getAttribute("alt").trim();
     }
@@ -47,41 +50,78 @@ export function extractor() {
   }
 
   function getVisibleLabel(el) {
-    // If it's an input
-    if (el.tagName === "INPUT") {
+    // 1. Inputs
+    if (
+      el.tagName === "INPUT" ||
+      el.tagName === "TEXTAREA" ||
+      el.tagName === "SELECT"
+    ) {
       const type = el.type ? el.type.toLowerCase() : "text";
       if (["submit", "reset", "button"].includes(type)) {
         return el.value;
       }
-      // For other inputs, check associated label
+
+      // A. Check for Programmatic Labels (Best Practice)
       if (el.labels && el.labels.length > 0) {
         return Array.from(el.labels)
           .map((l) => l.innerText)
           .join(" ");
       }
+
+      // B. Heuristic: Check for "Orphaned" Visual Labels (Common Failure Pattern)
+      // If the code is broken (missing 'for' attribute), the user still SEES the label.
+      // We check the immediately preceding element.
+      let prev = el.previousElementSibling;
+      while (
+        prev &&
+        (prev.tagName === "BR" ||
+          (prev.tagName === "SPAN" && prev.innerText.length < 2))
+      ) {
+        // Skip tiny spans or breaks
+        prev = prev.previousElementSibling;
+      }
+
+      if (prev && prev.tagName === "LABEL") {
+        return prev.innerText;
+      }
+
       return "";
     }
-    // For buttons and links
+
+    // 2. Standard Elements
     return el.innerText;
   }
 
-  const elements = Array.from(document.querySelectorAll("button, a, input"));
+  const elements = Array.from(
+    document.querySelectorAll(
+      "button, a, input, select, textarea, [role='button'], [role='link']"
+    )
+  );
   const mismatchedElements = [];
 
   for (const el of elements) {
-    if (el.offsetParent === null) continue; // Skip hidden elements
+    if (el.offsetParent === null) continue;
 
+    // 1. Get Visible Text
     const visibleRaw = getVisibleLabel(el);
-    if (!visibleRaw || !visibleRaw.trim()) continue; // No visible label to check against
+    if (!visibleRaw || !visibleRaw.trim()) continue;
 
-    const accessibleRaw = getAccessibleName(el);
-    // Logic: "only return items where the accessibleName is present"
+    // 2. Get Accessible Name (Overrides only)
+    const accessibleRaw = getOverrideName(el);
     if (!accessibleRaw) continue;
 
-    const visible = visibleRaw.trim().toLowerCase();
-    const accessible = accessibleRaw.trim().toLowerCase();
+    // 3. Compare (Cleaned)
+    const clean = (str) =>
+      str
+        .toLowerCase()
+        .replace(/[\W_]+/g, " ")
+        .trim();
 
-    if (!accessible.includes(visible)) {
+    const visible = clean(visibleRaw);
+    const accessible = clean(accessibleRaw);
+
+    // Logic: The accessible name must contain the visible label text
+    if (visible.length > 0 && !accessible.includes(visible)) {
       mismatchedElements.push({
         visible: visibleRaw.trim().substring(0, 50),
         accessible: accessibleRaw.trim().substring(0, 50),
@@ -94,8 +134,13 @@ export function extractor() {
   const result = {
     pageTitle: document.title,
   };
+
   if (mismatchedElements.length > 0) {
     result.mismatchedElements = mismatchedElements;
+    result.computedVerdict = "FAIL";
+  } else {
+    result.computedVerdict = "PASS";
   }
+
   return result;
 }
