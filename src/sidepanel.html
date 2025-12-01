@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
 </head>
 
 <body>
@@ -34,7 +33,10 @@
         </div>
     </div>
 
-    <textarea id="log" readonly placeholder="Audit logs will appear here..."></textarea>
+    <section id="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Audit Log" tabindex="0">
+        <div class="log-entry">Waiting for input...</div>
+    </section>
+
     <button id="downloadBtn" style="display:none; background: #28a745;">Download Report Data</button>
 </body>
 

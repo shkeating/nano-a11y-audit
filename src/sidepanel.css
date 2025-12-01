@@ -1,21 +1,45 @@
 :root {
-    --pico-font-family: Arimo, system-ui, Helvetica Neue, Helvetica, sans-serif;
+    --pico-font-family-sans-serif: 'Arivo', system-ui, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, Helvetica, Arial, "Helvetica Neue", sans-serif, var(--pico-font-family-emoji);
+    --pico-font-family-monospace: 'Cousine', ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace, var(--pico-font-family-emoji);
 }
 
-.status-box {
-    background: #f8f9fa;
-    padding: 10px;
-    border-radius: 4px;
+body {
+    width: auto;
+    padding: 3rem;
+    font-family: var(--pico-font-family);
+}
+
+#log {
+    width: 100%;
+    height: 200px;
     margin-top: 10px;
-    font-size: 12px;
-    border: 1px solid #eee;
+    padding: 8px;
+
+    /* Visuals */
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+
+    /* Typography */
+    font-family: var(--pico-font-family-monospace);
+    font-size: 11px;
+    line-height: 1.4;
+    color: #333;
+
+    /* Scrolling Behavior */
+    overflow-y: auto;
+    overflow-x: hidden;
+    white-space: pre-wrap;
+    /* Wraps long text lines */
+    word-wrap: break-word;
 }
 
-.success {
-    color: green;
+#log:focus {
+    outline: 2px solid #007bff;
+    border-color: #007bff;
 }
 
-.fail {
-    color: red;
-    font-weight: bold;
+/* Optional: Stripe effect for readability */
+.log-entry:nth-child(even) {
+    background-color: rgba(0, 0, 0, 0.02);
 }
