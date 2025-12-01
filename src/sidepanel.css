@@ -47,14 +47,14 @@ progress {
     padding: 8px;
 
     /* Visuals */
-    background-color: #f8f9fa;
-    border: 1px solid #ddd;
+    background-color: var(--pico-card-background-color);
+    border: 1px solid var(--pico-card-border-color);
+    color: var(--pico-color);
     border-radius: 4px;
 
     /* Typography */
     font-family: var(--pico-font-family-monospace);
     line-height: 1.4;
-    color: #333;
 
     /* Scrolling Behavior */
     overflow-y: auto;
@@ -71,5 +71,10 @@ progress {
 
 /* Optional: Stripe effect for readability */
 .log-entry:nth-child(even) {
-    background-color: rgba(0, 0, 0, 0.02);
+    background-color: var(--pico-table-row-stripped-background-color);
+}
+
+.status-box {
+    background: var(--pico-card-background-color);
+    border: 1px solid var(--pico-card-border-color);
 }

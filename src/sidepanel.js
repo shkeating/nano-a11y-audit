@@ -35,18 +35,26 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
 // 2. BATCH PROCESS RUNNER
 document.getElementById("startBtn").addEventListener("click", async () => {
   if (urlQueue.length === 0) {
-    log("⚠️ Please upload a valid CSV file before starting.");
+    alert("Please upload a valid CSV file before starting.");
     return;
   }
 
-  document.getElementById("startBtn").disabled = true;
-  document.getElementById("statusArea").style.display = "block";
+  // --- VIEW TRANSITION ---
+  // Hide Setup
+  document.getElementById("setup").setAttribute("hidden", "true");
+
+  // Show Audit View
+  document.getElementById("auditView").removeAttribute("hidden");
+
+  // Reset Audit View States (in case of re-run)
+  document.getElementById("statusArea").removeAttribute("hidden");
+  document.getElementById("completeView").setAttribute("hidden", "true");
 
   // Initialize Progress Bar
   const progressBar = document.getElementById("auditProgress");
   progressBar.value = 0;
   progressBar.max = urlQueue.length;
-  progressBar.removeAttribute("indeterminate"); // Ensure it's not in loading state
+  progressBar.removeAttribute("indeterminate");
 
   auditResults = [];
 
@@ -92,7 +100,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
 
-        // Find relevant leads
         const relevantLeads = incompleteLeads.filter(
           (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
         );
@@ -227,14 +234,12 @@ async function getActiveTab() {
 }
 
 function updateStatus(current, total, url) {
-  // Update Visual Progress Bar
   const progressBar = document.getElementById("auditProgress");
   if (progressBar) {
     progressBar.value = current;
     progressBar.max = total;
   }
 
-  // Update Text Labels
   document.getElementById("progressText").textContent = `${current}/${total}`;
   document.getElementById("currentUrl").textContent = url;
 }
@@ -249,9 +254,6 @@ function log(msg) {
 }
 
 function finishAudit() {
-  document.getElementById("startBtn").disabled = false;
-  document.getElementById("startBtn").textContent = "Audit Complete";
-
   const reportOptions = {
     includePassed: document.getElementById("includePassed").checked,
     includeNotPresent: document.getElementById("includeNotPresent").checked,
@@ -262,6 +264,7 @@ function finishAudit() {
   const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
+  // 1. Trigger Download
   chrome.downloads.download(
     { url: url, filename: "nano-audit-report.json" },
     (downloadId) => {
@@ -273,8 +276,12 @@ function finishAudit() {
     }
   );
 
+  // 2. Show Complete View
+  document.getElementById("statusArea").setAttribute("hidden", "true");
+  document.getElementById("completeView").removeAttribute("hidden");
+
+  // 3. Setup Download Button (In case they want to download again)
   const btn = document.getElementById("downloadBtn");
-  btn.style.display = "block";
   btn.onclick = () => {
     chrome.downloads.download({
       url: url,
@@ -282,8 +289,10 @@ function finishAudit() {
     });
   };
 
-  log("🏁 Done. Opening W3C Report Tool...");
+  log("✨ Audit Complete.");
 
+  // 4. Inject into W3C Tool
+  log("🏁 Opening W3C Report Tool...");
   const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
   chrome.tabs.create({ url: reportToolUrl }, (tab) => {
     const inject = (tabId) => {

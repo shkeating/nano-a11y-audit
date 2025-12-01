@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+    <meta name="color-scheme" content="light dark">
 </head>
 
 <body>
@@ -11,16 +12,19 @@
     </header>
     <main>
         <div id="setup">
+            <h3>Getting Started</h3>
             <p class="instruction-text">
-                Upload a CSV of URLs for the pages in your test sample to begin audit. The extension will visit each
+                Upload a CSV of URLs for the pages in your test sample to begin audit. The extension will visit
+                each
                 page in
-                your sample, and will run checks with axe-core and Gemini Nano. It will then download the report data,
+                your sample, and will run checks with axe-core and Gemini Nano. It will then download the report
+                data,
                 and
                 open the WCAG EM Report Tool to view the results.
             </p>
             <p>
-                For guidance on creating a test sample, please review the W3C Conformance Evaluation Methodology <a
-                    href="https://www.w3.org/TR/WCAG-EM/#step2">Step 2:
+                For guidance on creating a test sample, please review the W3C Conformance Evaluation Methodology
+                <a href="https://www.w3.org/TR/WCAG-EM/#step2">Step 2:
                     Explore the Website</a> and <a href="https://www.w3.org/TR/WCAG-EM/#step3">Step 3: Select a
                     Representative
                     Sample</a>
@@ -54,28 +58,45 @@
             <button id="startBtn">Start Batch Audit</button>
         </div>
 
-        <div id="statusArea" class="status-box">
-            <div>
-                <strong>Page Progress</strong>
-                <span id="progressText">0/0</span>
-            </div>
-            <progress id="auditProgress" value="0" max="100"></progress>
+        <div id="auditView" hidden>
 
-            <div class="status-current-url">
-                <strong>Current:</strong> <span id="currentUrl">Waiting to start...</span>
+            <div id="statusArea" class="status-box">
+                <h3>Audit Status</h3>
+                <small>this may take a minute or two, depending on the size and complexity of your test sample. You will
+                    see an Audit Completed message when the process has concluded. Do not mess with this browser window
+                    while the tests are running. If you are multitasking, use a new Chrome window.</small>
+                <div>
+                    <strong>Page Progress</strong>
+                    <span id="progressText">0/0</span>
+                </div>
+                <progress id="auditProgress" value="0" max="100"></progress>
+
+                <div class="status-current-url">
+                    <strong>Current:</strong> <span id="currentUrl">Waiting to start...</span>
+                </div>
+
+                <section id="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Audit Log"
+                    tabindex="0">
+                    <div class="log-entry">Waiting for input...</div>
+                </section>
             </div>
+
+            <div id="completeView" hidden class="complete-box">
+                <h3>Audit Completed</h3>
+                <p>The report was downloaded automatically.</p>
+                <button id="downloadBtn" class="contrast">Download Report Again</button>
+            </div>
+
+
         </div>
-
-        <section id="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Audit Log" tabindex="0">
-            <div class="log-entry">Waiting for input...</div>
-        </section>
-
-        <button id="downloadBtn">Download Report Data</button>
     </main>
     <footer>
-        powered by Gemini Nano, axe-core, and WCAG EM.
-        built and mantained by Shauna Keating, CPACC. Follow
-        [nano-a11y-audit](https://github.com/shkeating/nano-a11y-audit) and report issues on Github.
+        <small>
+            powered by Gemini Nano, axe-core, and WCAG EM.
+        </small>
+        <small>built and mantained by Shauna Keating, CPACC. To learn more visit
+            <a href="https://github.com/shkeating/nano-a11y-audit">nano-a11y-audit</a> on Github.
+        </small>
     </footer>
 </body>
 
