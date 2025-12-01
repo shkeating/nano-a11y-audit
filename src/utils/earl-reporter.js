@@ -128,13 +128,30 @@ export function generateEarlReport(auditResults) {
 
       // --- AGGREGATE WEBSITE ASSERTION ---
       const anyFailures = relevantResults.some((r) => r.verdict === "FAIL");
-      const aggregateOutcome = anyFailures
-        ? { id: "earl:failed", type: ["OutcomeValue", "Fail"], title: "Failed" }
-        : {
-            id: "earl:passed",
-            type: ["OutcomeValue", "Pass"],
-            title: "Passed",
-          };
+      const onlyInapplicable = relevantResults.every(
+        (r) => r.verdict === "INAPPLICABLE"
+      );
+
+      let aggregateOutcome;
+      if (anyFailures) {
+        aggregateOutcome = {
+          id: "earl:failed",
+          type: ["OutcomeValue", "Fail"],
+          title: "Failed",
+        };
+      } else if (onlyInapplicable) {
+        aggregateOutcome = {
+          id: "earl:inapplicable",
+          type: ["OutcomeValue", "NotApplicable"],
+          title: "Not Present",
+        };
+      } else {
+        aggregateOutcome = {
+          id: "earl:passed",
+          type: ["OutcomeValue", "Pass"],
+          title: "Passed",
+        };
+      }
 
       allAssertions.push({
         type: "Assertion",
@@ -165,19 +182,32 @@ export function generateEarlReport(auditResults) {
 
       for (const [url, pageResults] of Object.entries(resultsByUrl)) {
         const isFailure = pageResults.some((r) => r.verdict === "FAIL");
-        const outcomeObj = isFailure
-          ? {
-              id: "earl:failed",
-              type: ["OutcomeValue", "Fail"],
-              title: "Failed",
-            }
-          : {
-              id: "earl:passed",
-              type: ["OutcomeValue", "Pass"],
-              title: "Passed",
-              // For passes, just use the first "pass" reason or generic text
-              // description: "Pass"
-            };
+        const isInapplicable = pageResults.every(
+          (r) => r.verdict === "INAPPLICABLE"
+        );
+
+        let outcomeObj;
+        if (isFailure) {
+          outcomeObj = {
+            id: "earl:failed",
+            type: ["OutcomeValue", "Fail"],
+            title: "Failed",
+          };
+        } else if (isInapplicable) {
+          outcomeObj = {
+            id: "earl:inapplicable",
+            type: ["OutcomeValue", "NotApplicable"],
+            title: "Not Present",
+          };
+        } else {
+          outcomeObj = {
+            id: "earl:passed",
+            type: ["OutcomeValue", "Pass"],
+            title: "Passed",
+            // For passes, just use the first "pass" reason or generic text
+            // description: "Pass"
+          };
+        }
 
         // Only show Failure details in the description to keep it readable,
         // unless it's a pass, then show the pass reason.

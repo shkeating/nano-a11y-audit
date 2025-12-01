@@ -94,6 +94,8 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               ? "❌"
               : result.verdict === "PASS"
               ? "✅"
+              : result.verdict === "INAPPLICABLE"
+              ? "⚪"
               : "⚠️";
           log(`[Nano: ${ruleId}] ${statusIcon} ${result.verdict}`);
 
@@ -125,7 +127,26 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 // 3. THE AI AUDITOR
 async function runAuditOnTab(tabId, rule, targetSelectors = []) {
   try {
-    // A. Inject Extractor
+    // A. PRE-FLIGHT CHECK
+    if (rule.relevantElements && rule.relevantElements.length > 0) {
+      const checkResult = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (selectors) => {
+          return selectors.some((s) => document.querySelector(s) !== null);
+        },
+        args: [rule.relevantElements],
+      });
+
+      if (checkResult && checkResult[0] && !checkResult[0].result) {
+        return {
+          verdict: "INAPPLICABLE",
+          reason: "Relevant elements not found on page.",
+          pageTitle: "N/A",
+        };
+      }
+    }
+
+    // B. Inject Extractor
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
       func: rule.extractor,

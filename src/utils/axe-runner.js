@@ -221,6 +221,8 @@ export async function runAxeAudit(tabId) {
     processResult(axeResults.passes, "PASS");
     // Capture incomplete items to pass to Nano
     processResult(axeResults.incomplete, "INCOMPLETE");
+    // Capture inapplicable items
+    processResult(axeResults.inapplicable, "INAPPLICABLE");
 
     return mappedResults;
   } catch (err) {
