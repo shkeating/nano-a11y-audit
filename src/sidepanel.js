@@ -1,3 +1,6 @@
+import "@picocss/pico";
+import "./sidepanel.css";
+
 import Papa from "papaparse";
 import { RULES } from "./rules/index.js";
 import { generateEarlReport } from "./utils/earl-reporter.js";
@@ -22,7 +25,6 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
 
       if (urlQueue.length > 0) {
         log(`✅ Loaded ${urlQueue.length} URLs.`);
-        document.getElementById("startBtn").disabled = false;
       } else {
         log("❌ No valid URLs found. Check CSV headers.");
       }
@@ -32,8 +34,28 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
 
 // 2. BATCH PROCESS RUNNER
 document.getElementById("startBtn").addEventListener("click", async () => {
-  document.getElementById("startBtn").disabled = true;
-  document.getElementById("statusArea").style.display = "block";
+  if (urlQueue.length === 0) {
+    alert("Please upload a valid CSV file before starting.");
+    return;
+  }
+
+  // --- VIEW TRANSITION ---
+  // Hide Setup
+  document.getElementById("setup").setAttribute("hidden", "true");
+
+  // Show Audit View
+  document.getElementById("auditView").removeAttribute("hidden");
+
+  // Reset Audit View States (in case of re-run)
+  document.getElementById("statusArea").removeAttribute("hidden");
+  document.getElementById("completeView").setAttribute("hidden", "true");
+
+  // Initialize Progress Bar
+  const progressBar = document.getElementById("auditProgress");
+  progressBar.value = 0;
+  progressBar.max = urlQueue.length;
+  progressBar.removeAttribute("indeterminate");
+
   auditResults = [];
 
   for (let i = 0; i < urlQueue.length; i++) {
@@ -54,7 +76,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Running Axe Core...`);
       const axeResults = await runAxeAudit(tab.id);
 
-      // Filter out 'INCOMPLETE' results from final report (Nano will resolve them)
+      // Filter out 'INCOMPLETE' results from final report
       axeResults.forEach((r) => {
         if (r.verdict === "FAIL") {
           log(`[Axe: ${r.ruleId}] ❌ FAIL`);
@@ -68,22 +90,20 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       });
       log(`✅ Axe Complete: ${axeResults.length} checks processed.`);
 
-      // Identify 'leads' for Nano (items Axe marked INCOMPLETE)
+      // Identify 'leads' for Nano
       const incompleteLeads = axeResults.filter(
         (r) => r.verdict === "INCOMPLETE"
       );
 
-      // 2. Run Gemini Nano Audit (Iterate through Rules Registry)
+      // 2. Run Gemini Nano Audit
       log(`Running Gemini Nano...`);
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
 
-        // Find relevant leads for this specific Nano rule
         const relevantLeads = incompleteLeads.filter(
           (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
         );
 
-        // Extract the CSS selectors from the leads
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
@@ -156,8 +176,6 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     if (!injection || !injection[0]) throw new Error("Script injection failed");
     const domContext = injection[0].result;
 
-    // --- SMART RETURN LOGIC (FIXED) ---
-    // Only skip AI if it's a PASS. If it's a FAIL, let AI format the list.
     if (domContext.computedVerdict === "PASS") {
       return {
         verdict: "PASS",
@@ -165,17 +183,14 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
         pageTitle: domContext.pageTitle,
       };
     }
-    // If FAIL, fall through to AI block to generate the human-readable description.
 
-    // B. Check AI API
     const aiOrigin = window.ai?.languageModel || window.LanguageModel;
 
     if (!aiOrigin) {
-      // Fallback if AI is missing but we have a computed verdict
       if (domContext.computedVerdict) {
         return {
           verdict: domContext.computedVerdict,
-          reason: JSON.stringify(domContext), // Raw JSON fallback
+          reason: JSON.stringify(domContext),
           pageTitle: domContext.pageTitle,
         };
       }
@@ -186,21 +201,12 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
       };
     }
 
-    // C. Create Session
     const session = await aiOrigin.create({
-      initialPrompts: [
-        {
-          role: "system",
-          content: rule.systemPrompt,
-        },
-      ],
+      initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
 
-    // D. Prompt
     const resultString = await session.prompt(JSON.stringify(domContext));
-
-    // E. Parse
     const jsonMatch = resultString.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
@@ -250,28 +256,37 @@ async function getActiveTab() {
 }
 
 function updateStatus(current, total, url) {
-  document.getElementById("progress").textContent = `${current}/${total}`;
+  const progressBar = document.getElementById("auditProgress");
+  if (progressBar) {
+    progressBar.value = current;
+    progressBar.max = total;
+  }
+
+  document.getElementById("progressText").textContent = `${current}/${total}`;
   document.getElementById("currentUrl").textContent = url;
 }
 
 function log(msg) {
   const area = document.getElementById("log");
-  area.value += `> ${msg}\n`;
+  const entry = document.createElement("div");
+  entry.classList.add("log-entry");
+  entry.textContent = `> ${msg}`;
+  area.appendChild(entry);
   area.scrollTop = area.scrollHeight;
 }
 
 function finishAudit() {
-  document.getElementById("startBtn").disabled = false;
-  document.getElementById("startBtn").textContent = "Audit Complete";
+  const reportOptions = {
+    includePassed: document.getElementById("includePassed").checked,
+    includeNotPresent: document.getElementById("includeNotPresent").checked,
+  };
 
-  const earlReport = generateEarlReport(auditResults);
+  const earlReport = generateEarlReport(auditResults, reportOptions);
   const jsonString = JSON.stringify(earlReport, null, 2);
-  const blob = new Blob([jsonString], {
-    type: "application/json",
-  });
+  const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
-  // Auto-download
+  // 1. Trigger Download
   chrome.downloads.download(
     { url: url, filename: "nano-audit-report.json" },
     (downloadId) => {
@@ -283,8 +298,12 @@ function finishAudit() {
     }
   );
 
+  // 2. Show Complete View
+  document.getElementById("statusArea").setAttribute("hidden", "true");
+  document.getElementById("completeView").removeAttribute("hidden");
+
+  // 3. Setup Download Button (In case they want to download again)
   const btn = document.getElementById("downloadBtn");
-  btn.style.display = "block";
   btn.onclick = () => {
     chrome.downloads.download({
       url: url,
@@ -292,8 +311,10 @@ function finishAudit() {
     });
   };
 
-  log("🏁 Done. Opening W3C Report Tool...");
+  log("✨ Audit Complete.");
 
+  // 4. Inject into W3C Tool
+  log("🏁 Opening W3C Report Tool...");
   const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
   chrome.tabs.create({ url: reportToolUrl }, (tab) => {
     const inject = (tabId) => {
