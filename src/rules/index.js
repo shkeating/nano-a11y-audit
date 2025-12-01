@@ -8,6 +8,7 @@ import * as Rule134L from "./1.3.4-landscape.js";
 import * as Rule134P from "./1.3.4-portrait.js";
 import * as Rule1410 from "./1.4.10.js";
 import * as Rule1412 from "./1.4.12.js";
+import * as Rule245 from "./2.4.5.js";
 
 export const RULES = {
   [Rule141.id]: Rule141,
@@ -15,11 +16,12 @@ export const RULES = {
   [Rule133.id]: Rule133,
   [Rule134L.id]: Rule134L,
   [Rule134P.id]: Rule134P,
-  [Rule222.id]: Rule222,
-  [Rule253.id]: Rule253,
-  [Rule322.id]: Rule322,
   [Rule1410.id]: Rule1410,
   [Rule1412.id]: Rule1412,
+  [Rule222.id]: Rule222,
+  [Rule245.id]: Rule245,
+  [Rule253.id]: Rule253,
+  [Rule322.id]: Rule322,
 };
 
 export const RULE_LIST = Object.values(RULES);
