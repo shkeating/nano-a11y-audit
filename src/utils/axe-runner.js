@@ -44,7 +44,7 @@ const AXE_TO_EARL_MAP = {
   "link-in-text-block": "WCAG22:use-of-color",
 
   // 1.4.2 Audio Control
-  "audio-control": "WCAG22:audio-control",
+  "no-autoplay-audio": "WCAG22:audio-control",
 
   // 1.4.3 Contrast (Minimum)
   "color-contrast": "WCAG22:contrast-minimum",
@@ -178,6 +178,74 @@ export async function runAxeAudit(tabId) {
     // Helper to process results
     const processResult = (items, verdict) => {
       for (const item of items) {
+        // Special Handling for Inapplicable Items
+        if (verdict === "INAPPLICABLE") {
+          // If 1.4.2 (no-autoplay-audio) is inapplicable, it means NO <audio> or <video> elements exist.
+          // This implies multiple other Success Criteria are also Not Present (Inapplicable).
+          if (item.id === "no-autoplay-audio") {
+            const noMediaRules = [
+              {
+                id: "WCAG22:audio-only-and-video-only-prerecorded",
+                reason: "No media elements found (inferred from 1.4.2).",
+              },
+              {
+                id: "WCAG22:audio-description-or-media-alternative-prerecorded",
+                reason: "No media elements found (inferred from 1.4.2).",
+              },
+              {
+                id: "WCAG22:captions-live",
+                reason: "No media elements found (inferred from 1.4.2).",
+              },
+              {
+                id: "WCAG22:audio-description-prerecorded",
+                reason: "No media elements found (inferred from 1.4.2).",
+              },
+            ];
+
+            noMediaRules.forEach((rule) => {
+              mappedResults.push({
+                verdict: "INAPPLICABLE",
+                reason: rule.reason,
+                earlId: rule.id,
+                pageTitle: pageTitle,
+                source: "Axe-Inferred",
+                ruleId: item.id,
+                selectors: [],
+              });
+            });
+          }
+
+          // If meta-viewport is missing (Inapplicable), it usually means zooming is NOT disabled -> PASS for 1.4.4
+          if (item.id === "meta-viewport") {
+            mappedResults.push({
+              verdict: "PASS",
+              reason:
+                "No restrictive viewport meta tag found (Implicit Pass for Resize Text).",
+              earlId: "WCAG22:resize-text",
+              pageTitle: pageTitle,
+              source: "Axe",
+              ruleId: item.id,
+              selectors: [],
+            });
+            continue; // Skip standard processing for this item
+          }
+
+          // If autocomplete-valid is inapplicable, no invalid attributes found -> PASS for 1.3.5
+          if (item.id === "autocomplete-valid") {
+            mappedResults.push({
+              verdict: "PASS",
+              reason:
+                "No invalid autocomplete attributes found (Implicit Pass for Identify Input Purpose).",
+              earlId: "WCAG22:identify-input-purpose",
+              pageTitle: pageTitle,
+              source: "Axe",
+              ruleId: item.id,
+              selectors: [],
+            });
+            continue; // Skip standard processing
+          }
+        }
+
         let earlId = AXE_TO_EARL_MAP[item.id];
 
         // Fallback mapping inference
@@ -221,6 +289,8 @@ export async function runAxeAudit(tabId) {
     processResult(axeResults.passes, "PASS");
     // Capture incomplete items to pass to Nano
     processResult(axeResults.incomplete, "INCOMPLETE");
+    // Capture inapplicable items
+    processResult(axeResults.inapplicable, "INAPPLICABLE");
 
     return mappedResults;
   } catch (err) {

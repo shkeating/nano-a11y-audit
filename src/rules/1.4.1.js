@@ -1,5 +1,6 @@
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
+export const relevantElements = ["a", "button", "input", "select", "textarea"];
 
 // 1. SYSTEM PROMPT
 export const systemPrompt = `

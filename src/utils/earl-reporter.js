@@ -3,6 +3,8 @@
  * Handles the generation of the W3C EARL (Evaluation and Report Language) JSON-LD reports.
  */
 
+// We keep this list as a baseline for "Untested" assertions (so the report isn't empty).
+// But we will MERGE this with actual results to ensure we cover everything.
 const BASELINE_IDS = [
   "WCAG22:non-text-content",
   "WCAG22:audio-only-and-video-only-prerecorded",
@@ -84,8 +86,7 @@ const BASELINE_IDS = [
 ];
 
 export function generateEarlReport(auditResults, options = {}) {
-  const { includePassed = false, includeNotPresent = false } = options;
-
+  const { includePassed = true, includeNotPresent = true } = options;
   const date = new Date().toISOString();
   const websiteId = "_:website";
 
@@ -114,10 +115,12 @@ export function generateEarlReport(auditResults, options = {}) {
   // 2. GENERATE ALL ASSERTIONS
   const allAssertions = [];
 
+  // DYNAMIC MERGE: Combine Baseline IDs with any new IDs found in the results
   const resultIds = new Set(auditResults.map((r) => r.earlId));
   const combinedIds = new Set([...BASELINE_IDS, ...resultIds]);
 
   combinedIds.forEach((fullId) => {
+    // Get all results for this specific SC (Criteria)
     const relevantResults = auditResults.filter((r) => r.earlId === fullId);
     let hasResult = false;
 
@@ -126,38 +129,45 @@ export function generateEarlReport(auditResults, options = {}) {
 
       // --- AGGREGATE WEBSITE ASSERTION ---
       const anyFailures = relevantResults.some((r) => r.verdict === "FAIL");
-      const aggregateOutcome = anyFailures
-        ? { id: "earl:failed", type: ["OutcomeValue", "Fail"], title: "Failed" }
-        : {
-            id: "earl:passed",
-            type: ["OutcomeValue", "Pass"],
-            title: "Passed",
-          };
+      const onlyInapplicable = relevantResults.every(
+        (r) => r.verdict === "INAPPLICABLE"
+      );
 
-      // LOGIC: Only show "No issues found" if includePassed is TRUE
-      let aggregateDescription = "";
+      let aggregateOutcome;
       if (anyFailures) {
-        aggregateDescription = "Issues were found in the sample.";
-      } else if (includePassed) {
-        aggregateDescription = "No issues found in the sample.";
-      }
-
-      const aggregateResult = {
-        type: "TestResult",
-        date: date,
-        outcome: aggregateOutcome,
-      };
-
-      // Only add description property if it has text (prevents "No observations added" placeholder)
-      if (aggregateDescription) {
-        aggregateResult.description = aggregateDescription;
+        aggregateOutcome = {
+          id: "earl:failed",
+          type: ["OutcomeValue", "Fail"],
+          title: "Failed",
+        };
+      } else if (onlyInapplicable) {
+        if (!includeNotPresent) return; // Skip if filtered out
+        aggregateOutcome = {
+          id: "earl:inapplicable",
+          type: ["OutcomeValue", "NotApplicable"],
+          title: "Not Present",
+        };
+      } else {
+        if (!includePassed) return; // Skip if filtered out
+        aggregateOutcome = {
+          id: "earl:passed",
+          type: ["OutcomeValue", "Pass"],
+          title: "Passed",
+        };
       }
 
       allAssertions.push({
         type: "Assertion",
         date: date,
         mode: { type: "TestMode", "@value": "earl:manual" },
-        result: aggregateResult,
+        result: {
+          type: "TestResult",
+          date: date,
+          description: anyFailures
+            ? "Issues were found in the sample."
+            : "No issues found in the sample.",
+          outcome: aggregateOutcome,
+        },
         subject: {
           id: websiteId,
           type: ["TestSubject", "Website"],
@@ -175,82 +185,70 @@ export function generateEarlReport(auditResults, options = {}) {
 
       for (const [url, pageResults] of Object.entries(resultsByUrl)) {
         const isFailure = pageResults.some((r) => r.verdict === "FAIL");
-        const outcomeObj = isFailure
-          ? {
-              id: "earl:failed",
-              type: ["OutcomeValue", "Fail"],
-              title: "Failed",
-            }
-          : {
-              id: "earl:passed",
-              type: ["OutcomeValue", "Pass"],
-              title: "Passed",
-            };
+        const isInapplicable = pageResults.every(
+          (r) => r.verdict === "INAPPLICABLE"
+        );
 
-        // LOGIC: Determine description text
-        let combinedDescription = "";
-
+        let outcomeObj;
         if (isFailure) {
-          const items = pageResults.filter((r) => r.verdict === "FAIL");
-          combinedDescription = items
-            .map((r) => {
-              const prefix = r.source ? `[${r.source}] ` : "";
-              const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
-              return `${prefix}${r.reason}${ruleSuffix}`;
-            })
-            .join("\n\n");
-        } else if (includePassed) {
-          combinedDescription = pageResults
-            .map((r) => {
-              const prefix = r.source ? `[${r.source}] ` : "";
-              return `${prefix}${r.reason}`;
-            })
-            .join("\n\n");
+          outcomeObj = {
+            id: "earl:failed",
+            type: ["OutcomeValue", "Fail"],
+            title: "Failed",
+          };
+        } else if (isInapplicable) {
+          outcomeObj = {
+            id: "earl:inapplicable",
+            type: ["OutcomeValue", "NotApplicable"],
+            title: "Not Present",
+          };
+        } else {
+          outcomeObj = {
+            id: "earl:passed",
+            type: ["OutcomeValue", "Pass"],
+            title: "Passed",
+          };
         }
 
-        const pageResult = {
-          type: "TestResult",
-          date: date,
-          outcome: outcomeObj,
-        };
+        const itemsToDescribe = isFailure
+          ? pageResults.filter((r) => r.verdict === "FAIL")
+          : pageResults;
 
-        // Only add description property if it has text
-        if (combinedDescription) {
-          pageResult.description = combinedDescription;
-        }
+        const combinedDescription = itemsToDescribe
+          .map((r) => {
+            const prefix = r.source ? `[${r.source}] ` : "";
+            const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
+            return `${prefix}${r.reason}${ruleSuffix}`;
+          })
+          .join("\n\n");
 
         allAssertions.push({
           type: "Assertion",
           date: date,
           mode: { type: "TestMode", "@value": "earl:manual" },
-          result: pageResult,
+          result: {
+            type: "TestResult",
+            date: date,
+            description: combinedDescription,
+            outcome: outcomeObj,
+          },
           subject: { id: urlToIdMap[url] },
           test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
         });
       }
     }
 
-    // --- UNTESTED ASSERTION ---
+    // --- UNTESTED ASSERTION (If no results found for this ID) ---
     if (!hasResult) {
-      const description = includeNotPresent
-        ? "Criterion not present or not tested in this sample."
-        : "";
-
-      const untestedResult = {
-        type: "TestResult",
-        date: date,
-        outcome: { id: "earl:untested", type: ["OutcomeValue", "NotTested"] },
-      };
-
-      if (description) {
-        untestedResult.description = description;
-      }
-
       allAssertions.push({
         type: "Assertion",
         date: date,
         mode: { type: "TestMode", "@value": "earl:manual" },
-        result: untestedResult,
+        result: {
+          type: "TestResult",
+          date: date,
+          outcome: { id: "earl:untested", type: ["OutcomeValue", "NotTested"] },
+        },
         subject: {
           id: websiteId,
           type: ["TestSubject", "Website"],
