@@ -134,18 +134,30 @@ export function generateEarlReport(auditResults, options = {}) {
             title: "Passed",
           };
 
+      // LOGIC: Only show "No issues found" if includePassed is TRUE
+      let aggregateDescription = "";
+      if (anyFailures) {
+        aggregateDescription = "Issues were found in the sample.";
+      } else if (includePassed) {
+        aggregateDescription = "No issues found in the sample.";
+      }
+
+      const aggregateResult = {
+        type: "TestResult",
+        date: date,
+        outcome: aggregateOutcome,
+      };
+
+      // Only add description property if it has text (prevents "No observations added" placeholder)
+      if (aggregateDescription) {
+        aggregateResult.description = aggregateDescription;
+      }
+
       allAssertions.push({
         type: "Assertion",
         date: date,
         mode: { type: "TestMode", "@value": "earl:manual" },
-        result: {
-          type: "TestResult",
-          date: date,
-          description: anyFailures
-            ? "Issues were found in the sample."
-            : "No issues found in the sample.",
-          outcome: aggregateOutcome,
-        },
+        result: aggregateResult,
         subject: {
           id: websiteId,
           type: ["TestSubject", "Website"],
@@ -175,10 +187,9 @@ export function generateEarlReport(auditResults, options = {}) {
               title: "Passed",
             };
 
-        // CONDITIONAL LOGIC FOR DESCRIPTIONS
+        // LOGIC: Determine description text
         let combinedDescription = "";
 
-        // 1. If it's a failure, we ALWAYS include descriptions
         if (isFailure) {
           const items = pageResults.filter((r) => r.verdict === "FAIL");
           combinedDescription = items
@@ -188,9 +199,7 @@ export function generateEarlReport(auditResults, options = {}) {
               return `${prefix}${r.reason}${ruleSuffix}`;
             })
             .join("\n\n");
-        }
-        // 2. If it's a PASS, check the setting
-        else if (includePassed) {
+        } else if (includePassed) {
           combinedDescription = pageResults
             .map((r) => {
               const prefix = r.source ? `[${r.source}] ` : "";
@@ -198,18 +207,23 @@ export function generateEarlReport(auditResults, options = {}) {
             })
             .join("\n\n");
         }
-        // 3. Otherwise (Pass + !includePassed), description stays empty ""
+
+        const pageResult = {
+          type: "TestResult",
+          date: date,
+          outcome: outcomeObj,
+        };
+
+        // Only add description property if it has text
+        if (combinedDescription) {
+          pageResult.description = combinedDescription;
+        }
 
         allAssertions.push({
           type: "Assertion",
           date: date,
           mode: { type: "TestMode", "@value": "earl:manual" },
-          result: {
-            type: "TestResult",
-            date: date,
-            description: combinedDescription,
-            outcome: outcomeObj,
-          },
+          result: pageResult,
           subject: { id: urlToIdMap[url] },
           test: { id: fullId, type: ["TestCriterion", "TestRequirement"] },
         });
@@ -218,25 +232,25 @@ export function generateEarlReport(auditResults, options = {}) {
 
     // --- UNTESTED ASSERTION ---
     if (!hasResult) {
-      // CONDITIONAL LOGIC FOR NOT PRESENT / UNTESTED
-      // If setting is OFF, we omit the description completely (undefined/empty)
-      // Standard practice for 'Untested' is usually just the outcome, but if
-      // we had description text there, we control it here.
-
       const description = includeNotPresent
         ? "Criterion not present or not tested in this sample."
         : "";
+
+      const untestedResult = {
+        type: "TestResult",
+        date: date,
+        outcome: { id: "earl:untested", type: ["OutcomeValue", "NotTested"] },
+      };
+
+      if (description) {
+        untestedResult.description = description;
+      }
 
       allAssertions.push({
         type: "Assertion",
         date: date,
         mode: { type: "TestMode", "@value": "earl:manual" },
-        result: {
-          type: "TestResult",
-          date: date,
-          description: description,
-          outcome: { id: "earl:untested", type: ["OutcomeValue", "NotTested"] },
-        },
+        result: untestedResult,
         subject: {
           id: websiteId,
           type: ["TestSubject", "Website"],
