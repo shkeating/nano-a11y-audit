@@ -2,6 +2,15 @@ import { cleanText, isVisible } from "../utils/dom.js";
 
 export const id = "2.5.3";
 export const earlId = "WCAG22:label-in-name";
+export const relevantElements = [
+  "button",
+  "a",
+  "input",
+  "select",
+  "textarea",
+  "[role='button']",
+  "[role='link']",
+];
 
 export const systemPrompt = `
 You are a precise accessibility auditor.
@@ -27,11 +36,7 @@ Review the input data.
 `;
 
 export function extractor() {
-  /**
-   * Gets the Accessible Name (Focus on Overrides)
-   */
   function getOverrideName(el) {
-    // 1. aria-labelledby
     if (el.hasAttribute("aria-labelledby")) {
       const ids = el.getAttribute("aria-labelledby").split(" ");
       const parts = ids.map((id) => {
@@ -40,11 +45,9 @@ export function extractor() {
       });
       return parts.join(" ").trim();
     }
-    // 2. aria-label
     if (el.hasAttribute("aria-label")) {
       return el.getAttribute("aria-label").trim();
     }
-    // 3. alt
     if (el.hasAttribute("alt")) {
       return el.getAttribute("alt").trim();
     }
@@ -52,7 +55,6 @@ export function extractor() {
   }
 
   function getVisibleLabel(el) {
-    // 1. Inputs
     if (
       el.tagName === "INPUT" ||
       el.tagName === "TEXTAREA" ||
@@ -63,14 +65,12 @@ export function extractor() {
         return el.value;
       }
 
-      // A. Check for Programmatic Labels (Best Practice)
       if (el.labels && el.labels.length > 0) {
         return Array.from(el.labels)
           .map((l) => l.innerText)
           .join(" ");
       }
 
-      // B. Heuristic: Check for "Orphaned" Visual Labels
       let prev = el.previousElementSibling;
       while (
         prev &&
@@ -84,15 +84,12 @@ export function extractor() {
         return prev.innerText;
       }
 
-      // C. Check Placeholder
       if (el.hasAttribute("placeholder")) {
         return el.getAttribute("placeholder");
       }
 
       return "";
     }
-
-    // 2. Standard Elements
     return el.innerText;
   }
 
@@ -104,7 +101,6 @@ export function extractor() {
   const mismatchedElements = [];
 
   for (const el of elements) {
-    // USAGE: Imported visibility check
     if (!isVisible(el)) continue;
 
     const visibleRaw = getVisibleLabel(el);
@@ -113,7 +109,6 @@ export function extractor() {
     const accessibleRaw = getOverrideName(el);
     if (!accessibleRaw) continue;
 
-    // USAGE: Imported text cleaner
     const visible = cleanText(visibleRaw);
     const accessible = cleanText(accessibleRaw);
 
