@@ -85,7 +85,8 @@ const BASELINE_IDS = [
   "WCAG21:status-messages",
 ];
 
-export function generateEarlReport(auditResults) {
+export function generateEarlReport(auditResults, options = {}) {
+  const { includePassed = true, includeNotPresent = true } = options;
   const date = new Date().toISOString();
   const websiteId = "_:website";
 
@@ -140,12 +141,14 @@ export function generateEarlReport(auditResults) {
           title: "Failed",
         };
       } else if (onlyInapplicable) {
+        if (!includeNotPresent) return; // Skip if filtered out
         aggregateOutcome = {
           id: "earl:inapplicable",
           type: ["OutcomeValue", "NotApplicable"],
           title: "Not Present",
         };
       } else {
+        if (!includePassed) return; // Skip if filtered out
         aggregateOutcome = {
           id: "earl:passed",
           type: ["OutcomeValue", "Pass"],
@@ -204,21 +207,16 @@ export function generateEarlReport(auditResults) {
             id: "earl:passed",
             type: ["OutcomeValue", "Pass"],
             title: "Passed",
-            // For passes, just use the first "pass" reason or generic text
-            // description: "Pass"
           };
         }
 
-        // Only show Failure details in the description to keep it readable,
-        // unless it's a pass, then show the pass reason.
         const itemsToDescribe = isFailure
           ? pageResults.filter((r) => r.verdict === "FAIL")
-          : pageResults; // If all passed, show pass details
+          : pageResults;
 
         const combinedDescription = itemsToDescribe
           .map((r) => {
             const prefix = r.source ? `[${r.source}] ` : "";
-            // NEW: Include Rule ID if available (e.g., "link-in-text-block")
             const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
             return `${prefix}${r.reason}${ruleSuffix}`;
           })
