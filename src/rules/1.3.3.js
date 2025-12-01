@@ -2,6 +2,7 @@ import { isVisible } from "../utils/dom.js";
 
 export const id = "1.3.3";
 export const earlId = "WCAG22:sensory-characteristics";
+export const relevantElements = ["p", "li", "span", "div", "td", "th"];
 
 export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 1.3.3 Sensory Characteristics.
@@ -55,7 +56,6 @@ export function extractor() {
   );
 
   for (const el of elements) {
-    // USAGE: Imported visibility check
     if (!isVisible(el)) continue;
 
     const text = el.innerText.trim();
