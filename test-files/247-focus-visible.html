@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2.4.7 Focus Visible Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        /* FAILURES */
+        .fail-outline-none:focus {
+            outline: none;
+        }
+        .fail-outline-zero:focus {
+            outline: 0;
+        }
+        .fail-transparent:focus {
+            outline: 2px solid transparent;
+        }
+
+        /* PASSES */
+        .pass-default {
+            /* No styles, uses browser default */
+        }
+        .pass-custom-outline:focus {
+            outline: 2px solid blue;
+            outline-offset: 2px;
+        }
+        .pass-background-change:focus {
+            outline: none;
+            background-color: #000;
+            color: #fff;
+        }
+        .pass-border-change:focus {
+            outline: none;
+            border: 2px solid red;
+        }
+        .pass-box-shadow:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Testing 2.4.7 Focus Visible</h1>
+
+    <div class="section">
+        <h2>Failures (No Visible Focus)</h2>
+        <button class="fail-outline-none">Outline None (Fail)</button>
+        <button class="fail-outline-zero">Outline Zero (Fail)</button>
+        <a href="#" class="fail-transparent">Transparent Outline (Fail)</a>
+        <input type="text" class="fail-outline-none" value="Input Outline None (Fail)">
+    </div>
+
+    <div class="section">
+        <h2>Passes (Visible Focus)</h2>
+        <button class="pass-default">Default Focus (Pass)</button>
+        <button class="pass-custom-outline">Custom Outline (Pass)</button>
+        <a href="#" class="pass-background-change">Background Change (Pass)</a>
+        <input type="text" class="pass-border-change" value="Border Change (Pass)">
+        <div tabindex="0" class="pass-box-shadow">Box Shadow Focus (Pass)</div>
+    </div>
+</body>
+</html>

@@ -138,6 +138,7 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.       |
 | **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                 |
 | **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events. |
+| **Gemini Nano** | `2.4.7 Focus Visible`           | Checks for keyboard focus indicators that are removed, transparent, or hidden.              |
 
 ---
 
