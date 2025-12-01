@@ -1,5 +1,8 @@
+// 1. Stylesheet Imports
 import "@picocss/pico";
 import "./sidepanel.css";
+
+// 2. Module Imports
 import Papa from "papaparse";
 import { RULES } from "./rules/index.js";
 import { generateEarlReport } from "./utils/earl-reporter.js";
@@ -9,7 +12,7 @@ import { injectReportFunction } from "./utils/report-injector.js";
 let urlQueue = [];
 let auditResults = [];
 
-// 1. CSV UPLOAD HANDLER
+// 3. CSV UPLOAD HANDLER
 document.getElementById("csvFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -24,7 +27,8 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
 
       if (urlQueue.length > 0) {
         log(`✅ Loaded ${urlQueue.length} URLs.`);
-        document.getElementById("startBtn").disabled = false;
+        // Note: We no longer manually enable the button here.
+        // The button is always enabled, validation happens on click.
       } else {
         log("❌ No valid URLs found. Check CSV headers.");
       }
@@ -32,8 +36,14 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
   });
 });
 
-// 2. BATCH PROCESS RUNNER
+// 4. BATCH PROCESS RUNNER
 document.getElementById("startBtn").addEventListener("click", async () => {
+  // NEW: Validation Check
+  if (urlQueue.length === 0) {
+    log("⚠️ Please upload a valid CSV file before starting.");
+    return;
+  }
+
   document.getElementById("startBtn").disabled = true;
   document.getElementById("statusArea").style.display = "block";
   auditResults = [];
@@ -124,7 +134,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   finishAudit();
 });
 
-// 3. THE AI AUDITOR
+// 5. THE AI AUDITOR
 async function runAuditOnTab(tabId, rule, targetSelectors = []) {
   try {
     // A. Inject Extractor
