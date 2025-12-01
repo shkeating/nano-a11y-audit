@@ -7,18 +7,18 @@ Task: Report WCAG 1.3.2 Meaningful Sequence violations.
 
 **INSTRUCTIONS**
 Review the input arrays.
-1. **If an array is empty or missing:** Write NOTHING.
-2. **If an array has items:**
-   - Write a summary sentence explaining the CSS issue.
-   - List ONLY the first 2 examples found. Do not list everything.
-   - Use a bulleted format with a new line ("\\n") for each item.
+1. **If input is empty:** Write NOTHING.
+2. **If issues exist:**
+   - Return a JSON object with "verdict": "FAIL".
+   - In the "reason" field, write a **single short sentence** summarizing the CSS issues found.
+   - **DO NOT** list every element. **DO NOT** use bullet points. Keep it under 30 words.
 
-**REQUIRED FORMAT EXAMPLE**
-"CSS properties alter visual order:\\n- Login Button (reordered)\\n- Submit Button (floated)"
+**REQUIRED FORMAT**
+{"verdict": "FAIL", "reason": "CSS properties like flex-direction and order are altering the visual sequence of content."}
 
 **FINAL OUTPUT**
 - If NO items exist: {"verdict": "PASS", "reason": "No meaningful sequence violations found."}
-- If items exist: {"verdict": "FAIL", "reason": "[Your summary here]"}
+- If items exist: {"verdict": "FAIL", "reason": "[Your short summary]"}
 `;
 
 export function extractor() {
@@ -53,21 +53,21 @@ export function extractor() {
     let reason = "";
 
     if (cssOrder && cssOrder !== "0" && cssOrder !== "auto")
-      reason += `CSS order (${cssOrder}); `;
+      reason += `order:${cssOrder} `;
     if (flexDirection === "row-reverse" || flexDirection === "column-reverse")
-      reason += `flex-direction: ${flexDirection}; `;
-    if (cssFloat && cssFloat !== "none") reason += `float: ${cssFloat}; `;
+      reason += `flex-dir:${flexDirection} `;
+    if (cssFloat && cssFloat !== "none") reason += `float:${cssFloat} `;
 
     if (position === "absolute" || position === "fixed") {
       const hasText = el.innerText.trim().length > 0;
       const isTiny = el.offsetWidth < 20 || el.offsetHeight < 20;
-      if (hasText && !isTiny) reason += `position: ${position}; `;
+      if (hasText && !isTiny) reason += `pos:${position} `;
     }
 
     if (reason) {
       orderingProperties.push({
-        text: el.textContent.trim().substring(0, 50),
-        reason: reason.trim(),
+        text: el.tagName.toLowerCase(), // Sending Tag Name instead of full text to save tokens
+        css: reason.trim(),
       });
     }
   }
@@ -78,34 +78,14 @@ export function extractor() {
         table.getAttribute("role") === "presentation" ||
         (!table.querySelector("th") && !table.querySelector("caption"))
     )
-    .map((table) => ({ html: "Table used for layout" }));
+    .map((table) => ({ html: "Table layout" }));
 
-  const elementsWithBadWhitespace = [];
-  const treeWalker = document.createTreeWalker(
-    document.body,
-    NodeFilter.SHOW_TEXT
-  );
-  let currentNode;
-  while ((currentNode = treeWalker.nextNode())) {
-    const text = currentNode.nodeValue;
-    if (text && (text.match(/\w\s{2,}\w/g) || text.match(/&nbsp;.*&nbsp;/g))) {
-      const parent = currentNode.parentElement;
-      if (parent && parent.offsetParent !== null) {
-        elementsWithBadWhitespace.push({
-          text: parent.textContent.trim().substring(0, 50),
-        });
-      }
-    }
-  }
-
-  // --- RESTORED SMART RETURN ---
-  // Only return keys if they have items.
+  // --- OPTIMIZED SMART RETURN ---
+  // We limit the input heavily to prevent the LLM from running out of tokens.
   const result = {};
   if (orderingProperties.length > 0)
-    result.orderingProperties = orderingProperties.slice(0, 5);
-  if (layoutTables.length > 0) result.layoutTables = layoutTables.slice(0, 3);
-  if (elementsWithBadWhitespace.length > 0)
-    result.elementsWithBadWhitespace = elementsWithBadWhitespace.slice(0, 5);
+    result.orderingProperties = orderingProperties.slice(0, 3);
+  if (layoutTables.length > 0) result.layoutTables = layoutTables.slice(0, 1);
 
   return result;
 }
