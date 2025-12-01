@@ -1,7 +1,5 @@
 export const id = "2.4.5";
 export const earlId = "WCAG22:multiple-ways";
-// Optimization: Only run if potential nav elements exist
-export const relevantElements = ["nav", "form", "input", "a"];
 
 export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 2.4.5 Multiple Ways.
@@ -21,16 +19,14 @@ Review the 'foundMechanisms' list.
 
 **OUTPUT FORMAT**
 Return a JSON object:
-- If violations: {"verdict": "FAIL", "reason": "Only 1 navigation method found ([Method Name]). Two are required."}
+- If violations: {"verdict": "FAIL", "reason": "Only [Count] navigation method(s) found ([List]). Two are required."}
 - If no violations: {"verdict": "PASS", "reason": "Multiple ways to locate content found: [List methods]."}
 `;
 
 export function extractor() {
-  // --- Internal Helper ---
   function isVisible(el) {
     if (!el) return false;
     if (el.offsetParent !== null) return true;
-    // Fallback for Fixed position elements
     const style = window.getComputedStyle(el);
     return (
       style.display !== "none" &&
@@ -48,16 +44,15 @@ export function extractor() {
   for (const el of searchInputs) {
     if (isVisible(el)) {
       foundMechanisms.push("Search Function");
-      break; // Found one, stop looking
+      break;
     }
   }
 
   // 2. CHECK FOR NAVIGATION MENU (G125)
-  // Look for <nav> or ARIA equivalents
   const navs = document.querySelectorAll("nav, [role='navigation']");
   for (const el of navs) {
     if (isVisible(el)) {
-      // Heuristic: A nav must have at least a few links to be a "menu"
+      // Heuristic: Must have links
       if (el.querySelectorAll("a").length > 2) {
         foundMechanisms.push("Navigation Menu");
         break;
@@ -80,10 +75,10 @@ export function extractor() {
     }
   }
 
-  // --- RESULT ---
   const uniqueMethods = [...new Set(foundMechanisms)];
   const count = uniqueMethods.length;
 
+  // Verdict logic
   if (count >= 2) {
     return {
       computedVerdict: "PASS",
