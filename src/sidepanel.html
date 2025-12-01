@@ -5,65 +5,76 @@
 </head>
 
 <body>
+    <script type="module" src="sidepanel.js"></script>
     <header>
         <h2>Nano A11y Audit</h2>
     </header>
-    <script type="module" src="sidepanel.js"></script>
+    <main>
+        <div id="setup">
+            <p class="instruction-text">
+                Upload a CSV of URLs for the pages in your test sample to begin audit. The extension will visit each
+                page in
+                your sample, and will run checks with axe-core and Gemini Nano. It will then download the report data,
+                and
+                open the WCAG EM Report Tool to view the results.
+            </p>
+            <p>
+                For guidance on creating a test sample, please review the W3C Conformance Evaluation Methodology <a
+                    href="https://www.w3.org/TR/WCAG-EM/#step2">Step 2:
+                    Explore the Website</a> and <a href="https://www.w3.org/TR/WCAG-EM/#step3">Step 3: Select a
+                    Representative
+                    Sample</a>
+            </p>
+            <div class="flex">
+                <section>
+                    <h3>Test Sample</h3>
+                    <label for="csvFile" class="input-label">Load URLs (CSV with singular 'url' column):</label>
+                    <input type="file" id="csvFile" accept=".csv" />
+                </section>
 
-    <div id="setup">
-        <p class="instruction-text">
-            Upload a CSV of URLs for the pages in your test sample to begin audit. The extension will visit each page in
-            your sample, and will run checks with axe-core and Gemini Nano. It will then download the report data, and
-            open the WCAG EM Report Tool to view the results.
-        </p>
-        <p>
-            For guidance on creating a test sample, please review the W3C Conformance Evaluation Methodology <a
-                href="https://www.w3.org/TR/WCAG-EM/#step2">Step 2:
-                Explore the Website</a> and <a href="https://www.w3.org/TR/WCAG-EM/#step3">Step 3: Select a
-                Representative
-                Sample</a>
-        </p>
+                <section>
+                    <h3> Settings </h3>
+                    <legend class="settings-legend">Report Output</legend>
+                    <fieldset class="settings-box">
+                        <div class="settings-options">
+                            <label class="settings-label">
+                                <input type="checkbox" id="includePassed"> Passed
+                            </label>
+                            <label class="settings-label">
+                                <input type="checkbox" id="includeNotPresent"> Not Present
+                            </label>
+                        </div>
+                        <p class="settings-note">
+                            Note: Failed criteria will always include detailed report descriptions.
+                        </p>
+                    </fieldset>
+                </section>
+            </div>
 
-        <label for="csvFile" class="input-label">1. Load URLs (CSV with 'url' column):</label>
-        <input type="file" id="csvFile" accept=".csv" />
-
-        <details>
-            <summary>
-                Settings
-            </summary>
-            <fieldset class="settings-box">
-                <legend class="settings-legend">Report Output</legend>
-
-                <div class="settings-options">
-                    <label class="settings-label">
-                        <input type="checkbox" id="includePassed"> Passed
-                    </label>
-                    <label class="settings-label">
-                        <input type="checkbox" id="includeNotPresent"> Not Present
-                    </label>
-                </div>
-
-                <p class="settings-note">
-                    Note: Failed criteria will always include detailed report descriptions.
-                </p>
-            </fieldset>
-        </details>
-
-        <button id="startBtn">Start Batch Audit</button>
-    </div>
-
-    <div id="statusArea" class="status-box">
-        <strong>Progress:</strong> <span id="progress">0/0</span><br>
-        <div class="status-current-url">
-            <strong>Current:</strong> <span id="currentUrl">...</span>
+            <button id="startBtn">Start Batch Audit</button>
         </div>
-    </div>
 
-    <section id="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Audit Log" tabindex="0">
-        <div class="log-entry">Waiting for input...</div>
-    </section>
+        <div id="statusArea" class="status-box">
+            <div>
+                <strong>Page Progress</strong>
+                <span id="progressText">0/0</span>
+            </div>
+            <progress id="auditProgress" value="0" max="100"></progress>
 
-    <button id="downloadBtn">Download Report Data</button>
+            <div class="status-current-url">
+                <strong>Current:</strong> <span id="currentUrl">Waiting to start...</span>
+            </div>
+        </div>
+
+        <section id="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Audit Log" tabindex="0">
+            <div class="log-entry">Waiting for input...</div>
+        </section>
+
+        <button id="downloadBtn">Download Report Data</button>
+    </main>
+    <footer>
+        powered by Gemini Nano, axe-core, and WCAG EM.
+    </footer>
 </body>
 
 </html>
