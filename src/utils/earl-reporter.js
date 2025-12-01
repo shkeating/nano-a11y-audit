@@ -3,8 +3,6 @@
  * Handles the generation of the W3C EARL (Evaluation and Report Language) JSON-LD reports.
  */
 
-// We keep this list as a baseline for "Untested" assertions (so the report isn't empty).
-// But we will MERGE this with actual results to ensure we cover everything.
 const BASELINE_IDS = [
   "WCAG22:non-text-content",
   "WCAG22:audio-only-and-video-only-prerecorded",
@@ -85,7 +83,9 @@ const BASELINE_IDS = [
   "WCAG21:status-messages",
 ];
 
-export function generateEarlReport(auditResults) {
+export function generateEarlReport(auditResults, options = {}) {
+  const { includePassed = false, includeNotPresent = false } = options;
+
   const date = new Date().toISOString();
   const websiteId = "_:website";
 
@@ -114,12 +114,10 @@ export function generateEarlReport(auditResults) {
   // 2. GENERATE ALL ASSERTIONS
   const allAssertions = [];
 
-  // DYNAMIC MERGE: Combine Baseline IDs with any new IDs found in the results
   const resultIds = new Set(auditResults.map((r) => r.earlId));
   const combinedIds = new Set([...BASELINE_IDS, ...resultIds]);
 
   combinedIds.forEach((fullId) => {
-    // Get all results for this specific SC (Criteria)
     const relevantResults = auditResults.filter((r) => r.earlId === fullId);
     let hasResult = false;
 
@@ -175,24 +173,32 @@ export function generateEarlReport(auditResults) {
               id: "earl:passed",
               type: ["OutcomeValue", "Pass"],
               title: "Passed",
-              // For passes, just use the first "pass" reason or generic text
-              // description: "Pass"
             };
 
-        // Only show Failure details in the description to keep it readable,
-        // unless it's a pass, then show the pass reason.
-        const itemsToDescribe = isFailure
-          ? pageResults.filter((r) => r.verdict === "FAIL")
-          : pageResults; // If all passed, show pass details
+        // CONDITIONAL LOGIC FOR DESCRIPTIONS
+        let combinedDescription = "";
 
-        const combinedDescription = itemsToDescribe
-          .map((r) => {
-            const prefix = r.source ? `[${r.source}] ` : "";
-            // NEW: Include Rule ID if available (e.g., "link-in-text-block")
-            const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
-            return `${prefix}${r.reason}${ruleSuffix}`;
-          })
-          .join("\n\n");
+        // 1. If it's a failure, we ALWAYS include descriptions
+        if (isFailure) {
+          const items = pageResults.filter((r) => r.verdict === "FAIL");
+          combinedDescription = items
+            .map((r) => {
+              const prefix = r.source ? `[${r.source}] ` : "";
+              const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
+              return `${prefix}${r.reason}${ruleSuffix}`;
+            })
+            .join("\n\n");
+        }
+        // 2. If it's a PASS, check the setting
+        else if (includePassed) {
+          combinedDescription = pageResults
+            .map((r) => {
+              const prefix = r.source ? `[${r.source}] ` : "";
+              return `${prefix}${r.reason}`;
+            })
+            .join("\n\n");
+        }
+        // 3. Otherwise (Pass + !includePassed), description stays empty ""
 
         allAssertions.push({
           type: "Assertion",
@@ -210,8 +216,17 @@ export function generateEarlReport(auditResults) {
       }
     }
 
-    // --- UNTESTED ASSERTION (If no results found for this ID) ---
+    // --- UNTESTED ASSERTION ---
     if (!hasResult) {
+      // CONDITIONAL LOGIC FOR NOT PRESENT / UNTESTED
+      // If setting is OFF, we omit the description completely (undefined/empty)
+      // Standard practice for 'Untested' is usually just the outcome, but if
+      // we had description text there, we control it here.
+
+      const description = includeNotPresent
+        ? "Criterion not present or not tested in this sample."
+        : "";
+
       allAssertions.push({
         type: "Assertion",
         date: date,
@@ -219,6 +234,7 @@ export function generateEarlReport(auditResults) {
         result: {
           type: "TestResult",
           date: date,
+          description: description,
           outcome: { id: "earl:untested", type: ["OutcomeValue", "NotTested"] },
         },
         subject: {

@@ -1,8 +1,6 @@
-// 1. Stylesheet Imports
 import "@picocss/pico";
 import "./sidepanel.css";
 
-// 2. Module Imports
 import Papa from "papaparse";
 import { RULES } from "./rules/index.js";
 import { generateEarlReport } from "./utils/earl-reporter.js";
@@ -12,7 +10,7 @@ import { injectReportFunction } from "./utils/report-injector.js";
 let urlQueue = [];
 let auditResults = [];
 
-// 3. CSV UPLOAD HANDLER
+// 1. CSV UPLOAD HANDLER
 document.getElementById("csvFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -27,8 +25,6 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
 
       if (urlQueue.length > 0) {
         log(`✅ Loaded ${urlQueue.length} URLs.`);
-        // Note: We no longer manually enable the button here.
-        // The button is always enabled, validation happens on click.
       } else {
         log("❌ No valid URLs found. Check CSV headers.");
       }
@@ -36,9 +32,8 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
   });
 });
 
-// 4. BATCH PROCESS RUNNER
+// 2. BATCH PROCESS RUNNER
 document.getElementById("startBtn").addEventListener("click", async () => {
-  // NEW: Validation Check
   if (urlQueue.length === 0) {
     log("⚠️ Please upload a valid CSV file before starting.");
     return;
@@ -66,7 +61,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Running Axe Core...`);
       const axeResults = await runAxeAudit(tab.id);
 
-      // Filter out 'INCOMPLETE' results from final report (Nano will resolve them)
+      // Filter out 'INCOMPLETE' results from final report
       axeResults.forEach((r) => {
         if (r.verdict === "FAIL") {
           log(`[Axe: ${r.ruleId}] ❌ FAIL`);
@@ -80,22 +75,21 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       });
       log(`✅ Axe Complete: ${axeResults.length} checks processed.`);
 
-      // Identify 'leads' for Nano (items Axe marked INCOMPLETE)
+      // Identify 'leads' for Nano
       const incompleteLeads = axeResults.filter(
         (r) => r.verdict === "INCOMPLETE"
       );
 
-      // 2. Run Gemini Nano Audit (Iterate through Rules Registry)
+      // 2. Run Gemini Nano Audit
       log(`Running Gemini Nano...`);
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
 
-        // Find relevant leads for this specific Nano rule
+        // Find relevant leads
         const relevantLeads = incompleteLeads.filter(
           (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
         );
 
-        // Extract the CSS selectors from the leads
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
@@ -134,10 +128,9 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   finishAudit();
 });
 
-// 5. THE AI AUDITOR
+// 3. THE AI AUDITOR
 async function runAuditOnTab(tabId, rule, targetSelectors = []) {
   try {
-    // A. Inject Extractor
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
       func: rule.extractor,
@@ -147,8 +140,6 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     if (!injection || !injection[0]) throw new Error("Script injection failed");
     const domContext = injection[0].result;
 
-    // --- SMART RETURN LOGIC (FIXED) ---
-    // Only skip AI if it's a PASS. If it's a FAIL, let AI format the list.
     if (domContext.computedVerdict === "PASS") {
       return {
         verdict: "PASS",
@@ -156,17 +147,14 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
         pageTitle: domContext.pageTitle,
       };
     }
-    // If FAIL, fall through to AI block to generate the human-readable description.
 
-    // B. Check AI API
     const aiOrigin = window.ai?.languageModel || window.LanguageModel;
 
     if (!aiOrigin) {
-      // Fallback if AI is missing but we have a computed verdict
       if (domContext.computedVerdict) {
         return {
           verdict: domContext.computedVerdict,
-          reason: JSON.stringify(domContext), // Raw JSON fallback
+          reason: JSON.stringify(domContext),
           pageTitle: domContext.pageTitle,
         };
       }
@@ -177,21 +165,12 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
       };
     }
 
-    // C. Create Session
     const session = await aiOrigin.create({
-      initialPrompts: [
-        {
-          role: "system",
-          content: rule.systemPrompt,
-        },
-      ],
+      initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
 
-    // D. Prompt
     const resultString = await session.prompt(JSON.stringify(domContext));
-
-    // E. Parse
     const jsonMatch = resultString.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
@@ -247,7 +226,10 @@ function updateStatus(current, total, url) {
 
 function log(msg) {
   const area = document.getElementById("log");
-  area.value += `> ${msg}\n`;
+  const entry = document.createElement("div");
+  entry.classList.add("log-entry");
+  entry.textContent = `> ${msg}`;
+  area.appendChild(entry);
   area.scrollTop = area.scrollHeight;
 }
 
@@ -255,14 +237,17 @@ function finishAudit() {
   document.getElementById("startBtn").disabled = false;
   document.getElementById("startBtn").textContent = "Audit Complete";
 
-  const earlReport = generateEarlReport(auditResults);
+  // NEW: Read Report Settings
+  const reportOptions = {
+    includePassed: document.getElementById("includePassed").checked,
+    includeNotPresent: document.getElementById("includeNotPresent").checked,
+  };
+
+  const earlReport = generateEarlReport(auditResults, reportOptions);
   const jsonString = JSON.stringify(earlReport, null, 2);
-  const blob = new Blob([jsonString], {
-    type: "application/json",
-  });
+  const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
-  // Auto-download
   chrome.downloads.download(
     { url: url, filename: "nano-audit-report.json" },
     (downloadId) => {
