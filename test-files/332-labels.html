@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3.3.2 Labels or Instructions Test</title>
+    <style>
+        .form-group { margin-bottom: 1em; }
+        label { display: block; font-weight: bold; }
+        .hint { font-size: 0.8em; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>3.3.2 Labels or Instructions</h1>
+
+    <!-- FAIL: Ambiguous Date Format -->
+    <div class="form-group">
+        <label for="dob">Date of Birth</label>
+        <input type="text" id="dob" name="dob">
+    </div>
+
+    <!-- FAIL: Ambiguous Phone Format -->
+    <div class="form-group">
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" name="phone">
+    </div>
+
+    <!-- PASS: Explicit Format in Label -->
+    <div class="form-group">
+        <label for="event-date">Event Date (MM/DD/YYYY)</label>
+        <input type="text" id="event-date" name="event-date">
+    </div>
+
+    <!-- PASS: Native Date Input (Browser handles UI) -->
+    <div class="form-group">
+        <label for="appt">Appointment</label>
+        <input type="date" id="appt" name="appt">
+    </div>
+
+    <!-- PASS: Instructions in Description -->
+    <div class="form-group">
+        <label for="ssn">Social Security Number</label>
+        <input type="text" id="ssn" aria-describedby="ssn-hint">
+        <span id="ssn-hint" class="hint">Format: 000-00-0000</span>
+    </div>
+
+    <!-- PASS: Instructions in Placeholder (Weak but technically passes 3.3.2 for simple hints) -->
+    <div class="form-group">
+        <label for="zip">Zip Code</label>
+        <input type="text" id="zip" placeholder="e.g. 90210">
+    </div>
+
+    <!-- PASS: Free Text (No format needed) -->
+    <div class="form-group">
+        <label for="name">Full Name</label>
+        <input type="text" id="name">
+    </div>
+
+    <!-- FAIL: Required field not indicated -->
+    <!-- (This is harder for AI to know if it's required without checking code, but let's test if it notices 'Required' is missing for a typically required field like Email? No, that's subjective.) -->
+    <!-- Let's stick to format constraints. -->
+
+</body>
+</html>

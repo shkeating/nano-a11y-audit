@@ -138,6 +138,7 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.       |
 | **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                 |
 | **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events. |
+| **Gemini Nano** | `3.3.2 Labels or Instructions`  | Checks if form fields requiring specific formats (Date, Phone) provide visible instructions.|
 
 ---
 
@@ -158,6 +159,7 @@ nano-a11y-audit/
 │   │   ├── 2.2.2.js        # Pause, Stop, Hide Rule
 │   │   ├── 2.5.3.js        # Label in Name Rule
 │   │   ├── 3.2.2.js        # On Input Rule
+│   │   ├── 3.3.2.js        # Labels or Instructions Rule
 │   │   └── index.js        # Rule Registry
 │   └── utils/
 │       ├── axe-runner.js   # Axe Core injection & execution

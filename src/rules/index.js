@@ -4,6 +4,7 @@ import * as Rule133 from "./1.3.3.js";
 import * as Rule253 from "./2.5.3.js";
 import * as Rule222 from "./2.2.2.js";
 import * as Rule322 from "./3.2.2.js";
+import * as Rule332 from "./3.3.2.js";
 import * as Rule134L from "./1.3.4-landscape.js";
 import * as Rule134P from "./1.3.4-portrait.js";
 import * as Rule1410 from "./1.4.10.js";
@@ -22,6 +23,7 @@ export const RULES = {
   [Rule245.id]: Rule245,
   [Rule253.id]: Rule253,
   [Rule322.id]: Rule322,
+  [Rule332.id]: Rule332,
 };
 
 export const RULE_LIST = Object.values(RULES);
