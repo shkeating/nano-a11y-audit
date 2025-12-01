@@ -1,37 +1,47 @@
 # Gemini Nano A11y Auditor
 
-**Browser-Native Accessibility Testing with On-Device Generative AI**
+**Browser-Native Accessibility Testing Tool with On-Device Generative AI**
+powered by axe-core & gemini nano
 
-- **Author:** Shauna Keating
-- **Course:** HCI 550 | Project I
-- **Status:** Research Prototype (v0.1)
+## Overview
 
-## 📋 Overview
+This project is a Chrome Extension that pioneers a **hybrid accessibility auditing** approach, combining the power of traditional static analysis with on-device generative AI. It performs automated accessibility auditing directly within the browser, offering a unique blend of broad-based and nuanced testing.
 
-This project is a Chrome Extension that leverages the experimental **Chrome Prompt API (`ai.languageModel`)** to perform automated accessibility auditing directly within the browser.
+The tool uses two engines:
 
-Unlike traditional AI auditing tools that rely on cloud APIs (sending DOM data to external servers), this tool uses **Gemini Nano**, a Small Language Model (SLM) embedded locally in Chrome. This architecture ensures **zero latency, zero cost, and 100% data privacy**.
+1.  **Axe Core:** The industry-standard static analysis engine for running a comprehensive baseline audit.
+2.  **Gemini Nano:** An on-device Small Language Model (SLM) embedded in Chrome. This is used for sophisticated checks that require contextual or visual understanding, which traditional tools often miss.
+
+This architecture ensures comprehensive test coverage while maintaining **zero latency, zero cost, and 100% data privacy** for the AI-powered checks.
 
 ### Key Capabilities
 
 - **Batch Processing:** Accepts a CSV of URLs and automatically navigates the browser to test them sequentially.
-- **Structured Context Extraction:** Injects JavaScript to extract the "Computed Accessibility Tree" (DOM + CSS styles) rather than raw HTML.
-- **On-Device Inference:** Uses Gemini Nano to reason about visual criteria (currently piloting **WCAG 1.4.1 Use of Color**) without internet access.
-- **Interoperable Reporting:** Generates JSON-LD reports compliant with the **W3C EARL standard**, ready for import into the [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
+- **Hybrid Auditing Engine:**
+  - **Axe Core Integration:** Runs a full suite of established, automated accessibility checks on each page.
+  - **On-Device Generative AI:** Injects rule-specific extractor scripts to gather targeted DOM and CSS context. This data is then passed to the local Gemini Nano model to reason about nuanced criteria (e.g., Use of Color, Meaningful Sequence) without sending data to the cloud.
+- **Modular Rule System:** Features a clean, extensible registry for defining new AI-powered checks, each with its own data extractor and instruction prompt.
+- **Interoperable Reporting:** Consolidates findings from both Axe and Gemini Nano into a single JSON-LD report compliant with the **W3C EARL standard**. This report can be directly imported into tools like the [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
 
 ---
 
-## 🛠️ Technical Architecture
+## Technical Architecture
 
-The tool utilizes a **Side Panel Controller** architecture:
+The tool is orchestrated by a **Side Panel Controller** that manages the entire audit workflow:
 
-1.  **The Controller (`sidepanel.js`):** Maintains state, manages the URL queue, and orchestrates the audit loop.
-2.  **The Extractor:** A content script injected into the active tab to scrape computed styles (e.g., `text-decoration`, `border-bottom`).
-3.  **The Auditor:** Passes the structured data to `window.ai.languageModel` with a system prompt optimized for SLM instruction following.
+1.  **URL Intake:** The user uploads a CSV file of URLs via the side panel UI (`sidepanel.html`).
+2.  **Queue Management:** The **Side Panel Controller** (`sidepanel.js`) parses the file and manages the queue of URLs to be tested.
+3.  **Navigation & Execution Loop:** For each URL in the queue, the controller:
+    a. Navigates an active browser tab to the URL.
+    b. Injects the **Axe Runner** (`utils/axe-runner.js`) to perform a baseline audit.
+    c. Iterates through the **Rules Registry** (`src/rules/index.js`). For each registered AI rule, it injects a rule-specific **Extractor Script** to collect relevant DOM properties and CSS styles.
+    d. Prompts the **Gemini Nano language model** with the extracted context and a specialized system prompt designed for that rule.
+4.  **Report Aggregation:** Results from both Axe and all Nano-powered checks are collected.
+5.  **Report Generation:** Upon completion, the **EARL Reporter** (`utils/earl-reporter.js`) generates a unified JSON-LD report, which the user can download.
 
 ---
 
-## ⚙️ Prerequisites (Crucial)
+## Prerequisites (Crucial)
 
 This extension relies on experimental browser features. It **will not work** in standard Chrome.
 
@@ -47,13 +57,9 @@ This extension relies on experimental browser features. It **will not work** in 
 
 ---
 
-## 🚀 Installation
+## Installation
 
-1.  Clone this repository:
-    ```bash
-    git clone [your-repo-url]
-    cd nano-auditor-research
-    ```
+1.  Clone this repository.
 2.  Open Chrome Canary and navigate to `chrome://extensions`.
 3.  Enable **Developer Mode** (top right toggle).
 4.  Click **Load Unpacked**.
@@ -61,16 +67,16 @@ This extension relies on experimental browser features. It **will not work** in 
 
 ---
 
-## 🕹️ How to Run an Audit
+## How to Run an Audit
 
 ### 1. Prepare your Data
 
-Create a CSV file named `urls.csv` (or use the one in the `data/` folder). It **must** have a header row named `url`.
+Create a CSV file. It **must** have a header row named `url`. 
 
 ```csv
 url
-http://localhost:8000/test_page.html
-[https://example.com](https://example.com)
+https://example.com
+http://localhost:8000/my-test-page.html
 ```
 
 ### 2. Start the Tool
@@ -79,46 +85,47 @@ http://localhost:8000/test_page.html
 2. Click **Choose File** and select your CSV.
 3. Click **Start Batch Audit**.
 
-The browser will automatically navigate to each page. The logs in the side panel will display the AI's real-time reasoning:
-
-> > > Analyzing DOM... ❌ Verdict: FAIL
+The browser will automatically navigate to each page. The logs in the side panel will show real-time progress for both Axe and Nano checks.
 
 ### 3. Export & View Results
 
-The reporting process is fully automated:
+1.  Once the batch is complete, click **"Download Report Data"**.
+2.  This downloads a `nano-audit-report.json` file.
+3.  Go to the [W3C WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
+4.  Click **Open Report** and select your JSON file.
+5.  Navigate to **Step 4: Audit Sample** to see your consolidated AI-generated and Axe results.
 
-1.  Once the batch audit is complete, the extension will automatically download the EARL report (`nano-audit-report.json`).
-2.  It will simultaneously open a new tab to the [W3C WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/).
-3.  The report data is automatically injected into the tool.
-4.  Finally, the tab will navigate to the **View Report** page, where you can inspect the results across all tested pages.
+## Auditing Scope
 
-_(Note: You can still manually download the report using the button if needed.)_
+The hybrid engine provides broad coverage. The current scope is focused on:
 
-## 🧪 Current Scope
+| Engine          | Rule ID/Criterion           | Implementation Strategy                                                                     |
+| --------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
+| **Axe Core**    | `~40+ Rules`                | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels). |
+| **Gemini Nano** | `1.3.2 Meaningful Sequence` | Checks for CSS properties that can disrupt logical reading order (e.g., `float: right`).    |
+| **Gemini Nano** | `1.4.1 Use of Color`        | Checks if links or form fields rely only on color as a distinguishing visual cue.           |
 
-## 🧪 Current Scope
-
-As of `v0.1`, the tool is hard-coded to test the following criteria to validate the "Visual + Semantic" hypothesis:
-
-| Criterion               | Rule ID                | Implementation Strategy                                                                                  |
-| ----------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| **1.4.1 Use of Color**  | `WCAG21:use-of-color`  | Checks if links relying on color (e.g., blue text) lack secondary indicators like underlines or borders. |
-| **2.5.3 Label in Name** | `WCAG22:label-in-name` | Checks if the accessible name of an element contains its visible label.                                  |
-
-Future updates will expand the CRITERIA_MAP to cover the full 15-criteria scope defined in the project proposal.
-
-## 📂 Project Structure
+## Project Structure
 
 ```
-nano-auditor-research/
+nano-a11y-audit/
 ├── src/
-│   ├── manifest.json       # Extension config & permissions
-│   ├── sidepanel.html      # The UI (File input, logs)
-│   ├── sidepanel.js        # The logic (Batch loop, AI prompting, JSON-LD gen)
-│   └── lib/
-│       └── papaparse.min.js # CSV parsing library
+│   ├── manifest.json       # Extension config, permissions, and side panel declaration
+│   ├── sidepanel.html      # The main UI (file input, logs, buttons)
+│   ├── sidepanel.js        # The core controller for the audit process
+│   ├── background.js       # Service worker to enable the side panel
+│   ├── lib/
+│   │   └── papaparse.min.js# CSV parsing library
+│   ├── rules/
+│   │   ├── 1.3.2.js        # AI rule for Meaningful Sequence
+│   │   ├── 1.4.1.js        # AI rule for Use of Color
+│   │   └── index.js        # The central registry for all AI rules
+│   └── utils/
+│       ├── axe-runner.js   # Injects and runs the Axe Core audit
+│       ├── axe.min.js      # The Axe Core library
+│       └── earl-reporter.js# Generates the final JSON-LD report
 ├── data/
-│   ├── test_page.html      # A controlled test case (localhost)
-│   └── urls.csv            # Sample input
-└── README.md
+│   └── ...                 # Sample data for testing
+├── package.json            # Project dependencies and scripts
+└── README.md               # This file
 ```
