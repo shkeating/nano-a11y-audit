@@ -1,3 +1,5 @@
+import "@picocss/pico";
+import "./sidepanel.css";
 import Papa from "papaparse";
 import { RULES } from "./rules/index.js";
 import { generateEarlReport } from "./utils/earl-reporter.js";
