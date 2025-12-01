@@ -2,6 +2,15 @@ import { isVisible } from "../utils/dom.js";
 
 export const id = "3.2.2";
 export const earlId = "WCAG22:on-input";
+export const relevantElements = [
+  "select",
+  "input",
+  "textarea",
+  "[contenteditable]",
+  "[onchange]",
+  "[oninput]",
+  "[onblur]",
+];
 
 export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 3.2.2 On Input.
@@ -37,25 +46,15 @@ export function extractor() {
     "dispatchEvent(new Event('submit'))",
   ];
 
-  // 1. APPLICABILITY CHECK
+  // We can rely on the Side Panel's pre-flight check,
+  // but grabbing them again here is cheap.
   const applicableElements = Array.from(
     document.querySelectorAll(
       "select, input, textarea, [contenteditable], [onchange], [oninput], [onblur]"
     )
   );
 
-  if (applicableElements.length === 0) {
-    return {
-      computedVerdict: "PASS",
-      reason:
-        "Rule not applicable: No interactive inputs or input-handlers found.",
-      pageTitle: document.title,
-    };
-  }
-
-  // 2. AUDIT LOOP
   for (const el of applicableElements) {
-    // USAGE: Imported visibility check
     if (!isVisible(el)) continue;
 
     const handlers = [
@@ -100,10 +99,7 @@ export function extractor() {
   if (riskyInputs.length === 0) {
     return {
       computedVerdict: "PASS",
-      reason:
-        "No suspicious 'on input' handlers found in " +
-        applicableElements.length +
-        " candidate elements.",
+      reason: "No suspicious 'on input' handlers found.",
       pageTitle: document.title,
     };
   }
