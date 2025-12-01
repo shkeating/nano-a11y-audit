@@ -1,8 +1,5 @@
-import { isVisible } from "../utils/dom.js";
-
 export const id = "1.3.4";
 export const earlId = "WCAG22:orientation";
-// Elements likely to contain the "Rotate Device" warning text
 export const relevantElements = [
   "div",
   "p",
