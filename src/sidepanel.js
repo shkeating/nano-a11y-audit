@@ -41,6 +41,13 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 
   document.getElementById("startBtn").disabled = true;
   document.getElementById("statusArea").style.display = "block";
+
+  // Initialize Progress Bar
+  const progressBar = document.getElementById("auditProgress");
+  progressBar.value = 0;
+  progressBar.max = urlQueue.length;
+  progressBar.removeAttribute("indeterminate"); // Ensure it's not in loading state
+
   auditResults = [];
 
   for (let i = 0; i < urlQueue.length; i++) {
@@ -220,7 +227,15 @@ async function getActiveTab() {
 }
 
 function updateStatus(current, total, url) {
-  document.getElementById("progress").textContent = `${current}/${total}`;
+  // Update Visual Progress Bar
+  const progressBar = document.getElementById("auditProgress");
+  if (progressBar) {
+    progressBar.value = current;
+    progressBar.max = total;
+  }
+
+  // Update Text Labels
+  document.getElementById("progressText").textContent = `${current}/${total}`;
   document.getElementById("currentUrl").textContent = url;
 }
 
@@ -237,7 +252,6 @@ function finishAudit() {
   document.getElementById("startBtn").disabled = false;
   document.getElementById("startBtn").textContent = "Audit Complete";
 
-  // NEW: Read Report Settings
   const reportOptions = {
     includePassed: document.getElementById("includePassed").checked,
     includeNotPresent: document.getElementById("includeNotPresent").checked,
