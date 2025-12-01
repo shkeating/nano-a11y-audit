@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SC 3.2.2 | Accessibility Test Lab</title>
+</head>
+
+<body>
+    <section>
+        <h2>SC 3.2.2 Failures: On Input</h2>
+
+        <div class="test-case" data-rule="3.2.2" data-failure="F36">
+            <h3>F36: Auto-Submit on Selection</h3>
+            <form id="auto-submit-form" action="#" onsubmit="alert('Form Submitted!'); return false;">
+                <label for="sort-order">Sort by:</label>
+                <select id="sort-order" name="sort" onchange="this.form.dispatchEvent(new Event('submit'));">
+                    <option value="relevance">Relevance</option>
+                    <option value="date">Date</option>
+                    <option value="price">Price</option>
+                </select>
+                <p><em>(Selecting an option above simulates a form submission immediately)</em></p>
+            </form>
+        </div>
+
+        <div class="test-case" data-rule="3.2.2" data-failure="F37">
+            <h3>F37: New Window on Input</h3>
+            <fieldset>
+                <legend>Choose a destination (Opens new window immediately)</legend>
+
+                <label>
+                    <input type="radio" name="dest" value="home" onchange="window.open('about:blank', '_blank');">
+                    Home Page
+                </label><br>
+
+                <label>
+                    <input type="radio" name="dest" value="contact" onchange="window.open('about:blank', '_blank');">
+                    Contact Us
+                </label>
+            </fieldset>
+        </div>
+
+        <div class="test-case" data-rule="3.2.2" data-failure="None">
+            <h3>Passing: Standard Submit</h3>
+            <form action="#" onsubmit="alert('Safe Submission'); return false;">
+                <label for="safe-select">Choose option:</label>
+                <select id="safe-select" name="options">
+                    <option value="1">Option 1</option>
+                    <option value="2">Option 2</option>
+                </select>
+                <button type="submit">Go</button>
+            </form>
+        </div>
+    </section>
+
+</body>
+
+</html>
