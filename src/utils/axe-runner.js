@@ -58,8 +58,8 @@ const AXE_TO_EARL_MAP = {
   // 1.4.6 Contrast (Enhanced)
   "color-contrast-enhanced": "WCAG22:contrast-enhanced",
 
-  // 1.4.12 Text Spacing
-  "avoid-inline-spacing": "WCAG22:text-spacing",
+  // // 1.4.12 Text Spacing
+  // "avoid-inline-spacing": "WCAG22:text-spacing",
 
   // 2.1.1 Keyboard
   keyboard: "WCAG22:keyboard",

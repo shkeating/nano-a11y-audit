@@ -1,5 +1,3 @@
-import { isVisible } from "../utils/dom.js";
-
 export const id = "1.4.12";
 export const earlId = "WCAG22:text-spacing";
 // Check everything, as text can be anywhere
@@ -69,9 +67,11 @@ export async function teardown(tabId) {
 }
 
 export function extractor() {
+  // --- HELPER (Internal) ---
   function isVisible(el) {
     if (!el) return false;
     if (el.offsetParent !== null) return true;
+    if (el.tagName === "BODY" || el.tagName === "HTML") return true;
     const style = window.getComputedStyle(el);
     return (
       style.display !== "none" &&
