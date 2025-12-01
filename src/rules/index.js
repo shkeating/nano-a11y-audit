@@ -8,10 +8,12 @@ import * as Rule134L from "./1.3.4-landscape.js";
 import * as Rule134P from "./1.3.4-portrait.js";
 import * as Rule1410 from "./1.4.10.js";
 import * as Rule1412 from "./1.4.12.js";
+import * as Rule144 from "./1.4.4.js";
 import * as Rule245 from "./2.4.5.js";
 
 export const RULES = {
   [Rule141.id]: Rule141,
+  [Rule144.id]: Rule144,
   [Rule132.id]: Rule132,
   [Rule133.id]: Rule133,
   [Rule134L.id]: Rule134L,

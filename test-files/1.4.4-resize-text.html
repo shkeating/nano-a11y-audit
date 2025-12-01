@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1.4.4 Resize Text Test Case</title>
+    <style>
+        /* Failures */
+        .fail-fixed-height-overflow {
+            width: 200px;
+            height: 50px; /* Too small if text expands */
+            overflow: hidden;
+            border: 1px solid red;
+        }
+
+        .fail-input-fixed-height {
+            height: 20px; /* Fixed height might cut off text on zoom */
+            font-size: 16px;
+        }
+
+        .fail-fixed-max-height {
+            max-height: 50px;
+            overflow-y: hidden;
+            border: 1px solid red;
+        }
+
+        /* Passes */
+        .pass-min-height {
+            width: 200px;
+            min-height: 50px; /* Can grow */
+            border: 1px solid green;
+        }
+
+        .pass-overflow-visible {
+            width: 200px;
+            height: 50px;
+            overflow: visible; /* Text will spill out, but not be clipped */
+            border: 1px solid green;
+        }
+
+        .pass-flexible-input {
+            height: auto;
+            padding: 5px;
+        }
+
+        .pass-rem-height {
+            height: 10rem; /* Scales with text */
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <h1>1.4.4 Resize Text</h1>
+
+    <h2>Failures</h2>
+
+    <!-- F69: Fixed height + overflow:hidden -->
+    <div class="fail-fixed-height-overflow">
+        This is a container with fixed height and overflow hidden.
+        If text size increases, this will likely be clipped.
+    </div>
+
+    <!-- F69 variant: max-height + overflow:hidden -->
+    <p class="fail-fixed-max-height">
+        This paragraph has a fixed max-height and hidden overflow.
+        Resizing text will cause clipping.
+    </p>
+
+    <!-- F80: Fixed height input -->
+    <label>
+        Fixed Height Input:
+        <input type="text" class="fail-input-fixed-height" value="Some text value">
+    </label>
+
+    <h2>Passes</h2>
+
+    <!-- Min-height allows expansion -->
+    <div class="pass-min-height">
+        This container uses min-height. It will grow as text grows.
+    </div>
+
+    <!-- Overflow visible allows spillover (not clipping) -->
+    <div class="pass-overflow-visible">
+        This container has fixed height but overflow visible.
+        Text will overlap other content potentially (which is 1.4.4 issue if it obscures, but usually less severe than clipping).
+        Actually 1.4.4 says "without loss of content", clipping is loss. Overlap *can* be failure, but clipping is definite failure.
+    </div>
+
+    <!-- Flexible input -->
+    <label>
+        Flexible Input:
+        <input type="text" class="pass-flexible-input" value="I can grow">
+    </label>
+
+    <!-- Relative units -->
+    <div class="pass-rem-height">
+        This container has height in rems. It scales with base font size.
+    </div>
+
+</body>
+</html>
