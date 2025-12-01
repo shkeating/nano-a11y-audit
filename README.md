@@ -22,7 +22,7 @@ This architecture ensures comprehensive test coverage while maintaining **zero l
   - **On-Device Generative AI:** Injects rule-specific extractor scripts to gather targeted DOM and CSS context. This data is then passed to the local Gemini Nano model to reason about nuanced criteria (e.g., Use of Color, Meaningful Sequence) without sending data to the cloud.
 - **Modular Rule System:** Features a clean, extensible registry for defining new AI-powered checks, each with its own data extractor and instruction prompt.
 - **Automated Reporting:**
-  - Consolidates findings from both Axe and Gemini Nano into a single **JSON-LD (EARL)** report.
+  - Consolidates findings from both Axe and all Nano-powered checks into a single **JSON-LD (EARL)** report.
   - Automatically uploads this report to the [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/) for easy viewing and analysis.
 
 ---
@@ -136,6 +136,7 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `1.3.3 Sensory Characteristics` | Checks for instructions that rely solely on shape, size, color, location, or sound.         |
 | **Gemini Nano** | `1.4.1 Use of Color`            | Checks if links or form fields rely only on color as a distinguishing visual cue.           |
 | **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.       |
+| **Gemini Nano** | `2.5.2 Pointer Cancellation`    | Checks for elements that execute functions on down-events without abort mechanisms.         |
 | **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                 |
 | **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events. |
 
@@ -156,6 +157,7 @@ nano-a11y-audit/
 │   │   ├── 1.3.3.js        # Sensory Characteristics Rule
 │   │   ├── 1.4.1.js        # Use of Color Rule
 │   │   ├── 2.2.2.js        # Pause, Stop, Hide Rule
+│   │   ├── 2.5.2.js        # Pointer Cancellation Rule
 │   │   ├── 2.5.3.js        # Label in Name Rule
 │   │   ├── 3.2.2.js        # On Input Rule
 │   │   └── index.js        # Rule Registry

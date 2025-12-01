@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WCAG 2.5.2 Pointer Cancellation Test</title>
+    <style>
+        .btn {
+            padding: 10px;
+            background: #eee;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            display: inline-block;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pointer Cancellation Test Cases</h1>
+
+    <h2>Failures</h2>
+    <!-- F36: Execution on down-event -->
+    <div class="btn" onmousedown="alert('Executed on down!')" role="button" tabindex="0">
+        Fail: Action on Mousedown
+    </div>
+
+    <!-- Touch equivalent -->
+    <div class="btn" ontouchstart="alert('Executed on touch start!')" role="button" tabindex="0">
+        Fail: Action on Touch Start
+    </div>
+
+    <!-- Pointer equivalent -->
+    <div class="btn" onpointerdown="alert('Executed on pointer down!')" role="button" tabindex="0">
+        Fail: Action on Pointer Down
+    </div>
+
+    <h2>Passes</h2>
+    <!-- Standard Click -->
+    <button onclick="alert('Executed on click')">
+        Pass: Standard Button
+    </button>
+
+    <!-- Up event usage (simulated) -->
+    <div class="btn" onmouseup="alert('Executed on up')" role="button" tabindex="0">
+        Pass: Action on Mouse Up
+    </div>
+
+    <!-- Drag and Drop (Essential Exception - Simplified) -->
+    <!-- Ideally AI should handle this, but might be tricky. Let's stick to basic checks first. -->
+    <div class="btn" draggable="true">
+        Pass: Draggable (Essential)
+    </div>
+</body>
+</html>
