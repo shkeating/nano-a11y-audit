@@ -24,7 +24,18 @@ Return a JSON object:
 export function extractor() {
   const movingElements = [];
 
-  // 1. HELPERS
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    if (el.tagName === "BODY" || el.tagName === "HTML") return true;
+    const style = window.getComputedStyle(el);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0"
+    );
+  }
+
   function parseDuration(timeStr) {
     if (!timeStr) return 0;
     const floatVal = parseFloat(timeStr);
@@ -42,13 +53,6 @@ export function extractor() {
       classes.includes("loader") ||
       classes.includes("loading")
     );
-  }
-
-  function isVisible(el) {
-    if (el.offsetParent !== null) return true;
-    const style = window.getComputedStyle(el);
-    // Allow visibility:hidden (it might be in the 'blink off' state) but check display
-    return style.display !== "none";
   }
 
   // 2. SCAN FOR CSS ANIMATIONS
@@ -104,7 +108,7 @@ export function extractor() {
     }
   });
 
-  // 4. SCAN FOR SUSPICIOUS JS (Fixed: Removed buggy duplication check)
+  // 4. SCAN FOR SUSPICIOUS JS
   const suspiciousTerms = [
     "blink",
     "marquee",
@@ -115,7 +119,6 @@ export function extractor() {
 
   for (const el of allElements) {
     if (!isVisible(el)) continue;
-
     const id = (el.id || "").toLowerCase();
     const className = (el.className || "").toString().toLowerCase();
 
@@ -124,7 +127,6 @@ export function extractor() {
         (term) => id.includes(term) || className.includes(term)
       )
     ) {
-      // Only report if it wasn't ALREADY caught as a CSS animation
       const style = window.getComputedStyle(el);
       if (!style.animationName || style.animationName === "none") {
         movingElements.push({
@@ -138,7 +140,6 @@ export function extractor() {
     }
   }
 
-  // --- RESULT ---
   if (movingElements.length === 0) {
     return {
       computedVerdict: "PASS",

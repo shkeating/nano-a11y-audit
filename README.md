@@ -1,7 +1,7 @@
 # Gemini Nano A11y Auditor
 
 **Browser-Native Accessibility Testing Tool with On-Device Generative AI**
-*Powered by Axe-Core & Gemini Nano*
+_Powered by Axe-Core & Gemini Nano_
 
 ## Overview
 
@@ -18,12 +18,12 @@ This architecture ensures comprehensive test coverage while maintaining **zero l
 
 - **Batch Processing:** Accepts a CSV of URLs and automatically navigates the browser to test them sequentially.
 - **Hybrid Auditing Engine:**
-    - **Axe Core Integration:** Runs a full suite of established, automated accessibility checks on each page.
-    - **On-Device Generative AI:** Injects rule-specific extractor scripts to gather targeted DOM and CSS context. This data is then passed to the local Gemini Nano model to reason about nuanced criteria (e.g., Use of Color, Meaningful Sequence) without sending data to the cloud.
+  - **Axe Core Integration:** Runs a full suite of established, automated accessibility checks on each page.
+  - **On-Device Generative AI:** Injects rule-specific extractor scripts to gather targeted DOM and CSS context. This data is then passed to the local Gemini Nano model to reason about nuanced criteria (e.g., Use of Color, Meaningful Sequence) without sending data to the cloud.
 - **Modular Rule System:** Features a clean, extensible registry for defining new AI-powered checks, each with its own data extractor and instruction prompt.
 - **Automated Reporting:**
-    - Consolidates findings from both Axe and Gemini Nano into a single **JSON-LD (EARL)** report.
-    - Automatically uploads this report to the [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/) for easy viewing and analysis.
+  - Consolidates findings from both Axe and Gemini Nano into a single **JSON-LD (EARL)** report.
+  - Automatically uploads this report to the [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/) for easy viewing and analysis.
 
 ---
 
@@ -55,24 +55,27 @@ This extension relies on experimental browser features. It **will not work** in 
     - Go to `chrome://components`.
     - Find **Optimization Guide On Device Model**.
     - Click **Check for Update** to download the Gemini Nano model (~1.5GB).
-    - *Note: Ensure the version is listed (e.g., 2024.9.25.x) and not 0.0.0.0.*
+    - _Note: Ensure the version is listed (e.g., 2024.9.25.x) and not 0.0.0.0._
 
 ---
 
 ## Installation
 
 1.  **Clone the repository:**
+
     ```bash
     git clone <repository-url>
     cd nano-a11y-audit
     ```
 
 2.  **Install dependencies:**
+
     ```bash
     npm install
     ```
 
 3.  **Build the project:**
+
     ```bash
     npm run build
     ```
@@ -112,19 +115,29 @@ The browser will automatically navigate to each page. The logs in the side panel
 3.  It automatically injects the report data into the tool.
 4.  Navigate to **Step 4: Audit Sample** (or View Report) to see your consolidated AI-generated and Axe results.
 
+### 4. Testing & Development
+
+The project includes a local test suite in `test-files/` covering common failures for every active rule.
+
+1. Serve the `test-files/` directory (e.g., using VS Code Live Server or `python -m http.server`).
+2. Create a CSV with the local URLs (e.g., `http://localhost:5500/test-files/322-on-input.html`).
+3. Run the auditor on these pages to verify detection logic.
+
 ---
 
 ## Auditing Scope
 
 The hybrid engine provides broad coverage. The current scope includes:
 
-| Engine          | Rule ID/Criterion                     | Implementation Strategy                                                                     |
-| --------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Axe Core**    | ~40+ Rules                            | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels). |
-| **Gemini Nano** | `1.3.2 Meaningful Sequence`           | Checks for CSS properties (order, float, position) that disrupt logical reading order.      |
-| **Gemini Nano** | `1.3.3 Sensory Characteristics`       | Checks for instructions that rely solely on shape, size, color, location, or sound.         |
-| **Gemini Nano** | `1.4.1 Use of Color`                  | Checks if links or form fields rely only on color as a distinguishing visual cue.           |
-| **Gemini Nano** | `2.5.3 Label in Name`                 | Checks if the accessible name of a control contains its visible text label.                 |
+| Engine          | Rule ID/Criterion               | Implementation Strategy                                                                     |
+| --------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Axe Core**    | ~40+ Rules                      | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels). |
+| **Gemini Nano** | `1.3.2 Meaningful Sequence`     | Checks for CSS properties (order, float, position) that disrupt logical reading order.      |
+| **Gemini Nano** | `1.3.3 Sensory Characteristics` | Checks for instructions that rely solely on shape, size, color, location, or sound.         |
+| **Gemini Nano** | `1.4.1 Use of Color`            | Checks if links or form fields rely only on color as a distinguishing visual cue.           |
+| **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.       |
+| **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                 |
+| **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events. |
 
 ---
 
@@ -142,12 +155,15 @@ nano-a11y-audit/
 │   │   ├── 1.3.2.js        # Meaningful Sequence Rule
 │   │   ├── 1.3.3.js        # Sensory Characteristics Rule
 │   │   ├── 1.4.1.js        # Use of Color Rule
+│   │   ├── 2.2.2.js        # Pause, Stop, Hide Rule
 │   │   ├── 2.5.3.js        # Label in Name Rule
+│   │   ├── 3.2.2.js        # On Input Rule
 │   │   └── index.js        # Rule Registry
 │   └── utils/
 │       ├── axe-runner.js   # Axe Core injection & execution
 │       ├── earl-reporter.js# JSON-LD report generation
 │       └── report-injector.js # W3C Tool automation
+├── test-files/             # Local test harness with failure examples
 ├── dist/                   # Build output (Load this in Chrome)
 ├── vite.config.js          # Build configuration
 └── package.json            # Dependencies and scripts

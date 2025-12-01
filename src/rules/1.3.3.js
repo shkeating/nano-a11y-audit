@@ -1,5 +1,6 @@
 export const id = "1.3.3";
 export const earlId = "WCAG22:sensory-characteristics";
+export const relevantElements = ["p", "li", "span", "div", "td", "th"];
 
 export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 1.3.3 Sensory Characteristics.
@@ -47,30 +48,35 @@ Return a JSON object with a "verdict" and a "reason".
 `;
 
 export function extractor() {
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    if (el.tagName === "BODY" || el.tagName === "HTML") return true;
+    const style = window.getComputedStyle(el);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0"
+    );
+  }
+
   const potentialInstructions = [];
-  // Select elements likely to contain instructions
   const elements = Array.from(
     document.querySelectorAll("p, li, span, div, td, th")
   );
 
   for (const el of elements) {
-    // Basic visibility check
-    if (el.offsetParent === null) continue;
+    if (!isVisible(el)) continue;
 
-    // Get direct text content
     const text = el.innerText.trim();
 
-    // Filter: Ignore empty text, script tags, and very short strings
     if (!text || text.length < 10) continue;
-
-    // Filter: Ignore code blocks or technical strings
     if (text.startsWith("<") || text.includes("{")) continue;
 
     if (potentialInstructions.includes(text)) continue;
 
     potentialInstructions.push(text);
 
-    // Limit to keep context window small
     if (potentialInstructions.length >= 20) break;
   }
 

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SC 1.4.1 | Accessibility Test Lab</title>
+    <style>
+        .bad-link {
+            color: #2e2eff;
+            text-decoration: none;
+            border: none;
+        }
+
+        .low-contrast-link {
+            color: #555;
+            text-decoration: none;
+        }
+
+        /* Against #000 text */
+        .error-field {
+            border: 2px solid red;
+            padding: 5px;
+        }
+
+        .good-link {
+            color: blue;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <section>
+        <h1>SC 1.4.1 Failures: Use of Color</h1>
+
+        <div class="test-case" data-rule="1.4.1" data-failure="G183">
+            <h3>Link: Color Only (No Underline)</h3>
+            <p>This paragraph contains a <a href="#" class="bad-link">hidden link</a> that looks like text.</p>
+        </div>
+
+        <div class="test-case" data-rule="1.4.1" data-failure="Contrast">
+            <h3>Link: Low Contrast & No Underline</h3>
+            <p style="color: black;">Text vs <a href="#" class="low-contrast-link">Low Contrast Link</a>.</p>
+        </div>
+
+        <div class="test-case" data-rule="1.4.1" data-failure="Form Error">
+            <h3>Form: Error indicated by Color Only</h3>
+            <label for="email">Email Address</label>
+            <input type="text" id="email" class="error-field" value="invalid-email" />
+            <p>Errors are marked with red borders.</p>
+        </div>
+
+        <div class="test-case" data-rule="1.4.1" data-failure="None">
+            <h3>Passing Example</h3>
+            <p>This is a <a href="#" class="good-link">standard link</a> with an underline.</p>
+        </div>
+    </section>
+</body>
+
+</html>

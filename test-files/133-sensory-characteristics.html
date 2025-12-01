@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SC 1.3.3 | Accessibility Test Lab</title>
+</head>
+
+<body>
+    <section>
+        <h1>SC 1.3.3 Failures: Sensory Characteristics</h1>
+
+        <div class="test-case" data-rule="1.3.3" data-failure="Color">
+            <h3>Relies on Color</h3>
+            <p>Click the <span style="color: green; font-weight: bold;">green</span> button to start.</p>
+            <button style="background: green; color: white;">Go</button>
+            <button style="background: red; color: white;">Stop</button>
+        </div>
+
+        <div class="test-case" data-rule="1.3.3" data-failure="Shape">
+            <h3>Relies on Shape</h3>
+            <p>Use the round button to open settings.</p>
+            <button style="border-radius: 50%; width: 30px; height: 30px;">⚙️</button>
+        </div>
+
+        <div class="test-case" data-rule="1.3.3" data-failure="Location">
+            <h3>Relies on Location</h3>
+            <p>Select an option from the menu on the right.</p>
+            <div style="float: right; border: 1px solid black; padding: 5px;">
+                Menu Items
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.3.3" data-failure="None">
+            <h3>Passing Example</h3>
+            <p>Click the "Submit" button (the green one) to finish.</p>
+            <button style="background: green; color: white;">Submit</button>
+        </div>
+    </section>
+</body>
+
+</html>

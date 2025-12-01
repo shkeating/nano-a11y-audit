@@ -1,5 +1,14 @@
 export const id = "2.5.3";
 export const earlId = "WCAG22:label-in-name";
+export const relevantElements = [
+  "button",
+  "a",
+  "input",
+  "select",
+  "textarea",
+  "[role='button']",
+  "[role='link']",
+];
 
 export const systemPrompt = `
 You are a precise accessibility auditor.
@@ -25,11 +34,26 @@ Review the input data.
 `;
 
 export function extractor() {
-  /**
-   * Gets the Accessible Name (Focus on Overrides)
-   */
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    const style = window.getComputedStyle(el);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0"
+    );
+  }
+
+  function cleanText(str) {
+    if (!str) return "";
+    return str
+      .toLowerCase()
+      .replace(/[\W_]+/g, " ")
+      .trim();
+  }
+
   function getOverrideName(el) {
-    // 1. aria-labelledby
     if (el.hasAttribute("aria-labelledby")) {
       const ids = el.getAttribute("aria-labelledby").split(" ");
       const parts = ids.map((id) => {
@@ -38,11 +62,9 @@ export function extractor() {
       });
       return parts.join(" ").trim();
     }
-    // 2. aria-label
     if (el.hasAttribute("aria-label")) {
       return el.getAttribute("aria-label").trim();
     }
-    // 3. alt
     if (el.hasAttribute("alt")) {
       return el.getAttribute("alt").trim();
     }
@@ -50,7 +72,6 @@ export function extractor() {
   }
 
   function getVisibleLabel(el) {
-    // 1. Inputs
     if (
       el.tagName === "INPUT" ||
       el.tagName === "TEXTAREA" ||
@@ -60,35 +81,27 @@ export function extractor() {
       if (["submit", "reset", "button"].includes(type)) {
         return el.value;
       }
-
-      // A. Check for Programmatic Labels (Best Practice)
       if (el.labels && el.labels.length > 0) {
         return Array.from(el.labels)
           .map((l) => l.innerText)
           .join(" ");
       }
-
-      // B. Heuristic: Check for "Orphaned" Visual Labels (Common Failure Pattern)
-      // If the code is broken (missing 'for' attribute), the user still SEES the label.
-      // We check the immediately preceding element.
       let prev = el.previousElementSibling;
       while (
         prev &&
         (prev.tagName === "BR" ||
           (prev.tagName === "SPAN" && prev.innerText.length < 2))
       ) {
-        // Skip tiny spans or breaks
         prev = prev.previousElementSibling;
       }
-
       if (prev && prev.tagName === "LABEL") {
         return prev.innerText;
       }
-
+      if (el.hasAttribute("placeholder")) {
+        return el.getAttribute("placeholder");
+      }
       return "";
     }
-
-    // 2. Standard Elements
     return el.innerText;
   }
 
@@ -100,27 +113,17 @@ export function extractor() {
   const mismatchedElements = [];
 
   for (const el of elements) {
-    if (el.offsetParent === null) continue;
+    if (!isVisible(el)) continue;
 
-    // 1. Get Visible Text
     const visibleRaw = getVisibleLabel(el);
     if (!visibleRaw || !visibleRaw.trim()) continue;
 
-    // 2. Get Accessible Name (Overrides only)
     const accessibleRaw = getOverrideName(el);
     if (!accessibleRaw) continue;
 
-    // 3. Compare (Cleaned)
-    const clean = (str) =>
-      str
-        .toLowerCase()
-        .replace(/[\W_]+/g, " ")
-        .trim();
+    const visible = cleanText(visibleRaw);
+    const accessible = cleanText(accessibleRaw);
 
-    const visible = clean(visibleRaw);
-    const accessible = clean(accessibleRaw);
-
-    // Logic: The accessible name must contain the visible label text
     if (visible.length > 0 && !accessible.includes(visible)) {
       mismatchedElements.push({
         visible: visibleRaw.trim().substring(0, 50),
@@ -131,9 +134,7 @@ export function extractor() {
     if (mismatchedElements.length >= 5) break;
   }
 
-  const result = {
-    pageTitle: document.title,
-  };
+  const result = { pageTitle: document.title };
 
   if (mismatchedElements.length > 0) {
     result.mismatchedElements = mismatchedElements;

@@ -2,7 +2,6 @@ export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
 export const relevantElements = ["a", "button", "input", "select", "textarea"];
 
-// 1. SYSTEM PROMPT
 export const systemPrompt = `
 You are a violation reporter.
 Task: Format the input JSON data into a simple bulleted list.
@@ -29,9 +28,8 @@ Task: Format the input JSON data into a simple bulleted list.
 - If computedVerdict is "FAIL": {"verdict": "FAIL", "reason": "[Your generated lists]", "title": "[pageTitle]"}
 `;
 
-// 2. EXTRACTOR
 export function extractor(incompleteSelectors = []) {
-  // --- HELPERS ---
+  // --- HELPERS (Restored) ---
   function parseRgb(colorStr) {
     const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
     return match
@@ -51,7 +49,6 @@ export function extractor(incompleteSelectors = []) {
     const rgb1 = parseRgb(fgColor);
     const rgb2 = parseRgb(bgColor);
     if (!rgb1 || !rgb2) return null;
-
     const l1 = getLuminance(rgb1[0], rgb1[1], rgb1[2]);
     const l2 = getLuminance(rgb2[0], rgb2[1], rgb2[2]);
     const lighter = Math.max(l1, l2);
@@ -59,46 +56,31 @@ export function extractor(incompleteSelectors = []) {
     return (lighter + 0.05) / (darker + 0.05);
   }
 
-  /**
-   * REVISED Hover Check
-   * Iterates all rules to simulate cascade (last match wins).
-   */
   function hasValidHoverStyle(element) {
-    let hasCue = false; // Default assumption: no hover cue
-
+    let hasCue = false;
     for (const sheet of document.styleSheets) {
       try {
         const rules = sheet.cssRules || sheet.rules;
         if (!rules) continue;
-
         for (const rule of rules) {
           if (!rule.selectorText || !rule.selectorText.includes(":hover"))
             continue;
-
           const selectors = rule.selectorText.split(",");
           for (const sel of selectors) {
             if (!sel.includes(":hover")) continue;
-
-            // Check if this rule applies to our element
             const baseSel = sel.replace(/:hover/g, "").trim();
-            const matches =
-              baseSel === "" || baseSel === "a" || element.matches(baseSel);
-
-            if (matches) {
+            if (baseSel === "" || baseSel === "a" || element.matches(baseSel)) {
               const s = rule.style;
-
-              // Check for adding a cue (Underline or Border)
               if (
                 s.textDecorationLine?.includes("underline") ||
                 s.textDecoration?.includes("underline") ||
                 (s.borderBottomStyle && s.borderBottomStyle !== "none")
               ) {
                 hasCue = true;
-              }
-              // Check for REMOVING a cue (text-decoration: none)
-              else if (
-                s.textDecorationLine?.includes("none") ||
-                s.textDecoration === "none"
+              } else if (
+                (s.textDecorationLine?.includes("none") ||
+                  s.textDecoration === "none") &&
+                (s.borderBottomStyle === "none" || !s.borderBottomStyle)
               ) {
                 hasCue = false;
               }
@@ -106,25 +88,22 @@ export function extractor(incompleteSelectors = []) {
           }
         }
       } catch (e) {
-        // CORS blocked
         continue;
       }
     }
     return hasCue;
   }
 
-  // --- 1. LINK LOGIC (Smart Mode) ---
+  // --- 1. LINK LOGIC ---
   const failingLinks = [];
   let linksToCheck = [];
 
   if (incompleteSelectors && incompleteSelectors.length > 0) {
-    // Only check what Axe flagged as "Incomplete"
     incompleteSelectors.forEach((sel) => {
       const el = document.querySelector(sel);
       if (el) linksToCheck.push(el);
     });
   } else {
-    // Fallback: Scan everything
     linksToCheck = Array.from(document.querySelectorAll("a:not(nav a)"));
   }
 
@@ -132,36 +111,29 @@ export function extractor(incompleteSelectors = []) {
     if (link.offsetParent === null) continue;
     const parent = link.parentElement;
     if (!parent) continue;
-
-    const parentTag = parent.tagName;
-    if (["H1", "H2", "H3", "H4", "H5", "H6"].includes(parentTag)) continue;
+    if (["H1", "H2", "H3", "H4", "H5", "H6"].includes(parent.tagName)) continue;
 
     const s = window.getComputedStyle(link);
-    const hasUnderline =
+    const hasStaticCue =
       s.textDecorationLine.includes("underline") ||
-      s.textDecoration.includes("underline");
-    const hasBorder =
-      s.borderBottomStyle !== "none" && parseFloat(s.borderBottomWidth) > 0;
+      s.textDecoration.includes("underline") ||
+      (s.borderBottomStyle !== "none" && parseFloat(s.borderBottomWidth) > 0);
     const hasBold = parseInt(s.fontWeight) >= 700 || s.fontWeight === "bold";
 
-    // Static check
-    if (hasUnderline || hasBorder) continue;
+    if (hasStaticCue) continue;
 
-    const linkColor = s.color;
-    const parentColor = window.getComputedStyle(parent).color;
-    const ratio = getContrastRatio(linkColor, parentColor);
+    const ratio = getContrastRatio(
+      s.color,
+      window.getComputedStyle(parent).color
+    );
 
     if (ratio !== null) {
-      // 1. Hard Fail: Contrast too low (< 3:1)
       if (ratio < 3.0) {
         failingLinks.push({
           text: link.innerText.substring(0, 40),
           issue: `Contrast ${ratio.toFixed(2)}:1 is too low (<3:1).`,
         });
-      }
-      // 2. Conditional Fail: Contrast OK, but NO visual cue on hover
-      // We explicitly check !hasValidHoverStyle here.
-      else if (!hasBold && !hasValidHoverStyle(link)) {
+      } else if (!hasBold && !hasValidHoverStyle(link)) {
         failingLinks.push({
           text: link.innerText.substring(0, 40),
           issue: `Contrast OK (${ratio.toFixed(
@@ -205,11 +177,11 @@ export function extractor(incompleteSelectors = []) {
     const isReq =
       el.hasAttribute("required") ||
       el.getAttribute("aria-required") === "true";
-    const isInv = el.getAttribute("aria-invalid") === "true";
     const isErr =
-      el.className.includes("error") || el.className.includes("invalid");
+      el.getAttribute("aria-invalid") === "true" ||
+      el.className.includes("error");
 
-    if (isReq || isInv || isErr) {
+    if (isReq || isErr) {
       failingForms.push({
         text: label ? label.innerText.substring(0, 30) : "Unlabeled Field",
       });
@@ -217,12 +189,11 @@ export function extractor(incompleteSelectors = []) {
     if (failingForms.length >= 5) break;
   }
 
-  // --- 3. TEXT FRAGMENT LOGIC ---
+  // --- 3. TEXT FRAGMENTS ---
   function hasOnlyColorDifference(element, parent) {
     const s1 = window.getComputedStyle(element);
     const s2 = window.getComputedStyle(parent);
     if (s1.color === s2.color) return false;
-
     return (
       s1.fontWeight === s2.fontWeight &&
       s1.fontStyle === s2.fontStyle &&
@@ -234,47 +205,28 @@ export function extractor(incompleteSelectors = []) {
 
   const failingFragments = [];
   const allElements = document.body.getElementsByTagName("*");
-
   for (const el of allElements) {
-    if (el.offsetParent === null) continue;
     if (
-      [
-        "SCRIPT",
-        "STYLE",
-        "NOSCRIPT",
-        "A",
-        "BUTTON",
-        "INPUT",
-        "SELECT",
-        "TEXTAREA",
-        "NAV",
-      ].includes(el.tagName)
+      el.offsetParent === null ||
+      ["SCRIPT", "STYLE", "A", "BUTTON", "INPUT", "NAV"].includes(el.tagName)
     )
       continue;
 
     const hasDirectText = Array.from(el.childNodes).some(
-      (node) =>
-        node.nodeType === Node.TEXT_NODE && node.nodeValue.trim().length > 0
+      (n) => n.nodeType === 3 && n.nodeValue.trim().length > 0
     );
-
-    if (hasDirectText) {
-      const parent = el.parentElement;
-      if (parent && hasOnlyColorDifference(el, parent)) {
-        const txt = el.innerText.trim();
-        if (txt.length > 0) {
-          failingFragments.push({ text: txt.substring(0, 40) });
-        }
+    if (hasDirectText && el.parentElement) {
+      if (hasOnlyColorDifference(el, el.parentElement)) {
+        failingFragments.push({ text: el.innerText.substring(0, 40) });
       }
     }
     if (failingFragments.length >= 5) break;
   }
 
-  // --- RESULT GENERATION ---
   const hasFailures =
     failingLinks.length > 0 ||
     failingForms.length > 0 ||
     failingFragments.length > 0;
-
   const result = {
     pageTitle: document.title,
     computedVerdict: hasFailures ? "FAIL" : "PASS",
