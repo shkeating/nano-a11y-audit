@@ -9,7 +9,7 @@
     <script type="module" src="sidepanel.js"></script>
 
     <div id="setup">
-        <p style="font-size: 12px; color: #555;">
+        <p class="instruction-text">
             Upload a CSV of URLs for the pages in your test sample to begin audit. The extension will visit each page in
             your sample, and will run checks with axe-core and Gemini Nano. It will then download the report data, and
             open the WCAG EM Report Tool to view the results.
@@ -21,32 +21,33 @@
                 Representative
                 Sample</a>
         </p>
-        <p style="margin-bottom: 5px; font-size: 12px;">1. Load URLs (CSV with 'url' column):</p>
+
+        <label for="csvFile" class="input-label">1. Load URLs (CSV with 'url' column):</label>
         <input type="file" id="csvFile" accept=".csv" />
 
-        <fieldset style="margin-top: 15px; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
-            <legend style="font-size: 12px; font-weight: bold; padding: 0 5px;">Report Output</legend>
+        <fieldset class="settings-box">
+            <legend class="settings-legend">Report Output</legend>
 
-            <div style="display: flex; gap: 15px; margin-bottom: 5px;">
-                <label style="font-size: 12px; display: flex; align-items: center; gap: 5px;">
+            <div class="settings-options">
+                <label class="settings-label">
                     <input type="checkbox" id="includePassed"> Passed
                 </label>
-                <label style="font-size: 12px; display: flex; align-items: center; gap: 5px;">
+                <label class="settings-label">
                     <input type="checkbox" id="includeNotPresent"> Not Present
                 </label>
             </div>
 
-            <p style="font-size: 11px; color: #666; margin: 0; font-style: italic;">
+            <p class="settings-note">
                 Note: Failed criteria will always include detailed report descriptions.
             </p>
         </fieldset>
 
-        <button id="startBtn" style="margin-top: 15px;">Start Batch Audit</button>
+        <button id="startBtn">Start Batch Audit</button>
     </div>
 
-    <div id="statusArea" class="status-box" style="display:none;">
+    <div id="statusArea" class="status-box">
         <strong>Progress:</strong> <span id="progress">0/0</span><br>
-        <div style="margin-top:4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <div class="status-current-url">
             <strong>Current:</strong> <span id="currentUrl">...</span>
         </div>
     </div>
@@ -55,7 +56,7 @@
         <div class="log-entry">Waiting for input...</div>
     </section>
 
-    <button id="downloadBtn" style="display:none; background: #28a745;">Download Report Data</button>
+    <button id="downloadBtn">Download Report Data</button>
 </body>
 
 </html>
