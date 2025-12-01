@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>222 | Accessibility Test Lab</title </head>
+
+<body>
+    <section>
+        <h2>SC 2.2.2 Failures: Moving, Blinking, Scrolling</h2>
+
+        <div class="test-case" data-rule="2.2.2" data-failure="F16">
+            <h3>F16: Scrolling Content (No Pause)</h3>
+            <div class="marquee-container"
+                style="width: 300px; overflow: hidden; border: 1px solid #ccc; white-space: nowrap;">
+                <div class="marquee-content" style="display: inline-block; animation: scroll-left 5s linear infinite;">
+                    This text scrolls automatically and cannot be paused by the user.
+                    This text scrolls automatically and cannot be paused by the user.
+                </div>
+            </div>
+            <style>
+                @keyframes scroll-left {
+                    from {
+                        transform: translateX(100%);
+                    }
+
+                    to {
+                        transform: translateX(-100%);
+                    }
+                }
+            </style>
+        </div>
+
+        <div class="test-case" data-rule="2.2.2" data-failure="F112">
+            <h3>F112: CSS Blinking > 5s (No Stop)</h3>
+            <div class="blinking-css"
+                style="padding: 10px; background: #f8d7da; color: #721c24; animation: blink-opacity 1s infinite;">
+                Urgent Alert: This content blinks indefinitely via CSS.
+            </div>
+            <style>
+                @keyframes blink-opacity {
+                    0% {
+                        opacity: 1;
+                    }
+
+                    50% {
+                        opacity: 0;
+                    }
+
+                    100% {
+                        opacity: 1;
+                    }
+                }
+            </style>
+        </div>
+
+        <div class="test-case" data-rule="2.2.2" data-failure="F50">
+            <h3>F50: Scripted Blinking (No Stop)</h3>
+            <div id="js-blink-target" style="padding: 10px; background: #fff3cd; color: #856404;">
+                Warning: This content blinks via JavaScript.
+            </div>
+            <script>
+                (function () {
+                    const el = document.getElementById('js-blink-target');
+                    let visible = true;
+                    // This creates an infinite loop with no clear way to stop it
+                    setInterval(() => {
+                        visible = !visible;
+                        el.style.visibility = visible ? 'visible' : 'hidden';
+                    }, 1000);
+                })();
+            </script>
+        </div>
+
+        <div class="test-case" data-rule="2.2.2" data-failure="F7">
+            <h3>F7: Object/SVG Blinking (No Pause)</h3>
+            <svg width="200" height="60">
+                <rect x="10" y="10" width="180" height="40" fill="red">
+                    <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite" />
+                </rect>
+                <text x="100" y="35" font-family="Arial" font-size="14" text-anchor="middle" fill="white">
+                    Blinking SVG Object
+                </text>
+            </svg>
+        </div>
+    </section>
+    <div class="test-case" data-rule="2.2.2" data-failure="Deprecated Tags">
+        <h3>Axe-Core Catchable Failures</h3>
+
+        <p>
+            <strong>1. Deprecated Blink Tag:</strong><br>
+            <blink>This text is blinking because of a deprecated tag.</blink>
+        </p>
+
+        <p>
+            <strong>2. Deprecated Marquee Tag:</strong><br>
+            <marquee scrollamount="5" direction="left">
+                This text is scrolling because of a deprecated marquee tag.
+            </marquee>
+        </p>
+    </div>
+</body>
+
+</html>
