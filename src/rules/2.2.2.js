@@ -1,3 +1,5 @@
+import { isVisible } from "../utils/dom.js";
+
 export const id = "2.2.2";
 export const earlId = "WCAG22:pause-stop-hide";
 
@@ -24,7 +26,6 @@ Return a JSON object:
 export function extractor() {
   const movingElements = [];
 
-  // 1. HELPERS
   function parseDuration(timeStr) {
     if (!timeStr) return 0;
     const floatVal = parseFloat(timeStr);
@@ -44,18 +45,13 @@ export function extractor() {
     );
   }
 
-  function isVisible(el) {
-    if (el.offsetParent !== null) return true;
-    const style = window.getComputedStyle(el);
-    // Allow visibility:hidden (it might be in the 'blink off' state) but check display
-    return style.display !== "none";
-  }
-
   // 2. SCAN FOR CSS ANIMATIONS
   const allElements = document.querySelectorAll("body *");
 
   for (const el of allElements) {
     if (["SCRIPT", "STYLE", "LINK", "META"].includes(el.tagName)) continue;
+
+    // USAGE: Imported helper
     if (!isVisible(el)) continue;
 
     const style = window.getComputedStyle(el);
@@ -88,6 +84,8 @@ export function extractor() {
   const svgAnims = document.querySelectorAll("animate, animateTransform");
   svgAnims.forEach((anim) => {
     const parentSvg = anim.closest("svg");
+
+    // USAGE: Imported helper
     if (!parentSvg || !isVisible(parentSvg)) return;
 
     const dur = parseDuration(anim.getAttribute("dur"));
@@ -104,7 +102,7 @@ export function extractor() {
     }
   });
 
-  // 4. SCAN FOR SUSPICIOUS JS (Fixed: Removed buggy duplication check)
+  // 4. SCAN FOR SUSPICIOUS JS
   const suspiciousTerms = [
     "blink",
     "marquee",
@@ -114,6 +112,7 @@ export function extractor() {
   ];
 
   for (const el of allElements) {
+    // USAGE: Imported helper
     if (!isVisible(el)) continue;
 
     const id = (el.id || "").toLowerCase();
@@ -124,7 +123,6 @@ export function extractor() {
         (term) => id.includes(term) || className.includes(term)
       )
     ) {
-      // Only report if it wasn't ALREADY caught as a CSS animation
       const style = window.getComputedStyle(el);
       if (!style.animationName || style.animationName === "none") {
         movingElements.push({
@@ -138,7 +136,6 @@ export function extractor() {
     }
   }
 
-  // --- RESULT ---
   if (movingElements.length === 0) {
     return {
       computedVerdict: "PASS",
