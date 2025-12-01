@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        /* THE FAILURE: Blue color, no underline, no border */
+        .bad-link {
+            color: blue;
+            text-decoration: none;
+            border: none;
+            font-weight: normal;
+        }
+
+        /* A PASSING link for comparison */
+        .good-link {
+            color: blue;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Accessibility Test Lab</h1>
+
+    <h2> link color wah</h2>
+    <p>This is a paragraph with a <a href="#" class="bad-link">Bad Link</a> inside it.</p>
+
+    <p>This is a paragraph with a <a href="#" class="good-link">Good Link</a> inside it.</p>
+
+    <h2>evil form</h2>
+    <form class="usa-form">
+        <fieldset>
+            <legend>Name</legend>
+            <label for="title">Title <span class="usa-input-label-helper">(optional)</span></label>
+            <input class="usa-input-tiny" id="title" name="title" type="text" />
+
+            <label>First Booger</label>
+            <input id="first-name" aria-label="first name" name="first-name" type="text" required
+                aria-required="true" />
+
+            <label for="middle-name">Middle name <span class="usa-input-label-helper">(optional)</span></label>
+            <input id="middle-name" name="middle-name" type="text" />
+
+            <label for="last-name">Last name</label>
+            <input id="last-name" name="last-name" type="text" required aria-required="true" />
+        </fieldset>
+    </form>
+
+    <h2>Mismatch via aria-label</h2>
+    <button aria-label="Sign up now">Subscribe</button>
+
+    <h2>Mismatch via aria-labelledby</h2>
+    <div id="hidden-label" style="display:none;">File Chooser</div>
+    <button aria-labelledby="hidden-label">Upload</button>
+
+    <h2>Placeholder Mismatch</h2>
+    <input type="text" placeholder="Search..." aria-label="Site Search">
+
+</body>
+
+</html>
