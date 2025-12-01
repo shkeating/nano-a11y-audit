@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SC 1.4.10 | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+
+        /* FAILURE: Fixed width container larger than 320px */
+        .fixed-container {
+            width: 600px;
+            background: #f0f0f0;
+            border: 1px solid red;
+            padding: 10px;
+        }
+
+        /* FAILURE: Preformatted text that doesn't wrap */
+        .no-wrap-code {
+            background: #333;
+            color: white;
+            padding: 10px;
+            /* Default 'pre' behaves this way, but enforcing it for the test */
+            white-space: pre;
+            border: 1px solid red;
+        }
+
+        /* FAILURE: Sticky header taking up too much vertical space (blocking view) */
+        .sticky-fail {
+            position: sticky;
+            top: 0;
+            height: 200px;
+            /* On a 256px high landscape screen, this covers ~80% */
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 5px solid darkred;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sticky-fail">
+        <h2>Fails Reflow: Large Sticky Header</h2>
+    </div>
+
+    <h1>SC 1.4.10 Failures: Reflow</h1>
+    <p>To test: Set browser width to 320px (or zoom to 400% at 1280px width).</p>
+
+    <div class="test-case" data-rule="1.4.10" data-failure="Fixed Width">
+        <h3>Fixed Width Container</h3>
+        <div class="fixed-container">
+            This box is fixed at 600px wide. At a 320px viewport, it will cause a horizontal scrollbar, failing SC
+            1.4.10.
+        </div>
+    </div>
+
+    <div class="test-case" data-rule="1.4.10" data-failure="No Wrap">
+        <h3>Unwrapped Preformatted Text</h3>
+        <pre class="no-wrap-code">
+function failure() {
+    return "This line of code is intentionally very long and does not wrap, which will cause a horizontal scrollbar at 320px viewports.";
+}
+        </pre>
+    </div>
+
+    <div class="test-case" data-rule="1.4.10" data-failure="None">
+        <h3>Passing Example</h3>
+        <div style="max-width: 100%; background: #e0ffe0; padding: 10px;">
+            This container uses <code>max-width: 100%</code>, so it will reflow correctly at any size.
+        </div>
+    </div>
+</body>
+
+</html>

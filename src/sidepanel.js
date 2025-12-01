@@ -40,17 +40,11 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   }
 
   // --- VIEW TRANSITION ---
-  // Hide Setup
   document.getElementById("setup").setAttribute("hidden", "true");
-
-  // Show Audit View
   document.getElementById("auditView").removeAttribute("hidden");
-
-  // Reset Audit View States (in case of re-run)
   document.getElementById("statusArea").removeAttribute("hidden");
   document.getElementById("completeView").setAttribute("hidden", "true");
 
-  // Initialize Progress Bar
   const progressBar = document.getElementById("auditProgress");
   progressBar.value = 0;
   progressBar.max = urlQueue.length;
@@ -76,7 +70,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Running Axe Core...`);
       const axeResults = await runAxeAudit(tab.id);
 
-      // Filter out 'INCOMPLETE' results from final report
       axeResults.forEach((r) => {
         if (r.verdict === "FAIL") {
           log(`[Axe: ${r.ruleId}] ❌ FAIL`);
@@ -107,6 +100,15 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
+          // --- STEP A: ENVIRONMENT SETUP (Debugger API) ---
+          if (rule.setup) {
+            // e.g. Set viewport to 320px for Reflow test
+            await rule.setup(tab.id);
+            // Allow browser layout to settle
+            await new Promise((r) => setTimeout(r, 500));
+          }
+
+          // --- STEP B: RUN AUDIT ---
           const result = await runAuditOnTab(tab.id, rule, targetSelectors);
 
           const statusIcon =
@@ -134,6 +136,11 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             reason: ruleErr.message,
             pageTitle: "Error",
           });
+        } finally {
+          // --- STEP C: ENVIRONMENT TEARDOWN ---
+          if (rule.teardown) {
+            await rule.teardown(tab.id);
+          }
         }
       }
     } catch (err) {
@@ -302,7 +309,7 @@ function finishAudit() {
   document.getElementById("statusArea").setAttribute("hidden", "true");
   document.getElementById("completeView").removeAttribute("hidden");
 
-  // 3. Setup Download Button (In case they want to download again)
+  // 3. Setup Download Button
   const btn = document.getElementById("downloadBtn");
   btn.onclick = () => {
     chrome.downloads.download({
