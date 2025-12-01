@@ -5,7 +5,9 @@
 </head>
 
 <body>
-    <h2>Nano A11y Audit</h2>
+    <header>
+        <h2>Nano A11y Audit</h2>
+    </header>
     <script type="module" src="sidepanel.js"></script>
 
     <div id="setup">
@@ -25,22 +27,27 @@
         <label for="csvFile" class="input-label">1. Load URLs (CSV with 'url' column):</label>
         <input type="file" id="csvFile" accept=".csv" />
 
-        <fieldset class="settings-box">
-            <legend class="settings-legend">Report Output</legend>
+        <details>
+            <summary>
+                Settings
+            </summary>
+            <fieldset class="settings-box">
+                <legend class="settings-legend">Report Output</legend>
 
-            <div class="settings-options">
-                <label class="settings-label">
-                    <input type="checkbox" id="includePassed"> Passed
-                </label>
-                <label class="settings-label">
-                    <input type="checkbox" id="includeNotPresent"> Not Present
-                </label>
-            </div>
+                <div class="settings-options">
+                    <label class="settings-label">
+                        <input type="checkbox" id="includePassed"> Passed
+                    </label>
+                    <label class="settings-label">
+                        <input type="checkbox" id="includeNotPresent"> Not Present
+                    </label>
+                </div>
 
-            <p class="settings-note">
-                Note: Failed criteria will always include detailed report descriptions.
-            </p>
-        </fieldset>
+                <p class="settings-note">
+                    Note: Failed criteria will always include detailed report descriptions.
+                </p>
+            </fieldset>
+        </details>
 
         <button id="startBtn">Start Batch Audit</button>
     </div>
