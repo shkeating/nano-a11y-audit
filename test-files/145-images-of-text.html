@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SC 1.4.5 | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 900px;
+        }
+
+        .test-case {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+
+        h3 {
+            margin-top: 0;
+        }
+
+        .example-box {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border: 1px dashed #aaa;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>SC 1.4.5 Images of Text</h1>
+    <p>
+        <strong>Success Criterion:</strong> If the technologies being used can achieve the visual presentation,
+        text is used to convey information rather than images of text except for specific exceptions (Logotypes,
+        Essential).
+    </p>
+
+    <div class="test-case" data-rule="1.4.5" data-failure="Informational">
+        <div class="example-box">
+            <img src="https://placehold.co/600x100/ffebee/b71c1c/png?text=Warning:+Your+session+will+expire+in+5+minutes.&font=roboto"
+                alt="Warning: Your session will expire in 5 minutes.">
+        </div>
+    </div>
+
+    <div class="test-case" data-rule="1.4.5" data-failure="Control">
+        <div class="example-box">
+            <button style="border: none; background: none; cursor: pointer; padding: 0;">
+                <img src="https://placehold.co/150x50/2e2eff/ffffff/png?text=Sign+Up+Now&font=montserrat"
+                    alt="Sign Up Now">
+            </button>
+        </div>
+    </div>
+
+    <div class="test-case" data-rule="1.4.5" data-failure="None">
+
+        <div class="example-box">
+            <button style="
+                background-color: #2e2eff; 
+                color: white; 
+                font-family: 'Montserrat', sans-serif; 
+                font-size: 16px; 
+                padding: 15px 30px; 
+                border: none; 
+                border-radius: 4px; 
+                font-weight: bold;">
+                Sign Up Now
+            </button>
+        </div>
+    </div>
+
+    <div class="test-case" data-rule="1.4.5" data-failure="Exception">
+
+
+        <div class="example-box">
+            <img src="https://placehold.co/100x100/333/FFF/png?text=ACME+Corp" alt="ACME Corp Logo">
+        </div>
+    </div>
+
+    <div class="test-case" data-rule="1.4.5" data-failure="None">
+        <div class="example-box">
+            <img src="https://placehold.co/400x300/555/FFF/png?text=Photograph+of+City+Street"
+                alt="A busy city street with various shop signs visible in the background.">
+        </div>
+    </div>
+
+</body>
+
+</html>
