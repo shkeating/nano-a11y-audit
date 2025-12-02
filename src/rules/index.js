@@ -1,4 +1,5 @@
 import * as Rule141 from "./1.4.1.js";
+import * as Rule145 from "./1.4.5.js";
 import * as Rule132 from "./1.3.2.js";
 import * as Rule133 from "./1.3.3.js";
 import * as Rule253 from "./2.5.3.js";
@@ -12,11 +13,12 @@ import * as Rule1412 from "./1.4.12.js";
 import * as Rule245 from "./2.4.5.js";
 
 export const RULES = {
-  [Rule141.id]: Rule141,
   [Rule132.id]: Rule132,
   [Rule133.id]: Rule133,
   [Rule134L.id]: Rule134L,
   [Rule134P.id]: Rule134P,
+  [Rule141.id]: Rule141,
+  [Rule145.id]: Rule145,
   [Rule1410.id]: Rule1410,
   [Rule1412.id]: Rule1412,
   [Rule222.id]: Rule222,
