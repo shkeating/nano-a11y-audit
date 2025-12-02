@@ -10,6 +10,25 @@ import { injectReportFunction } from "./utils/report-injector.js";
 let urlQueue = [];
 let auditResults = [];
 
+// --- HELPER: ROBUST JSON PARSER ---
+// Finds the first '{' and the last '}' to ignore conversational text
+function parseAIResponse(responseString) {
+  try {
+    const startIndex = responseString.indexOf("{");
+    const endIndex = responseString.lastIndexOf("}");
+
+    if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
+      throw new Error("No JSON object found in response.");
+    }
+
+    const jsonString = responseString.substring(startIndex, endIndex + 1);
+    return JSON.parse(jsonString);
+  } catch (e) {
+    console.error("Failed to parse AI output:", responseString);
+    throw e;
+  }
+}
+
 // 1. CSV UPLOAD HANDLER
 document.getElementById("csvFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -60,9 +79,21 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
 
-      const loadPromise = waitForTabLoad(tab.id);
-      await chrome.tabs.update(tab.id, { url: url });
-      await loadPromise;
+      // WAIT FOR LOAD (With Error Handling)
+      try {
+        const loadPromise = waitForTabLoad(tab.id);
+        await chrome.tabs.update(tab.id, { url: url });
+        await loadPromise;
+      } catch (navErr) {
+        log(`❌ Navigation Failed: ${navErr.message}`);
+        auditResults.push({
+          url,
+          verdict: "ERROR",
+          reason: "Page failed to load (404 or Server Down).",
+          pageTitle: "Load Error",
+        });
+        continue;
+      }
 
       log(`Analyzing DOM...`);
 
@@ -102,9 +133,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         try {
           // --- STEP A: ENVIRONMENT SETUP (Debugger API) ---
           if (rule.setup) {
-            // e.g. Set viewport to 320px for Reflow test
             await rule.setup(tab.id);
-            // Allow browser layout to settle
             await new Promise((r) => setTimeout(r, 500));
           }
 
@@ -191,9 +220,8 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
       };
     }
 
-    const aiOrigin = window.ai?.languageModel || window.LanguageModel;
-
-    if (!aiOrigin) {
+    // C. AI API Detection
+    if (!window.LanguageModel) {
       if (domContext.computedVerdict) {
         return {
           verdict: domContext.computedVerdict,
@@ -202,28 +230,84 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
         };
       }
       return {
-        verdict: "ERROR",
-        reason: "AI API missing",
+        verdict: "INAPPLICABLE",
+        reason:
+          "window.LanguageModel API missing. Enable flags in chrome://flags",
         pageTitle: domContext.pageTitle,
       };
     }
 
-    const session = await aiOrigin.create({
+    // --- D. MULTIMODAL LOGIC (Images of Text) ---
+    if (rule.id === "1.4.5" && domContext.images) {
+      const screenshot = await getTabScreenshot();
+      const results = [];
+
+      // 1. Create Multimodal Session using LanguageModel
+      const session = await window.LanguageModel.create({
+        initialPrompts: [{ role: "system", content: rule.systemPrompt }],
+        expectedInputs: [{ type: "text" }, { type: "image" }],
+        expectedOutputs: [{ type: "text", languages: ["en"] }],
+      });
+
+      for (const imgMeta of domContext.images) {
+        const imageBlob = await cropImage(screenshot, imgMeta.rect);
+        const imageBitmap = await createImageBitmap(imageBlob);
+
+        try {
+          const responseString = await session.prompt({
+            role: "user",
+            content: [
+              {
+                type: "text",
+                value: `Analyze this image. Alt text provided: "${imgMeta.alt}"`,
+              },
+              {
+                type: "image",
+                value: imageBitmap,
+              },
+            ],
+          });
+
+          // --- FIX: USE ROBUST PARSER ---
+          const result = parseAIResponse(responseString);
+
+          if (result.verdict === "FAIL") {
+            results.push(
+              `- Image (${imgMeta.src.substring(0, 30)}...): ${result.reason}`
+            );
+          }
+        } catch (e) {
+          console.error("AI Processing Error:", e);
+        }
+      }
+
+      session.destroy();
+
+      if (results.length > 0) {
+        return {
+          verdict: "FAIL",
+          reason: "Images of Text detected:\n" + results.join("\n"),
+          pageTitle: domContext.pageTitle,
+        };
+      } else {
+        return {
+          verdict: "PASS",
+          reason: "No images of text found.",
+          pageTitle: domContext.pageTitle,
+        };
+      }
+    }
+
+    // --- E. STANDARD TEXT-ONLY LOGIC ---
+    const session = await window.LanguageModel.create({
       initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
 
     const resultString = await session.prompt(JSON.stringify(domContext));
-    const jsonMatch = resultString.match(/\{[\s\S]*\}/);
 
-    if (!jsonMatch) {
-      console.error("Raw AI Output:", resultString);
-      throw new Error(
-        `No JSON found in output. Raw: "${resultString.substring(0, 20)}..."`
-      );
-    }
-
-    const result = JSON.parse(jsonMatch[0]);
+    // Use Robust parser here too
+    const result = parseAIResponse(resultString);
     session.destroy();
 
     return {
@@ -237,20 +321,55 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
 
 // --- UTILS ---
 
-function waitForTabLoad(tabId) {
-  return new Promise(async (resolve) => {
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      if (tab.status === "complete") {
-        setTimeout(resolve, 1000);
-        return;
-      }
-    } catch (e) {}
+async function getTabScreenshot() {
+  const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.src = dataUrl;
+  });
+}
 
-    const listener = (tid, changeInfo) => {
+async function cropImage(sourceImage, rect) {
+  const canvas = document.createElement("canvas");
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  const ctx = canvas.getContext("2d");
+
+  // Draw the slice
+  ctx.drawImage(
+    sourceImage,
+    rect.x,
+    rect.y,
+    rect.width,
+    rect.height, // Source crop
+    0,
+    0,
+    rect.width,
+    rect.height // Dest position
+  );
+
+  return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}
+
+function waitForTabLoad(tabId) {
+  return new Promise((resolve, reject) => {
+    const listener = (tid, changeInfo, tab) => {
       if (tid === tabId && changeInfo.status === "complete") {
         chrome.tabs.onUpdated.removeListener(listener);
-        setTimeout(resolve, 1000);
+
+        // Fail fast on error pages to prevent crash
+        if (
+          tab.url.startsWith("chrome-error:") ||
+          tab.url.startsWith("chrome:") ||
+          tab.url.startsWith("view-source:")
+        ) {
+          reject(
+            new Error("Tab failed to load (Error Page or Restricted URL).")
+          );
+        } else {
+          setTimeout(resolve, 500);
+        }
       }
     };
     chrome.tabs.onUpdated.addListener(listener);
@@ -322,7 +441,8 @@ function finishAudit() {
 
   // 4. Inject into W3C Tool
   log("🏁 Opening W3C Report Tool...");
-  const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
+  const reportToolUrl =
+    "[https://www.w3.org/WAI/eval/report-tool/](https://www.w3.org/WAI/eval/report-tool/)";
   chrome.tabs.create({ url: reportToolUrl }, (tab) => {
     const inject = (tabId) => {
       log("🚀 Injecting report into W3C Tool...");
