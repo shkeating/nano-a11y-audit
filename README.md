@@ -140,12 +140,9 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `1.4.10 Reflow`                 | Simulates a 320px viewport (Debugger API) to detect horizontal scrollbars.                                     |
 | **Gemini Nano** | `1.4.12 Text Spacing`           | Injects WCAG-specified spacing styles to detect content clipping or overlap.                                   |
 | **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.                          |
-| **Gemini Nano** | `2.4.7 Focus Visible`           | Checks for keyboard focus indicators that are removed, transparent, or hidden.                                 |
 | **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                                    |
 | **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events.                    |
 | **Gemini Nano** | `3.3.2 Labels or Instructions`  | Checks for missing format hints on strict fields (e.g. Date, Phone) and missing indicators on required fields. |
-
----
 
 ## Project Structure
 
