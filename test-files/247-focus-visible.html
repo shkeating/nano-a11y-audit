@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2.4.7 Focus Visible Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        /* TEST CLASSES */
+        .case-alpha:focus {
+            outline: none;
+        }
+
+        .case-beta:focus {
+            outline: 0;
+        }
+
+        .case-gamma:focus {
+            outline: 2px solid transparent;
+        }
+
+        .case-epsilon:focus {
+            outline: 2px solid blue;
+            outline-offset: 2px;
+        }
+
+        .case-zeta:focus {
+            outline: none;
+            background-color: #000;
+            color: #fff;
+        }
+
+        .case-eta:focus {
+            outline: none;
+            border: 2px solid red;
+        }
+
+        .case-theta:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px green;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Focus Visible Test Lab</h1>
+
+    <div class="section">
+        <h2>Group A: Basic Controls</h2>
+        <button class="case-alpha">Action A</button>
+        <button class="case-beta">Action B</button>
+        <a href="#" class="case-gamma">Navigation Link 1</a>
+        <label for="1">label one</label>
+        <input id="1" type="text" class="case-alpha" value="Input Field 1">
+    </div>
+
+    <div class="section">
+        <h2>Group B: Advanced Controls</h2>
+        <button class="case-delta">Action C</button>
+        <button class="case-epsilon">Action D</button>
+        <a href="#" class="case-zeta">Navigation Link 2</a>
+        <label for="2">label two</label>
+        <input type="text" class="case-eta" id="2" value="Input Field 2">
+        <div tabindex="0" class="case-theta">Interactive Region</div>
+    </div>
+</body>
+
+</html>
