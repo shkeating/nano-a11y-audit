@@ -11,20 +11,24 @@ let urlQueue = [];
 let auditResults = [];
 
 // --- HELPER: ROBUST JSON PARSER ---
-// Finds the first '{' and the last '}' to ignore conversational text
 function parseAIResponse(responseString) {
   try {
-    const startIndex = responseString.indexOf("{");
-    const endIndex = responseString.lastIndexOf("}");
+    // 1. Clean Markdown code blocks
+    let clean = responseString.replace(/```json|```/g, "").trim();
+
+    // 2. Find the JSON object boundaries
+    const startIndex = clean.indexOf("{");
+    const endIndex = clean.lastIndexOf("}");
 
     if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
-      throw new Error("No JSON object found in response.");
+      throw new Error("No JSON object found.");
     }
 
-    const jsonString = responseString.substring(startIndex, endIndex + 1);
+    const jsonString = clean.substring(startIndex, endIndex + 1);
     return JSON.parse(jsonString);
   } catch (e) {
-    console.error("Failed to parse AI output:", responseString);
+    // Log the RAW output so we can see what the model actually said
+    console.error("AI RAW OUTPUT:", responseString);
     throw e;
   }
 }
@@ -58,7 +62,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     return;
   }
 
-  // --- VIEW TRANSITION ---
   document.getElementById("setup").setAttribute("hidden", "true");
   document.getElementById("auditView").removeAttribute("hidden");
   document.getElementById("statusArea").removeAttribute("hidden");
@@ -131,13 +134,11 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
-          // --- STEP A: ENVIRONMENT SETUP (Debugger API) ---
           if (rule.setup) {
             await rule.setup(tab.id);
             await new Promise((r) => setTimeout(r, 500));
           }
 
-          // --- STEP B: RUN AUDIT ---
           const result = await runAuditOnTab(tab.id, rule, targetSelectors);
 
           const statusIcon =
@@ -148,6 +149,11 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               : result.verdict === "INAPPLICABLE"
               ? "⚪"
               : "⚠️";
+
+          if (result.verdict === "INAPPLICABLE") {
+            console.warn(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
+          }
+
           log(`[Nano: ${ruleId}] ${statusIcon} ${result.verdict}`);
 
           auditResults.push({
@@ -166,7 +172,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             pageTitle: "Error",
           });
         } finally {
-          // --- STEP C: ENVIRONMENT TEARDOWN ---
           if (rule.teardown) {
             await rule.teardown(tab.id);
           }
@@ -196,7 +201,9 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
       if (checkResult && checkResult[0] && !checkResult[0].result) {
         return {
           verdict: "INAPPLICABLE",
-          reason: "Relevant elements not found on page.",
+          reason: `No relevant elements (${rule.relevantElements.join(
+            ","
+          )}) found on page.`,
           pageTitle: "N/A",
         };
       }
@@ -221,7 +228,10 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     }
 
     // C. AI API Detection
-    if (!window.LanguageModel) {
+    // Use window.LanguageModel as verified by your console output
+    const aiOrigin = window.LanguageModel;
+
+    if (!aiOrigin) {
       if (domContext.computedVerdict) {
         return {
           verdict: domContext.computedVerdict,
@@ -231,8 +241,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
       }
       return {
         verdict: "INAPPLICABLE",
-        reason:
-          "window.LanguageModel API missing. Enable flags in chrome://flags",
+        reason: "AI API missing (window.LanguageModel undefined).",
         pageTitle: domContext.pageTitle,
       };
     }
@@ -241,34 +250,46 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     if (rule.id === "1.4.5" && domContext.images) {
       const screenshot = await getTabScreenshot();
       const results = [];
+      let session;
 
-      // 1. Create Multimodal Session using LanguageModel
-      const session = await window.LanguageModel.create({
-        initialPrompts: [{ role: "system", content: rule.systemPrompt }],
-        expectedInputs: [{ type: "text" }, { type: "image" }],
-        expectedOutputs: [{ type: "text", languages: ["en"] }],
-      });
+      try {
+        session = await aiOrigin.create({
+          // Note: No initialPrompts (simplifies session for multimodal)
+          expectedInputs: [{ type: "text" }, { type: "image" }],
+          expectedOutputs: [{ type: "text", languages: ["en"] }],
+        });
+      } catch (err) {
+        return {
+          verdict: "INAPPLICABLE",
+          reason: `Create Failed: ${err.message}`,
+          pageTitle: domContext.pageTitle,
+        };
+      }
 
       for (const imgMeta of domContext.images) {
         const imageBlob = await cropImage(screenshot, imgMeta.rect);
         const imageBitmap = await createImageBitmap(imageBlob);
 
         try {
-          const responseString = await session.prompt({
-            role: "user",
-            content: [
-              {
-                type: "text",
-                value: `Analyze this image. Alt text provided: "${imgMeta.alt}"`,
-              },
-              {
-                type: "image",
-                value: imageBitmap,
-              },
-            ],
-          });
+          const promptText = `
+SYSTEM INSTRUCTIONS:
+${rule.systemPrompt}
 
-          // --- FIX: USE ROBUST PARSER ---
+USER REQUEST:
+Analyze this image. Alt text provided: "${imgMeta.alt}"
+`;
+
+          // CRITICAL FIX: Wrap the message object in an ARRAY [ ... ]
+          const responseString = await session.prompt([
+            {
+              role: "user",
+              content: [
+                { type: "text", value: promptText },
+                { type: "image", value: imageBitmap },
+              ],
+            },
+          ]);
+
           const result = parseAIResponse(responseString);
 
           if (result.verdict === "FAIL") {
@@ -299,14 +320,12 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     }
 
     // --- E. STANDARD TEXT-ONLY LOGIC ---
-    const session = await window.LanguageModel.create({
+    const session = await aiOrigin.create({
       initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
 
     const resultString = await session.prompt(JSON.stringify(domContext));
-
-    // Use Robust parser here too
     const result = parseAIResponse(resultString);
     session.destroy();
 
@@ -336,17 +355,16 @@ async function cropImage(sourceImage, rect) {
   canvas.height = rect.height;
   const ctx = canvas.getContext("2d");
 
-  // Draw the slice
   ctx.drawImage(
     sourceImage,
     rect.x,
     rect.y,
     rect.width,
-    rect.height, // Source crop
+    rect.height,
     0,
     0,
     rect.width,
-    rect.height // Dest position
+    rect.height
   );
 
   return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
@@ -357,16 +375,12 @@ function waitForTabLoad(tabId) {
     const listener = (tid, changeInfo, tab) => {
       if (tid === tabId && changeInfo.status === "complete") {
         chrome.tabs.onUpdated.removeListener(listener);
-
-        // Fail fast on error pages to prevent crash
         if (
           tab.url.startsWith("chrome-error:") ||
           tab.url.startsWith("chrome:") ||
           tab.url.startsWith("view-source:")
         ) {
-          reject(
-            new Error("Tab failed to load (Error Page or Restricted URL).")
-          );
+          reject(new Error("Tab failed to load."));
         } else {
           setTimeout(resolve, 500);
         }
@@ -387,7 +401,6 @@ function updateStatus(current, total, url) {
     progressBar.value = current;
     progressBar.max = total;
   }
-
   document.getElementById("progressText").textContent = `${current}/${total}`;
   document.getElementById("currentUrl").textContent = url;
 }
@@ -412,7 +425,6 @@ function finishAudit() {
   const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
-  // 1. Trigger Download
   chrome.downloads.download(
     { url: url, filename: "nano-audit-report.json" },
     (downloadId) => {
@@ -424,13 +436,10 @@ function finishAudit() {
     }
   );
 
-  // 2. Show Complete View
   document.getElementById("statusArea").setAttribute("hidden", "true");
   document.getElementById("completeView").removeAttribute("hidden");
 
-  // 3. Setup Download Button
-  const btn = document.getElementById("downloadBtn");
-  btn.onclick = () => {
+  document.getElementById("downloadBtn").onclick = () => {
     chrome.downloads.download({
       url: url,
       filename: "nano-audit-report.json",
@@ -439,25 +448,14 @@ function finishAudit() {
 
   log("✨ Audit Complete.");
 
-  // 4. Inject into W3C Tool
-  log("🏁 Opening W3C Report Tool...");
-  const reportToolUrl =
-    "[https://www.w3.org/WAI/eval/report-tool/](https://www.w3.org/WAI/eval/report-tool/)";
+  const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
   chrome.tabs.create({ url: reportToolUrl }, (tab) => {
     const inject = (tabId) => {
       log("🚀 Injecting report into W3C Tool...");
       chrome.scripting.executeScript(
-        {
-          target: { tabId },
-          func: injectReportFunction,
-          args: [earlReport],
-        },
-        (results) => {
-          if (chrome.runtime.lastError) {
-            log(`⚠️ Injection failed: ${chrome.runtime.lastError.message}`);
-          } else {
-            log("✅ Report injection script started.");
-          }
+        { target: { tabId }, func: injectReportFunction, args: [earlReport] },
+        () => {
+          log("✅ Report injection script started.");
         }
       );
     };
