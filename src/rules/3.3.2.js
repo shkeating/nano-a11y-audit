@@ -3,21 +3,26 @@ export const earlId = "WCAG22:labels-or-instructions";
 export const relevantElements = ["input", "textarea", "select"];
 
 export const systemPrompt = `
-You are an accessibility auditor specializing in WCAG 3.3.2.
-Task: Check if inputs with strict data requirements (e.g. dates, phone numbers) have visible format hints.
+You are an accessibility auditor.
+Task: Report a consolidated list of form field violations.
 
-**INSTRUCTIONS**
-1. Analyze the 'label', 'placeholder', and 'type' of each field.
-2. PASS if:
-   - The field is free-text (Name, Address, Comments).
-   - The field has a native UI (type="date", "time", "color").
-   - The label or placeholder provides a format hint (e.g. "MM/DD/YYYY").
-3. FAIL if:
-   - The field implies a strict format (Date, Phone, SSN) BUT has no visible hint.
+**INPUT DATA**
+1. "confirmedFailures": A list of fields that have ALREADY FAILED validation (e.g. missing required indicators).
+2. "suspectFields": A list of fields that need your judgment.
+
+**STEP 1: JUDGE SUSPECT FIELDS**
+Review "suspectFields".
+- **FAIL** if the label implies strict data (e.g. "Date", "Phone", "SSN", "Tax ID") AND has no hint.
+- **PASS** if the label is generic (e.g. "Name", "Message", "Search").
+
+**STEP 2: GENERATE REPORT**
+You MUST combine "confirmedFailures" AND your new failures from Step 1 into a single list.
 
 **OUTPUT (JSON)**
-- PASS: {"verdict": "PASS", "reason": "All strict fields have instructions."}
-- FAIL: {"verdict": "FAIL", "reason": "Missing format hints for: [Comma separated list of Labels]."}
+- If failures exist (in EITHER list):
+  {"verdict": "FAIL", "reason": "Missing instructions/indicators for: [Combined Comma-Separated List]."}
+- If BOTH lists are empty:
+  {"verdict": "PASS", "reason": "All fields have sufficient instructions."}
 `;
 
 export function extractor() {
@@ -33,7 +38,7 @@ export function extractor() {
   }
 
   function getAccessibleLabel(el) {
-    // 1. aria-labelledby (Highest Priority)
+    // 1. aria-labelledby
     if (el.hasAttribute("aria-labelledby")) {
       const ids = el.getAttribute("aria-labelledby").split(" ");
       let compositeLabel = "";
@@ -52,12 +57,9 @@ export function extractor() {
       return el.getAttribute("aria-label").trim();
     }
 
-    // 3. Native Label (Explicit 'for' or Implicit wrapping)
+    // 3. Native Label
     let nativeLabelText = "";
-
-    // Check explicit 'for'
     if (el.id) {
-      // Use CSS.escape if available to prevent SyntaxErrors with complex IDs
       const escapedId = window.CSS && CSS.escape ? CSS.escape(el.id) : el.id;
       try {
         const label = document.querySelector(`label[for="${escapedId}"]`);
@@ -66,12 +68,9 @@ export function extractor() {
         console.warn("Label selector failed:", e);
       }
     }
-
-    // Check implicit wrapping (Only if we haven't found an explicit one to avoid duplication)
     if (!nativeLabelText) {
       const parentLabel = el.closest("label");
       if (parentLabel) {
-        // Clone to safely remove the input itself from the text content extraction
         const clone = parentLabel.cloneNode(true);
         const inputInClone = clone.querySelector(el.tagName);
         if (inputInClone) inputInClone.remove();
@@ -79,7 +78,7 @@ export function extractor() {
       }
     }
 
-    // 4. aria-describedby (Supplemental - Append to main label)
+    // 4. aria-describedby
     let descriptionText = "";
     const describedBy = el.getAttribute("aria-describedby");
     if (describedBy) {
@@ -96,16 +95,28 @@ export function extractor() {
     return (nativeLabelText + " " + descriptionText).trim();
   }
 
+  // --- PATTERNS ---
+  // Matches text that looks like a hint: (MM/DD), e.g., Format:, or * / required
+  const HINT_PATTERN =
+    /\(.*\)|e\.g\.|example|format:|\d{2}\/\d{2}|\d{3}-\d{2}/i;
+  const REQ_INDICATOR_PATTERN = /\*|required|mandatory/i;
+  // Matches generic fields that rarely need format hints
+  const FREE_TEXT_PATTERN =
+    /name|address|city|comment|search|email|appointment|subject/i;
+
   const inputs = Array.from(
     document.querySelectorAll("input, textarea, select")
   );
   const relevantInputs = [];
+  const failures = [];
 
   for (const el of inputs) {
     if (!isVisible(el)) continue;
 
-    // Skip hidden/submit/button types
-    const type = el.type ? el.type.toLowerCase() : "text";
+    const rawType = el.getAttribute("type");
+    const type = (rawType || el.type || "text").toLowerCase().trim();
+
+    // 1. FILTER: Ignore Hidden/Buttons/Native UI
     if (
       [
         "hidden",
@@ -115,27 +126,50 @@ export function extractor() {
         "reset",
         "checkbox",
         "radio",
+        "file",
+        "date",
+        "time",
+        "datetime-local",
+        "month",
+        "week",
+        "color",
+        "range",
       ].includes(type)
     )
       continue;
 
     const label = getAccessibleLabel(el);
     const placeholder = el.getAttribute("placeholder") || "";
+    const fullText = label + " " + placeholder;
+    const isRequired =
+      el.hasAttribute("required") ||
+      el.getAttribute("aria-required") === "true";
 
-    // We send this to AI
+    // 2. CHECK: Required Field Missing Indicator?
+    if (isRequired && !REQ_INDICATOR_PATTERN.test(fullText)) {
+      failures.push(
+        label.substring(0, 50) + " (Required field missing indicator)"
+      );
+      continue;
+    }
+
+    // 3. CHECK: Has Format Hint?
+    if (HINT_PATTERN.test(fullText)) continue;
+
+    // 4. CHECK: Is it obviously Free Text?
+    if (FREE_TEXT_PATTERN.test(fullText)) continue;
+
+    // 5. REMAINING: Ambiguous fields
     relevantInputs.push({
-      tag: el.tagName.toLowerCase(),
-      type: type,
       label: label.substring(0, 150),
-      placeholder: placeholder.substring(0, 50),
-      description: "", // Merged into label above
     });
 
-    if (relevantInputs.length >= 15) break; // Limit context
+    if (relevantInputs.length >= 10) break;
   }
 
   return {
     pageTitle: document.title,
-    formFields: relevantInputs,
+    suspectFields: relevantInputs,
+    confirmedFailures: failures,
   };
 }
