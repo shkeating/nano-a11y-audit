@@ -169,6 +169,7 @@ nano-a11y-audit/
 │   │   ├── 2.2.2.js            # Pause, Stop, Hide Rule
 │   │   ├── 2.5.3.js            # Label in Name Rule
 │   │   ├── 3.2.2.js            # On Input Rule
+│   │   ├── 3.3.2.js            # Labels & Instructions Rule
 │   │   └── index.js            # Rule Registry
 │   └── utils/
 │       ├── axe-runner.js       # Axe Core injection & execution
