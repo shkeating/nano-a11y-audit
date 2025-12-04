@@ -10,6 +10,29 @@ import { injectReportFunction } from "./utils/report-injector.js";
 let urlQueue = [];
 let auditResults = [];
 
+// --- HELPER: ROBUST JSON PARSER ---
+function parseAIResponse(responseString) {
+  try {
+    // 1. Clean Markdown code blocks
+    let clean = responseString.replace(/```json|```/g, "").trim();
+
+    // 2. Find the JSON object boundaries
+    const startIndex = clean.indexOf("{");
+    const endIndex = clean.lastIndexOf("}");
+
+    if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
+      throw new Error("No JSON object found.");
+    }
+
+    const jsonString = clean.substring(startIndex, endIndex + 1);
+    return JSON.parse(jsonString);
+  } catch (e) {
+    // Log the RAW output so we can see what the model actually said
+    console.error("AI RAW OUTPUT:", responseString);
+    throw e;
+  }
+}
+
 // 1. CSV UPLOAD HANDLER
 document.getElementById("csvFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -39,7 +62,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     return;
   }
 
-  // --- VIEW TRANSITION ---
   document.getElementById("setup").setAttribute("hidden", "true");
   document.getElementById("auditView").removeAttribute("hidden");
   document.getElementById("statusArea").removeAttribute("hidden");
@@ -60,9 +82,21 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
 
-      const loadPromise = waitForTabLoad(tab.id);
-      await chrome.tabs.update(tab.id, { url: url });
-      await loadPromise;
+      // WAIT FOR LOAD (With Error Handling)
+      try {
+        const loadPromise = waitForTabLoad(tab.id);
+        await chrome.tabs.update(tab.id, { url: url });
+        await loadPromise;
+      } catch (navErr) {
+        log(`❌ Navigation Failed: ${navErr.message}`);
+        auditResults.push({
+          url,
+          verdict: "ERROR",
+          reason: "Page failed to load (404 or Server Down).",
+          pageTitle: "Load Error",
+        });
+        continue;
+      }
 
       log(`Analyzing DOM...`);
 
@@ -100,15 +134,11 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
-          // --- STEP A: ENVIRONMENT SETUP (Debugger API) ---
           if (rule.setup) {
-            // e.g. Set viewport to 320px for Reflow test
             await rule.setup(tab.id);
-            // Allow browser layout to settle
             await new Promise((r) => setTimeout(r, 500));
           }
 
-          // --- STEP B: RUN AUDIT ---
           const result = await runAuditOnTab(tab.id, rule, targetSelectors);
 
           const statusIcon =
@@ -119,6 +149,11 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               : result.verdict === "INAPPLICABLE"
               ? "⚪"
               : "⚠️";
+
+          if (result.verdict === "INAPPLICABLE") {
+            console.warn(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
+          }
+
           log(`[Nano: ${ruleId}] ${statusIcon} ${result.verdict}`);
 
           auditResults.push({
@@ -137,7 +172,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             pageTitle: "Error",
           });
         } finally {
-          // --- STEP C: ENVIRONMENT TEARDOWN ---
           if (rule.teardown) {
             await rule.teardown(tab.id);
           }
@@ -167,7 +201,9 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
       if (checkResult && checkResult[0] && !checkResult[0].result) {
         return {
           verdict: "INAPPLICABLE",
-          reason: "Relevant elements not found on page.",
+          reason: `No relevant elements (${rule.relevantElements.join(
+            ","
+          )}) found on page.`,
           pageTitle: "N/A",
         };
       }
@@ -191,7 +227,9 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
       };
     }
 
-    const aiOrigin = window.ai?.languageModel || window.LanguageModel;
+    // C. AI API Detection
+    // Use window.LanguageModel as verified by your console output
+    const aiOrigin = window.LanguageModel;
 
     if (!aiOrigin) {
       if (domContext.computedVerdict) {
@@ -202,28 +240,93 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
         };
       }
       return {
-        verdict: "ERROR",
-        reason: "AI API missing",
+        verdict: "INAPPLICABLE",
+        reason: "AI API missing (window.LanguageModel undefined).",
         pageTitle: domContext.pageTitle,
       };
     }
 
+    // --- D. MULTIMODAL LOGIC (Images of Text) ---
+    if (rule.id === "1.4.5" && domContext.images) {
+      const screenshot = await getTabScreenshot();
+      const results = [];
+      let session;
+
+      try {
+        session = await aiOrigin.create({
+          // Note: No initialPrompts (simplifies session for multimodal)
+          expectedInputs: [{ type: "text" }, { type: "image" }],
+          expectedOutputs: [{ type: "text", languages: ["en"] }],
+        });
+      } catch (err) {
+        return {
+          verdict: "INAPPLICABLE",
+          reason: `Create Failed: ${err.message}`,
+          pageTitle: domContext.pageTitle,
+        };
+      }
+
+      for (const imgMeta of domContext.images) {
+        const imageBlob = await cropImage(screenshot, imgMeta.rect);
+        const imageBitmap = await createImageBitmap(imageBlob);
+
+        try {
+          const promptText = `
+SYSTEM INSTRUCTIONS:
+${rule.systemPrompt}
+
+USER REQUEST:
+Analyze this image. Alt text provided: "${imgMeta.alt}"
+`;
+
+          // CRITICAL FIX: Wrap the message object in an ARRAY [ ... ]
+          const responseString = await session.prompt([
+            {
+              role: "user",
+              content: [
+                { type: "text", value: promptText },
+                { type: "image", value: imageBitmap },
+              ],
+            },
+          ]);
+
+          const result = parseAIResponse(responseString);
+
+          if (result.verdict === "FAIL") {
+            results.push(
+              `- Image (${imgMeta.src.substring(0, 30)}...): ${result.reason}`
+            );
+          }
+        } catch (e) {
+          console.error("AI Processing Error:", e);
+        }
+      }
+
+      session.destroy();
+
+      if (results.length > 0) {
+        return {
+          verdict: "FAIL",
+          reason: "Images of Text detected:\n" + results.join("\n"),
+          pageTitle: domContext.pageTitle,
+        };
+      } else {
+        return {
+          verdict: "PASS",
+          reason: "No images of text found.",
+          pageTitle: domContext.pageTitle,
+        };
+      }
+    }
+
+    // --- E. STANDARD TEXT-ONLY LOGIC ---
     const session = await aiOrigin.create({
       initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
 
     const resultString = await session.prompt(JSON.stringify(domContext));
-    const jsonMatch = resultString.match(/\{[\s\S]*\}/);
-
-    if (!jsonMatch) {
-      console.error("Raw AI Output:", resultString);
-      throw new Error(
-        `No JSON found in output. Raw: "${resultString.substring(0, 20)}..."`
-      );
-    }
-
-    const result = JSON.parse(jsonMatch[0]);
+    const result = parseAIResponse(resultString);
     session.destroy();
 
     return {
@@ -237,20 +340,50 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
 
 // --- UTILS ---
 
-function waitForTabLoad(tabId) {
-  return new Promise(async (resolve) => {
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      if (tab.status === "complete") {
-        setTimeout(resolve, 1000);
-        return;
-      }
-    } catch (e) {}
+async function getTabScreenshot() {
+  const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.src = dataUrl;
+  });
+}
 
-    const listener = (tid, changeInfo) => {
+async function cropImage(sourceImage, rect) {
+  const canvas = document.createElement("canvas");
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  const ctx = canvas.getContext("2d");
+
+  ctx.drawImage(
+    sourceImage,
+    rect.x,
+    rect.y,
+    rect.width,
+    rect.height,
+    0,
+    0,
+    rect.width,
+    rect.height
+  );
+
+  return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}
+
+function waitForTabLoad(tabId) {
+  return new Promise((resolve, reject) => {
+    const listener = (tid, changeInfo, tab) => {
       if (tid === tabId && changeInfo.status === "complete") {
         chrome.tabs.onUpdated.removeListener(listener);
-        setTimeout(resolve, 1000);
+        if (
+          tab.url.startsWith("chrome-error:") ||
+          tab.url.startsWith("chrome:") ||
+          tab.url.startsWith("view-source:")
+        ) {
+          reject(new Error("Tab failed to load."));
+        } else {
+          setTimeout(resolve, 500);
+        }
       }
     };
     chrome.tabs.onUpdated.addListener(listener);
@@ -268,7 +401,6 @@ function updateStatus(current, total, url) {
     progressBar.value = current;
     progressBar.max = total;
   }
-
   document.getElementById("progressText").textContent = `${current}/${total}`;
   document.getElementById("currentUrl").textContent = url;
 }
@@ -293,7 +425,6 @@ function finishAudit() {
   const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
-  // 1. Trigger Download
   chrome.downloads.download(
     { url: url, filename: "nano-audit-report.json" },
     (downloadId) => {
@@ -305,13 +436,10 @@ function finishAudit() {
     }
   );
 
-  // 2. Show Complete View
   document.getElementById("statusArea").setAttribute("hidden", "true");
   document.getElementById("completeView").removeAttribute("hidden");
 
-  // 3. Setup Download Button
-  const btn = document.getElementById("downloadBtn");
-  btn.onclick = () => {
+  document.getElementById("downloadBtn").onclick = () => {
     chrome.downloads.download({
       url: url,
       filename: "nano-audit-report.json",
@@ -320,24 +448,14 @@ function finishAudit() {
 
   log("✨ Audit Complete.");
 
-  // 4. Inject into W3C Tool
-  log("🏁 Opening W3C Report Tool...");
   const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
   chrome.tabs.create({ url: reportToolUrl }, (tab) => {
     const inject = (tabId) => {
       log("🚀 Injecting report into W3C Tool...");
       chrome.scripting.executeScript(
-        {
-          target: { tabId },
-          func: injectReportFunction,
-          args: [earlReport],
-        },
-        (results) => {
-          if (chrome.runtime.lastError) {
-            log(`⚠️ Injection failed: ${chrome.runtime.lastError.message}`);
-          } else {
-            log("✅ Report injection script started.");
-          }
+        { target: { tabId }, func: injectReportFunction, args: [earlReport] },
+        () => {
+          log("✅ Report injection script started.");
         }
       );
     };
