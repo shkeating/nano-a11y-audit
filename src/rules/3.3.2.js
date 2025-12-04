@@ -3,30 +3,21 @@ export const earlId = "WCAG22:labels-or-instructions";
 export const relevantElements = ["input", "textarea", "select"];
 
 export const systemPrompt = `
-You are an accessibility auditor specializing in WCAG 3.3.2 (Labels or Instructions).
-Task: Determine if form fields requiring specific data formats provide visible instructions.
+You are an accessibility auditor specializing in WCAG 3.3.2.
+Task: Check if inputs with strict data requirements (e.g. dates, phone numbers) have visible format hints.
 
 **INSTRUCTIONS**
-Review the input data (inputs with their labels, placeholders, and descriptions).
-1. **Analyze:** Does the visible label or input type imply a strict format (e.g., "Date", "Phone", "SSN", "Currency")?
-   - Common Strict Formats: Dates (MM/DD/YYYY), Phone Numbers, Social Security Numbers, Credit Cards, Times.
-   - Flexible Formats (PASS): Name, Email (standard), URL (standard), Search, Address (free text), Comments.
-   - Native UI (PASS): Inputs with type="date", "time", "color", "range" (Browser provides UI).
-2. **Evaluate:** If a strict format is implied, are instructions provided in the 'label', 'description', or 'placeholder' text?
-   - PASS if instructions exist (e.g., "MM/DD/YYYY", "xxx-xxx-xxxx").
-   - PASS if the label is generic enough not to need one (e.g., "Birth Year" is simple, "Date of Birth" usually needs format if text input).
-   - FAIL if the field expects a specific format but offers no visible hint.
+1. Analyze the 'label', 'placeholder', and 'type' of each field.
+2. PASS if:
+   - The field is free-text (Name, Address, Comments).
+   - The field has a native UI (type="date", "time", "color").
+   - The label or placeholder provides a format hint (e.g. "MM/DD/YYYY").
+3. FAIL if:
+   - The field implies a strict format (Date, Phone, SSN) BUT has no visible hint.
 
-**OUTPUT**
-- If NO failures: {"verdict": "PASS", "reason": "All relevant fields have sufficient instructions or use native format controls."}
-- If failures exist: {"verdict": "FAIL", "reason": "Fields with specific format requirements are missing visible instructions:\\n- [Label] ([Type]): Missing format hint"}
-
-**EXAMPLES**
-- PASS: Label "Event Date", Type "date" (Native UI).
-- PASS: Label "Zip Code", Placeholder "90210" (Instruction provided).
-- PASS: Label "Comments", Type "textarea" (No format needed).
-- FAIL: Label "Date of Birth", Type "text", No description (User doesn't know format).
-- FAIL: Label "Phone", Type "tel", No description (Ambiguous format).
+**OUTPUT (JSON)**
+- PASS: {"verdict": "PASS", "reason": "All strict fields have instructions."}
+- FAIL: {"verdict": "FAIL", "reason": "Missing format hints for: [Comma separated list of Labels]."}
 `;
 
 export function extractor() {
@@ -41,44 +32,73 @@ export function extractor() {
     );
   }
 
-  function getVisibleLabel(el) {
-    let labelText = "";
-    // 0. Check for aria-labelledby (Prioritize if visible)
+  function getAccessibleLabel(el) {
+    // 1. aria-labelledby (Highest Priority)
     if (el.hasAttribute("aria-labelledby")) {
       const ids = el.getAttribute("aria-labelledby").split(" ");
+      let compositeLabel = "";
       ids.forEach((id) => {
-         const labelEl = document.getElementById(id);
-         if (labelEl && isVisible(labelEl)) {
-           labelText += labelEl.innerText + " ";
-         }
+        if (!id) return;
+        const labelEl = document.getElementById(id);
+        if (labelEl && isVisible(labelEl)) {
+          compositeLabel += labelEl.innerText + " ";
+        }
       });
+      if (compositeLabel.trim()) return compositeLabel.trim();
     }
 
-    // 1. Check for 'for' attribute
+    // 2. aria-label
+    if (el.hasAttribute("aria-label")) {
+      return el.getAttribute("aria-label").trim();
+    }
+
+    // 3. Native Label (Explicit 'for' or Implicit wrapping)
+    let nativeLabelText = "";
+
+    // Check explicit 'for'
     if (el.id) {
-      const label = document.querySelector(`label[for="${el.id}"]`);
-      if (label) labelText += label.innerText + " ";
+      // Use CSS.escape if available to prevent SyntaxErrors with complex IDs
+      const escapedId = window.CSS && CSS.escape ? CSS.escape(el.id) : el.id;
+      try {
+        const label = document.querySelector(`label[for="${escapedId}"]`);
+        if (label) nativeLabelText += label.innerText;
+      } catch (e) {
+        console.warn("Label selector failed:", e);
+      }
     }
-    // 2. Check for wrapping label
-    const parentLabel = el.closest("label");
-    if (parentLabel) {
-      labelText += parentLabel.innerText + " ";
+
+    // Check implicit wrapping (Only if we haven't found an explicit one to avoid duplication)
+    if (!nativeLabelText) {
+      const parentLabel = el.closest("label");
+      if (parentLabel) {
+        // Clone to safely remove the input itself from the text content extraction
+        const clone = parentLabel.cloneNode(true);
+        const inputInClone = clone.querySelector(el.tagName);
+        if (inputInClone) inputInClone.remove();
+        nativeLabelText += clone.innerText;
+      }
     }
-    // 3. Check for aria-describedby (only if visible)
+
+    // 4. aria-describedby (Supplemental - Append to main label)
+    let descriptionText = "";
     const describedBy = el.getAttribute("aria-describedby");
     if (describedBy) {
       const ids = describedBy.split(" ");
       ids.forEach((id) => {
+        if (!id) return;
         const descEl = document.getElementById(id);
         if (descEl && isVisible(descEl)) {
-          labelText += descEl.innerText + " ";
+          descriptionText += descEl.innerText + " ";
         }
       });
     }
-    return labelText.trim();
+
+    return (nativeLabelText + " " + descriptionText).trim();
   }
 
-  const inputs = Array.from(document.querySelectorAll("input, textarea, select"));
+  const inputs = Array.from(
+    document.querySelectorAll("input, textarea, select")
+  );
   const relevantInputs = [];
 
   for (const el of inputs) {
@@ -86,24 +106,36 @@ export function extractor() {
 
     // Skip hidden/submit/button types
     const type = el.type ? el.type.toLowerCase() : "text";
-    if (["hidden", "submit", "button", "image", "reset", "checkbox", "radio"].includes(type)) continue;
+    if (
+      [
+        "hidden",
+        "submit",
+        "button",
+        "image",
+        "reset",
+        "checkbox",
+        "radio",
+      ].includes(type)
+    )
+      continue;
 
-    const label = getVisibleLabel(el);
+    const label = getAccessibleLabel(el);
     const placeholder = el.getAttribute("placeholder") || "";
 
     // We send this to AI
     relevantInputs.push({
       tag: el.tagName.toLowerCase(),
       type: type,
-      label: label.substring(0, 100), // Truncate for token limits
+      label: label.substring(0, 150),
       placeholder: placeholder.substring(0, 50),
-      description: "" // Merged into label for simplicity in prompt instructions
+      description: "", // Merged into label above
     });
 
-    if (relevantInputs.length >= 10) break; // Limit context
+    if (relevantInputs.length >= 15) break; // Limit context
   }
 
   return {
-    formFields: relevantInputs
+    pageTitle: document.title,
+    formFields: relevantInputs,
   };
 }
