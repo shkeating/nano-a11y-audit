@@ -272,12 +272,12 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
 
         try {
           const promptText = `
-            SYSTEM INSTRUCTIONS:
-            ${rule.systemPrompt}
+SYSTEM INSTRUCTIONS:
+${rule.systemPrompt}
 
-            USER REQUEST:
-            Analyze this image. Alt text provided: "${imgMeta.alt}"
-          `;
+USER REQUEST:
+Analyze this image. Alt text provided: "${imgMeta.alt}"
+`;
 
           // CRITICAL FIX: Wrap the message object in an ARRAY [ ... ]
           const responseString = await session.prompt([
