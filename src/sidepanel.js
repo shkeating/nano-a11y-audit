@@ -7,16 +7,99 @@ import { generateEarlReport } from "./utils/earl-reporter.js";
 import { runAxeAudit } from "./utils/axe-runner.js";
 import { injectReportFunction } from "./utils/report-injector.js";
 
+// --- DEFAULTS ---
+const DEFAULT_SAFE_TERMS = [
+  "email",
+  "email address",
+  "name",
+  "first name",
+  "last name",
+  "password",
+  "search",
+  "contact",
+  "contact us",
+  "address",
+  "city",
+  "state",
+  "zip",
+  "phone",
+  "date",
+  "submit",
+  "login",
+  "sign up",
+  "menu",
+  "about",
+  "home",
+  "products",
+  "services",
+  "pricing",
+  "refund policy",
+  "privacy policy",
+  "terms",
+];
+
 let urlQueue = [];
 let auditResults = [];
+let currentSafeList = [...DEFAULT_SAFE_TERMS];
+
+// --- 1. SETTINGS MANAGEMENT ---
+
+// Load Settings on Init
+chrome.storage.local.get(["safeList"], (result) => {
+  if (result.safeList) {
+    currentSafeList = result.safeList;
+  }
+  // Populate Modal UI
+  const input = document.getElementById("safeListInput");
+  if (input) input.value = currentSafeList.join(", ");
+});
+
+// -- MODAL CONTROLS --
+const modal = document.getElementById("settingsModal");
+const openBtn = document.getElementById("openSettingsBtn");
+const closeX = document.getElementById("modalCloseX");
+const cancelBtn = document.getElementById("modalCancelBtn");
+const saveBtn = document.getElementById("saveSettingsBtn");
+
+// Open Modal
+openBtn.addEventListener("click", () => {
+  modal.showModal();
+});
+
+// Close Modal (Cancel)
+const closeModal = () => modal.close();
+closeX.addEventListener("click", closeModal);
+cancelBtn.addEventListener("click", closeModal);
+
+// Close on outside click
+modal.addEventListener("click", (event) => {
+  if (event.target === modal) closeModal();
+});
+
+// Save Settings
+saveBtn.addEventListener("click", () => {
+  const input = document.getElementById("safeListInput");
+  const raw = input.value;
+
+  // Parse CSV to Array
+  const newList = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  chrome.storage.local.set({ safeList: newList }, () => {
+    currentSafeList = newList;
+    // Visual feedback handled by closing the modal
+    modal.close();
+    // Optional: Log to console/UI
+    console.log("Settings saved:", currentSafeList);
+  });
+});
 
 // --- HELPER: ROBUST JSON PARSER ---
 function parseAIResponse(responseString) {
   try {
-    // 1. Clean Markdown code blocks
     let clean = responseString.replace(/```json|```/g, "").trim();
-
-    // 2. Find the JSON object boundaries
     const startIndex = clean.indexOf("{");
     const endIndex = clean.lastIndexOf("}");
 
@@ -27,13 +110,12 @@ function parseAIResponse(responseString) {
     const jsonString = clean.substring(startIndex, endIndex + 1);
     return JSON.parse(jsonString);
   } catch (e) {
-    // Log the RAW output so we can see what the model actually said
     console.error("AI RAW OUTPUT:", responseString);
     throw e;
   }
 }
 
-// 1. CSV UPLOAD HANDLER
+// 2. CSV UPLOAD HANDLER
 document.getElementById("csvFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -55,7 +137,7 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
   });
 });
 
-// 2. BATCH PROCESS RUNNER
+// 3. BATCH PROCESS RUNNER
 document.getElementById("startBtn").addEventListener("click", async () => {
   if (urlQueue.length === 0) {
     alert("Please upload a valid CSV file before starting.");
@@ -82,7 +164,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
 
-      // WAIT FOR LOAD (With Error Handling)
+      // WAIT FOR LOAD
       try {
         const loadPromise = waitForTabLoad(tab.id);
         await chrome.tabs.update(tab.id, { url: url });
@@ -117,7 +199,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       });
       log(`✅ Axe Complete: ${axeResults.length} checks processed.`);
 
-      // Identify 'leads' for Nano
       const incompleteLeads = axeResults.filter(
         (r) => r.verdict === "INCOMPLETE"
       );
@@ -139,7 +220,10 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             await new Promise((r) => setTimeout(r, 500));
           }
 
-          const result = await runAuditOnTab(tab.id, rule, targetSelectors);
+          // Pass currentSafeList to the rule
+          const result = await runAuditOnTab(tab.id, rule, targetSelectors, {
+            safeList: currentSafeList,
+          });
 
           const statusIcon =
             result.verdict === "FAIL"
@@ -151,7 +235,8 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               : "⚠️";
 
           if (result.verdict === "INAPPLICABLE") {
-            console.warn(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
+            // Downgraded to log to prevent console warnings
+            console.log(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
           }
 
           log(`[Nano: ${ruleId}] ${statusIcon} ${result.verdict}`);
@@ -185,8 +270,8 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   finishAudit();
 });
 
-// 3. THE AI AUDITOR
-async function runAuditOnTab(tabId, rule, targetSelectors = []) {
+// 4. THE AI AUDITOR
+async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
   try {
     // A. PRE-FLIGHT CHECK
     if (rule.relevantElements && rule.relevantElements.length > 0) {
@@ -213,7 +298,8 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
       func: rule.extractor,
-      args: [targetSelectors],
+      // Pass both selectors AND options (safeList)
+      args: [targetSelectors, options],
     });
 
     if (!injection || !injection[0]) throw new Error("Script injection failed");
@@ -228,7 +314,6 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
     }
 
     // C. AI API Detection
-    // Use window.LanguageModel as verified by your console output
     const aiOrigin = window.LanguageModel;
 
     if (!aiOrigin) {
@@ -246,7 +331,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
       };
     }
 
-    // --- D. MULTIMODAL LOGIC (Images of Text) ---
+    // --- D. MULTIMODAL LOGIC ---
     if (rule.id === "1.4.5" && domContext.images) {
       const screenshot = await getTabScreenshot();
       const results = [];
@@ -254,7 +339,6 @@ async function runAuditOnTab(tabId, rule, targetSelectors = []) {
 
       try {
         session = await aiOrigin.create({
-          // Note: No initialPrompts (simplifies session for multimodal)
           expectedInputs: [{ type: "text" }, { type: "image" }],
           expectedOutputs: [{ type: "text", languages: ["en"] }],
         });
@@ -278,8 +362,6 @@ ${rule.systemPrompt}
 USER REQUEST:
 Analyze this image. Alt text provided: "${imgMeta.alt}"
 `;
-
-          // CRITICAL FIX: Wrap the message object in an ARRAY [ ... ]
           const responseString = await session.prompt([
             {
               role: "user",

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SC 2.4.6 | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 800px;
+        }
+
+        .section {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .fail {
+            border-color: #d32f2f;
+            background-color: #ffebee;
+        }
+
+        .pass {
+            border-color: #388e3c;
+            background-color: #e8f5e9;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>SC 2.4.6 Failures: Headings and Labels</h1>
+
+    <div class="section fail">
+        <h2>Section 1</h2>
+        <p>This content is about our refund policy.</p>
+
+        <h2>Untitled</h2>
+        <p>This content is about our pricing tiers.</p>
+
+
+        <form>
+            <label for="input1">Input:</label>
+            <input type="text" id="input1">
+
+            <label for="input2">Field:</label>
+            <input type="text" id="input2">
+        </form>
+    </div>
+
+    <div class="section pass">
+        <h2>Refund Policy Details</h2>
+        <p>This content is about our refund policy.</p>
+
+        <h2>Contact Us</h2>
+        <p>Reach out to our support team.</p>
+
+        <form>
+            <label for="email">Email Address</label>
+            <input type="email" id="email">
+
+            <label for="zip">Zip Code</label>
+            <input type="text" id="zip">
+        </form>
+    </div>
+
+</body>
+
+</html>
