@@ -78,3 +78,20 @@ progress {
     background: var(--pico-card-background-color);
     border: 1px solid var(--pico-card-border-color);
 }
+
+#settingsModal>article {
+    margin-top: 3rem;
+}
+
+#settingsModal article>header {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: calc(100% - var(--pico-spacing) - var(--pico-spacing));
+    margin: var(--pico-spacing);
+}
+
+#settingsModal article>header * {
+    margin: 1rem 2rem;
+}

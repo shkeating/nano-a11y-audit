@@ -14,90 +14,82 @@
         <div id="setup">
             <h3>Getting Started</h3>
             <p class="instruction-text">
-                Upload a CSV of URLs for the pages in your test sample to begin audit. The extension will visit
-                each
-                page in
-                your sample, and will run checks with axe-core and Gemini Nano. It will then download the report
-                data,
-                and
-                open the WCAG EM Report Tool to view the results.
+                Upload a CSV of URLs to begin the hybrid audit (Axe-Core + Gemini Nano).
             </p>
-            <p>
-                For guidance on creating a test sample, please review the W3C Conformance Evaluation Methodology
-                <a href="https://www.w3.org/TR/WCAG-EM/#step2">Step 2:
-                    Explore the Website</a> and <a href="https://www.w3.org/TR/WCAG-EM/#step3">Step 3: Select a
-                    Representative
-                    Sample</a>
-            </p>
-            <div class="flex">
-                <section>
-                    <h3>Test Sample</h3>
-                    <label for="csvFile" class="input-label">Load URLs (CSV with singular 'url' column):</label>
-                    <input type="file" id="csvFile" accept=".csv" />
-                </section>
 
-                <section>
-                    <h3> Settings </h3>
-                    <legend class="settings-legend">Report Output</legend>
-                    <fieldset class="settings-box">
-                        <div class="settings-options">
-                            <label class="settings-label">
-                                <input type="checkbox" id="includePassed"> Passed
-                            </label>
-                            <label class="settings-label">
-                                <input type="checkbox" id="includeNotPresent"> Not Present
-                            </label>
-                        </div>
-                        <p class="settings-note">
-                            Note: Failed criteria will always include detailed report descriptions.
-                        </p>
-                    </fieldset>
+            <div class="flex">
+                <section style="width: 100%;">
+                    <h3>Test Sample</h3>
+                    <label for="csvFile" class="input-label">Load URLs (CSV):</label>
+                    <input type="file" id="csvFile" accept=".csv" />
                 </section>
             </div>
 
-            <button id="startBtn">Start Batch Audit</button>
+            <div class="grid" style="margin-top: 20px;">
+                <button id="openSettingsBtn" class="secondary outline">Configure Settings</button>
+                <button id="startBtn">Start Batch Audit</button>
+            </div>
         </div>
 
-        <div id="auditView" hidden>
+        <dialog id="settingsModal">
+            <article>
+                <header>
+                    <h3>Settings</h3>
+                    <button aria-label="Close" rel="prev" id="modalCloseX"></button>
 
+                </header>
+                <fieldset>
+                    <legend>Testing</legend>
+                    <label for="safeListInput">
+                        2.4.6 Heading & Labels Safe Terms (Comma Separated)
+                    </label>
+                    <small style="display: block; margin-bottom: 10px; color: var(--pico-muted-color);">
+                        <strong>Why:</strong> The test will flag generic words (e.g., "Input", "Data") as violations.
+                        used in heading and labels <br>
+                        <strong>What to Add:</strong> Add your organization's specific acronyms or internal terms (e.g.,
+                        "PID", "CID", "Org Code") here to prevent them from being flagged as vague labels.
+                    </small>
+                    <textarea id="safeListInput" rows="6" style="font-size: 0.9em;"></textarea>
+                </fieldset>
+
+
+                <fieldset>
+                    <legend>Reporting</legend>
+                    <label>
+                        <input type="checkbox" id="includePassed"> Include 'Passed' results descriptions
+                    </label>
+                    <label>
+                        <input type="checkbox" id="includeNotPresent"> Include 'Not Present' results descriptions
+                    </label>
+                </fieldset>
+
+                <hr>
+
+
+                <footer>
+                    <button id="modalCancelBtn" class="secondary">Cancel</button>
+                    <button id="saveSettingsBtn">Save Changes</button>
+                </footer>
+            </article>
+        </dialog>
+
+        <div id="auditView" hidden>
             <div id="statusArea" class="status-box">
                 <h3>Audit Status</h3>
-                <small>this may take a minute or two, depending on the size and complexity of your test sample. You will
-                    see an Audit Completed message when the process has concluded. Do not mess with this browser window
-                    while the tests are running. If you are multitasking, use a new Chrome window.</small>
-                <div>
-                    <strong>Page Progress</strong>
-                    <span id="progressText">0/0</span>
-                </div>
+                <div><strong>Progress:</strong> <span id="progressText">0/0</span></div>
                 <progress id="auditProgress" value="0" max="100"></progress>
-
                 <div class="status-current-url">
-                    <strong>Current:</strong> <span id="currentUrl">Waiting to start...</span>
+                    <strong>Current:</strong> <span id="currentUrl">Waiting...</span>
                 </div>
-
-                <section id="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Audit Log"
-                    tabindex="0">
-                    <div class="log-entry">Waiting for input...</div>
-                </section>
+                <section id="log" role="log" aria-live="polite"></section>
             </div>
 
             <div id="completeView" hidden class="complete-box">
                 <h3>Audit Completed</h3>
-                <p>The report was downloaded automatically.</p>
                 <button id="downloadBtn" class="contrast">Download Report Again</button>
             </div>
-
-
         </div>
     </main>
-    <footer>
-        <small>
-            powered by Gemini Nano, axe-core, and WCAG EM.
-        </small>
-        <small>built and mantained by Shauna Keating, CPACC. To learn more visit
-            <a href="https://github.com/shkeating/nano-a11y-audit">nano-a11y-audit</a> on Github.
-        </small>
-    </footer>
 </body>
 
 </html>
