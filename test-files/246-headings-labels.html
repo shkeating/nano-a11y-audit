@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SC 2.4.6 | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 800px;
+        }
+
+        .section {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .fail {
+            border-color: #d32f2f;
+            background-color: #ffebee;
+        }
+
+        .pass {
+            border-color: #388e3c;
+            background-color: #e8f5e9;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>SC 2.4.6 Failures: Headings and Labels</h1>
+
+    <div class="section fail">
+        <h2>Section 1</h2>
+        <p>This section discusses our refund policy in detail. It covers timelines, exceptions, and processing fees.</p>
+
+        <h2>Contact Us</h2>
+        <p>Our premium plan costs $99/year and includes full access to all features.</p>
+
+        <form>
+            <label for="input1">Data:</label>
+            <input type="text" id="input1" name="data">
+        </form>
+    </div>
+
+    <div class="section pass">
+        <h2>Refund Policy Details</h2>
+        <p>This section discusses our refund policy in detail. It covers timelines, exceptions, and processing fees.</p>
+
+        <h2>Pricing Plans</h2>
+        <p>Our premium plan costs $99/year and includes full access to all features.</p>
+
+        <form>
+            <label for="email">Email Address:</label>
+            <input type="email" id="email" name="email">
+        </form>
+    </div>
+
+</body>
+
+</html>
