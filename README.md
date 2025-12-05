@@ -215,7 +215,7 @@ http://localhost:8000/my-test-page.html
 You can customize specific rules to better fit your organization's context.
 
 1.  Click the **Nano Auditor** icon in the Chrome toolbar to open the Side Panel.
-2.  Click **⚙️ Configure Settings**.
+2.  Click **Configure Settings**.
 3.  **Safe List Configuration:** Under "Rule Configuration", you can edit the **2.4.6 Safe Terms**.
     - **Why:** The AI flags "vague" words (e.g., "Input", "Data") as violations.
     - **What to Add:** If your site uses specific acronyms or internal terms (e.g., `PID`, `CID`, `Org Code`) that act as descriptive labels, add them here (comma-separated).
