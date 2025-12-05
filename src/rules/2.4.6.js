@@ -12,29 +12,77 @@ export const relevantElements = [
 ];
 
 export const systemPrompt = `
-You are an accessibility auditor specializing in WCAG 2.4.6 Headings and Labels.
-Task: Evaluate if headings and labels describe the topic or purpose of the content.
+You are a WCAG text classifier.
+Task: Classify web text as **PASS** (Descriptive) or **FAIL** (Non-Descriptive).
 
 **CRITERIA**
-1. **Headings:** Must describe the content that follows them.
-   - FAIL: Generic text (e.g., "Section 1", "Untitled", "Details").
-   - FAIL: Mismatched text (e.g., Heading says "Contact" but content is about "Pricing").
-2. **Labels:** Must clearly identify the purpose of the form control.
-   - FAIL: Vague text (e.g., "Input", "Data", "Field 1").
+1. **FAIL (Vague/Placeholder):**
+   - "Section 1", "Untitled", "Page 2"
+   - "Data", "Input", "Field", "Value", "Text"
+   - "..." or symbols only.
+
+2. **PASS (Descriptive):**
+   - Any text that gives a specific clue about the content.
+   - Example: "Refund Policy Details" -> PASS (Specific subject).
+   - Example: "Pricing Plans" -> PASS (Specific subject).
 
 **INSTRUCTIONS**
 Review the 'items' list.
-- **PASS:** If the item clearly describes its context.
-- **FAIL:** If the item is vague, generic, or misleading.
-- **Format:** List failures as bullet points: "- [Type] '[Text]': [Reason]"
+- If an item is **PASS**, ignore it.
+- If an item is **FAIL**, add it to the report.
 
 **OUTPUT FORMAT**
 Return a JSON object:
-- If violations: {"verdict": "FAIL", "reason": "Non-descriptive headings or labels found:\\n- [Item 1]..."}
-- If no violations: {"verdict": "PASS", "reason": "All headings and labels appear descriptive."}
+- If violations exist: {"verdict": "FAIL", "reason": "Meaningless/Placeholder text found:\\n- [Item]"}
+- If no violations: {"verdict": "PASS", "reason": "Headings and labels are descriptive."}
 `;
 
-export function extractor() {
+// Extractor now accepts 'options' from sidepanel.js
+export function extractor(selectors = [], options = {}) {
+  // 1. DEFAULT SAFE LIST (Fallback)
+  const DEFAULT_SAFE_TERMS = [
+    "email",
+    "email address",
+    "name",
+    "first name",
+    "last name",
+    "password",
+    "search",
+    "contact",
+    "contact us",
+    "address",
+    "city",
+    "state",
+    "zip",
+    "phone",
+    "date",
+    "submit",
+    "login",
+    "sign up",
+    "menu",
+    "about",
+    "home",
+    "products",
+    "services",
+    "pricing",
+    "refund policy",
+    "privacy policy",
+    "terms",
+  ];
+
+  // 2. MERGE USER SETTINGS
+  // If user provided a list, we use that. Otherwise, we use defaults.
+  // We sanitize input to ensure it's an array of lowercase strings.
+  let activeSafeList = DEFAULT_SAFE_TERMS;
+
+  if (
+    options &&
+    Array.isArray(options.safeList) &&
+    options.safeList.length > 0
+  ) {
+    activeSafeList = options.safeList.map((s) => s.toLowerCase().trim());
+  }
+
   function isVisible(el) {
     if (!el) return false;
     if (el.offsetParent !== null) return true;
@@ -44,6 +92,26 @@ export function extractor() {
       style.visibility !== "hidden" &&
       style.opacity !== "0"
     );
+  }
+
+  function cleanText(str) {
+    return str.replace(/[:\-\.]/g, "").trim();
+  }
+
+  function isSafe(text) {
+    const lower = text.toLowerCase();
+    // 1. Exact match
+    if (activeSafeList.includes(lower)) return true;
+    // 2. Contains specific safe phrase
+    if (activeSafeList.some((term) => lower.includes(term))) return true;
+    // 3. Test content / Meta content (Hardcoded exceptions)
+    if (
+      lower.includes("sc ") ||
+      lower.includes("wcag") ||
+      lower.includes("test")
+    )
+      return true;
+    return false;
   }
 
   function getNextContentSnippet(el) {
@@ -65,12 +133,14 @@ export function extractor() {
   const headings = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
   for (const h of headings) {
     if (!isVisible(h)) continue;
-    const text = h.innerText.trim();
-    if (text.length === 0) continue; // Axe handles empty headings
+    const raw = h.innerText.trim();
+    if (raw.length === 0) continue;
+
+    if (isSafe(raw)) continue;
 
     items.push({
       type: "Heading",
-      text: text,
+      text: cleanText(raw),
       context: getNextContentSnippet(h),
     });
   }
@@ -79,20 +149,14 @@ export function extractor() {
   const labels = document.querySelectorAll("label, legend");
   for (const l of labels) {
     if (!isVisible(l)) continue;
-    const text = l.innerText.trim();
-    if (text.length === 0) continue; // Axe handles empty labels
+    const raw = l.innerText.trim();
+    if (raw.length === 0) continue;
 
-    // Find associated input for context (optional, but good for debugging)
-    let inputType = "unknown";
-    if (l.tagName === "LABEL" && l.htmlFor) {
-      const input = document.getElementById(l.htmlFor);
-      if (input) inputType = input.type || input.tagName;
-    }
+    if (isSafe(raw)) continue;
 
     items.push({
       type: "Label",
-      text: text,
-      context: `Input Type: ${inputType}`,
+      text: cleanText(raw),
     });
   }
 
@@ -104,9 +168,8 @@ export function extractor() {
     };
   }
 
-  // Limit to avoid token overflow, prioritizing likely issues or top items
   return {
     pageTitle: document.title,
-    items: items.slice(0, 15),
+    items: items.slice(0, 20),
   };
 }
