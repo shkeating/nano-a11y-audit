@@ -332,7 +332,10 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
     }
 
     // --- D. MULTIMODAL LOGIC ---
-    if (rule.id === "1.4.5" && domContext.images) {
+    if (
+      rule.id === ("1.4.5" || rule.id === "1.4.1-images") &&
+      domContext.images
+    ) {
       const screenshot = await getTabScreenshot();
       const results = [];
       let session;
