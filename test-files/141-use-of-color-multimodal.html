@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SC 1.4.1 Multimodal | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 800px;
+        }
+
+        .example-box {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #fff;
+        }
+
+        .legend {
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+
+        h3 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>SC 1.4.1: Use of Color (Multimodal)</h1>
+    <p>Automated test corpus for visual color dependence (Charts, Graphs, Maps).</p>
+
+    <div class="test-case" data-rule="1.4.1-images" data-failure="Color-Only Chart">
+        <h3>Test Case 1: Pie Chart</h3>
+        <div class="example-box">
+            <img src="https://placehold.co/400x300/white/black/png?text=Q3+Financial+Data"
+                alt="Pie chart showing revenue breakdown." id="chart-1">
+
+            <div class="legend">
+                <strong>Legend:</strong>
+                <span style="color: red">■ Sales</span>
+                <span style="color: blue">■ Cost</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-case" data-rule="1.4.1-images" data-failure="None">
+        <h3>Test Case 2: Bar Chart with Labels</h3>
+        <div class="example-box">
+            <img src="https://placehold.co/400x300/white/black/png?text=Quarterly+Growth+(Labeled)"
+                alt="Bar chart showing Q1 to Q4 growth with direct text labels.">
+        </div>
+    </div>
+
+    <div class="test-case" data-rule="1.4.1-images" data-failure="None">
+        <h3>Test Case 3: Decorative Image</h3>
+        <div class="example-box">
+            <img src="https://placehold.co/200x200/grey/white?text=Profile+Photo" alt="User profile photo">
+        </div>
+    </div>
+</body>
+
+</html>
