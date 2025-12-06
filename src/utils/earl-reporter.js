@@ -3,8 +3,6 @@
  * Handles the generation of the W3C EARL (Evaluation and Report Language) JSON-LD reports.
  */
 
-// We keep this list as a baseline for "Untested" assertions (so the report isn't empty).
-// But we will MERGE this with actual results to ensure we cover everything.
 const BASELINE_IDS = [
   "WCAG22:non-text-content",
   "WCAG22:audio-only-and-video-only-prerecorded",
@@ -134,26 +132,31 @@ export function generateEarlReport(auditResults, options = {}) {
       );
 
       let aggregateOutcome;
+      let aggregateDescription = "";
+
       if (anyFailures) {
         aggregateOutcome = {
           id: "earl:failed",
           type: ["OutcomeValue", "Fail"],
           title: "Failed",
         };
+        aggregateDescription = "Issues were found in the sample.";
       } else if (onlyInapplicable) {
-        if (!includeNotPresent) return; // Skip if filtered out
         aggregateOutcome = {
           id: "earl:inapplicable",
           type: ["OutcomeValue", "NotApplicable"],
           title: "Not Present",
         };
+        // Only add text if user wants it
+        if (includeNotPresent) aggregateDescription = "Not Present";
       } else {
-        if (!includePassed) return; // Skip if filtered out
         aggregateOutcome = {
           id: "earl:passed",
           type: ["OutcomeValue", "Pass"],
           title: "Passed",
         };
+        // Only add text if user wants it
+        if (includePassed) aggregateDescription = "Passed";
       }
 
       allAssertions.push({
@@ -163,9 +166,7 @@ export function generateEarlReport(auditResults, options = {}) {
         result: {
           type: "TestResult",
           date: date,
-          description: anyFailures
-            ? "Issues were found in the sample."
-            : "No issues found in the sample.",
+          description: aggregateDescription,
           outcome: aggregateOutcome,
         },
         subject: {
@@ -190,37 +191,47 @@ export function generateEarlReport(auditResults, options = {}) {
         );
 
         let outcomeObj;
+        let pageDescription = "";
+
         if (isFailure) {
           outcomeObj = {
             id: "earl:failed",
             type: ["OutcomeValue", "Fail"],
             title: "Failed",
           };
+          // Failures ALWAYS get full descriptions
+          pageDescription = pageResults
+            .filter((r) => r.verdict === "FAIL")
+            .map((r) => {
+              const prefix = r.source ? `[${r.source}] ` : "";
+              const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
+              return `${prefix}${r.reason}${ruleSuffix}`;
+            })
+            .join("\n\n");
         } else if (isInapplicable) {
           outcomeObj = {
             id: "earl:inapplicable",
             type: ["OutcomeValue", "NotApplicable"],
             title: "Not Present",
           };
+          if (includeNotPresent) pageDescription = "Not Present";
         } else {
           outcomeObj = {
             id: "earl:passed",
             type: ["OutcomeValue", "Pass"],
             title: "Passed",
           };
+          if (includePassed) {
+            // Include verbose passed observations
+            pageDescription = pageResults
+              .map((r) => {
+                const prefix = r.source ? `[${r.source}] ` : "";
+                const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
+                return `${prefix}${r.reason}${ruleSuffix}`;
+              })
+              .join("\n\n");
+          }
         }
-
-        const itemsToDescribe = isFailure
-          ? pageResults.filter((r) => r.verdict === "FAIL")
-          : pageResults;
-
-        const combinedDescription = itemsToDescribe
-          .map((r) => {
-            const prefix = r.source ? `[${r.source}] ` : "";
-            const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
-            return `${prefix}${r.reason}${ruleSuffix}`;
-          })
-          .join("\n\n");
 
         allAssertions.push({
           type: "Assertion",
@@ -229,7 +240,7 @@ export function generateEarlReport(auditResults, options = {}) {
           result: {
             type: "TestResult",
             date: date,
-            description: combinedDescription,
+            description: pageDescription,
             outcome: outcomeObj,
           },
           subject: { id: urlToIdMap[url] },

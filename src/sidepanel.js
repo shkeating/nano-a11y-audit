@@ -43,58 +43,44 @@ let auditResults = [];
 let currentSafeList = [...DEFAULT_SAFE_TERMS];
 
 // --- 1. SETTINGS MANAGEMENT ---
-
-// Load Settings on Init
 chrome.storage.local.get(["safeList"], (result) => {
   if (result.safeList) {
     currentSafeList = result.safeList;
   }
-  // Populate Modal UI
   const input = document.getElementById("safeListInput");
   if (input) input.value = currentSafeList.join(", ");
 });
 
-// -- MODAL CONTROLS --
 const modal = document.getElementById("settingsModal");
 const openBtn = document.getElementById("openSettingsBtn");
 const closeX = document.getElementById("modalCloseX");
 const cancelBtn = document.getElementById("modalCancelBtn");
 const saveBtn = document.getElementById("saveSettingsBtn");
 
-// Open Modal
-openBtn.addEventListener("click", () => {
-  modal.showModal();
-});
-
-// Close Modal (Cancel)
+if (openBtn) openBtn.addEventListener("click", () => modal.showModal());
 const closeModal = () => modal.close();
-closeX.addEventListener("click", closeModal);
-cancelBtn.addEventListener("click", closeModal);
-
-// Close on outside click
-modal.addEventListener("click", (event) => {
-  if (event.target === modal) closeModal();
-});
-
-// Save Settings
-saveBtn.addEventListener("click", () => {
-  const input = document.getElementById("safeListInput");
-  const raw = input.value;
-
-  // Parse CSV to Array
-  const newList = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  chrome.storage.local.set({ safeList: newList }, () => {
-    currentSafeList = newList;
-    // Visual feedback handled by closing the modal
-    modal.close();
-    // Optional: Log to console/UI
-    console.log("Settings saved:", currentSafeList);
+if (closeX) closeX.addEventListener("click", closeModal);
+if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+if (modal)
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeModal();
   });
-});
+
+if (saveBtn)
+  saveBtn.addEventListener("click", () => {
+    const input = document.getElementById("safeListInput");
+    const raw = input.value;
+    const newList = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    chrome.storage.local.set({ safeList: newList }, () => {
+      currentSafeList = newList;
+      modal.close();
+      console.log("Settings saved:", currentSafeList);
+    });
+  });
 
 // --- HELPER: ROBUST JSON PARSER ---
 function parseAIResponse(responseString) {
@@ -164,7 +150,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
 
-      // WAIT FOR LOAD
       try {
         const loadPromise = waitForTabLoad(tab.id);
         await chrome.tabs.update(tab.id, { url: url });
@@ -182,7 +167,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 
       log(`Analyzing DOM...`);
 
-      // 1. Run Axe Core Audit
       log(`Running Axe Core...`);
       const axeResults = await runAxeAudit(tab.id);
 
@@ -190,12 +174,11 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         if (r.verdict === "FAIL") {
           log(`[Axe: ${r.ruleId}] ❌ FAIL`);
         }
-        if (r.verdict !== "INCOMPLETE") {
-          auditResults.push({
-            url,
-            ...r,
-          });
-        }
+        // MODIFICATION: Always push result, even if INCOMPLETE
+        auditResults.push({
+          url,
+          ...r,
+        });
       });
       log(`✅ Axe Complete: ${axeResults.length} checks processed.`);
 
@@ -203,15 +186,12 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         (r) => r.verdict === "INCOMPLETE"
       );
 
-      // 2. Run Gemini Nano Audit
       log(`Running Gemini Nano...`);
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
-
         const relevantLeads = incompleteLeads.filter(
           (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
         );
-
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
@@ -220,7 +200,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             await new Promise((r) => setTimeout(r, 500));
           }
 
-          // Pass currentSafeList to the rule
           const result = await runAuditOnTab(tab.id, rule, targetSelectors, {
             safeList: currentSafeList,
           });
@@ -235,7 +214,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               : "⚠️";
 
           if (result.verdict === "INAPPLICABLE") {
-            // Downgraded to log to prevent console warnings
             console.log(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
           }
 
@@ -298,7 +276,6 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
       func: rule.extractor,
-      // Pass both selectors AND options (safeList)
       args: [targetSelectors, options],
     });
 
@@ -315,7 +292,6 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
 
     // C. AI API Detection
     const aiOrigin = window.LanguageModel;
-
     if (!aiOrigin) {
       if (domContext.computedVerdict) {
         return {
@@ -377,7 +353,7 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
 
           const result = parseAIResponse(responseString);
 
-          if (result.verdict === "FAIL") {
+          if (result.verdict === "FAIL" || result.verdict === "CANNOT_TELL") {
             results.push(
               `- Image (${imgMeta.src.substring(0, 30)}...): ${result.reason}`
             );
@@ -390,19 +366,21 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
       session.destroy();
 
       if (results.length > 0) {
-        // 1. Dynamic Failure Prefix
         const prefix =
           rule.id === "1.4.5"
             ? "Images of Text detected"
             : "Visual reliance on color detected";
 
         return {
+          // If ANY fail was found, we default to FAIL, unless your prompt specifically requested CANNOT_TELL
+          // For now, let's respect what the prompt returned.
+          // If it was 2.2.2, we likely wouldn't be in this image block.
+          // For 1.4.1-images, we assume FAIL is definitive.
           verdict: "FAIL",
           reason: `${prefix}:\n` + results.join("\n"),
           pageTitle: domContext.pageTitle,
         };
       } else {
-        // 2. Dynamic Passing Reason
         const passReason =
           rule.id === "1.4.5"
             ? "No images of text found."
@@ -436,7 +414,6 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
 }
 
 // --- UTILS ---
-
 async function getTabScreenshot() {
   const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
   return new Promise((resolve) => {
@@ -451,7 +428,6 @@ async function cropImage(sourceImage, rect) {
   canvas.width = rect.width;
   canvas.height = rect.height;
   const ctx = canvas.getContext("2d");
-
   ctx.drawImage(
     sourceImage,
     rect.x,
@@ -463,7 +439,6 @@ async function cropImage(sourceImage, rect) {
     rect.width,
     rect.height
   );
-
   return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
 
