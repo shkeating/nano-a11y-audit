@@ -333,7 +333,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
 
     // --- D. MULTIMODAL LOGIC ---
     if (
-      rule.id === ("1.4.5" || rule.id === "1.4.1-images") &&
+      (rule.id === "1.4.5" || rule.id === "1.4.1-images") &&
       domContext.images
     ) {
       const screenshot = await getTabScreenshot();
@@ -390,15 +390,27 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
       session.destroy();
 
       if (results.length > 0) {
+        // 1. Dynamic Failure Prefix
+        const prefix =
+          rule.id === "1.4.5"
+            ? "Images of Text detected"
+            : "Visual reliance on color detected";
+
         return {
           verdict: "FAIL",
-          reason: "Images of Text detected:\n" + results.join("\n"),
+          reason: `${prefix}:\n` + results.join("\n"),
           pageTitle: domContext.pageTitle,
         };
       } else {
+        // 2. Dynamic Passing Reason
+        const passReason =
+          rule.id === "1.4.5"
+            ? "No images of text found."
+            : "No color-only charts or diagrams detected.";
+
         return {
           verdict: "PASS",
-          reason: "No images of text found.",
+          reason: passReason,
           pageTitle: domContext.pageTitle,
         };
       }
