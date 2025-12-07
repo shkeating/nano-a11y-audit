@@ -84,6 +84,14 @@
         </dialog>
 
         <div id="auditView" hidden>
+            <div id="focusWarning" class="warning-box" hidden>
+                <strong>IMPORTANT: Keep Window Focused</strong>
+                <p style="margin-bottom: 0; font-size: 0.9em;">
+                    Do not switch tabs, minimize, or interact with the browser while the audit is running.
+                    Multimodal checks require the page to be visible on screen.
+                </p>
+            </div>
+
             <div id="statusArea" class="status-box">
                 <h3>Audit Status</h3>
                 <div><strong>Progress:</strong> <span id="progressText">0/0</span></div>

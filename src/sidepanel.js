@@ -131,6 +131,13 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   document.getElementById("statusArea").removeAttribute("hidden");
   document.getElementById("completeView").setAttribute("hidden", "true");
 
+  // SHOW WARNING if multimodal is on
+  if (enableMultimodal) {
+    document.getElementById("focusWarning").removeAttribute("hidden");
+  } else {
+    document.getElementById("focusWarning").setAttribute("hidden", "true");
+  }
+
   const progressBar = document.getElementById("auditProgress");
   progressBar.value = 0;
   progressBar.max = urlQueue.length;
@@ -270,11 +277,13 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
     const isVisualRule = rule.id === "1.4.5" || rule.id === "1.4.1-images";
     const aiOrigin = window.LanguageModel;
 
+    // CHECK: Handle Multimodal Disabled
     if (isVisualRule) {
       if (!enableMultimodal || !aiOrigin) {
         return {
           verdict: "CANNOT_TELL",
-          reason: "Multimodal AI unavailable.",
+          reason:
+            "The images on this page were not evaluated because the multimodal ai features were disabled for this test run. please manually assess the images on the page for this criteria, or re-run the test with the multimodal features turned on",
           pageTitle: domContext.pageTitle,
         };
       }
@@ -298,7 +307,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
     // --- E. MULTIMODAL EXECUTION (SCROLL & SNAP) ---
     if (isVisualRule && domContext.images) {
       const results = [];
-      let processedCount = 0; // NEW: Track valid captures
+      let processedCount = 0;
       let session;
 
       try {
@@ -330,8 +339,6 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
                 if (!el) return null;
                 el.scrollIntoView({ behavior: "instant", block: "center" });
 
-                // --- FIX: MANUALLY SERIALIZE RECT ---
-                // DOMRect objects often fail to serialize via messaging
                 const r = el.getBoundingClientRect();
                 return {
                   rect: {
@@ -362,7 +369,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
           }
         }
 
-        // VALIDATION: Strict check for undefined/NaN
+        // VALIDATION
         if (
           !captureRect ||
           typeof captureRect.width !== "number" ||
@@ -375,6 +382,13 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
 
         // 3. CAPTURE & SCALE
         try {
+          // FORCE FOCUS
+          await chrome.windows.update(await getWindowId(tabId), {
+            focused: true,
+          });
+          await chrome.tabs.update(tabId, { active: true });
+          await new Promise((r) => setTimeout(r, 100));
+
           const screenshot = await getTabScreenshot();
 
           if (!screenshot || screenshot.width === 0) {
@@ -382,7 +396,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
             continue;
           }
 
-          // --- DPI SCALING LOGIC ---
+          // DPI SCALING
           let scaledRect = captureRect;
           if (viewportWidth > 0 && screenshot.width > 0) {
             const zoomFactor = screenshot.width / viewportWidth;
@@ -406,7 +420,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
           }
 
           const imageBitmap = await createImageBitmap(imageBlob);
-          processedCount++; // Success!
+          processedCount++;
 
           const promptText = `\nSYSTEM INSTRUCTIONS:\n${rule.systemPrompt}\n\nUSER REQUEST:\nAnalyze this image. Alt text provided: "${imgMeta.alt}"\n`;
           const responseString = await session.prompt([
@@ -426,11 +440,13 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
           }
         } catch (e) {
           console.error(`Capture/AI Error for ${imgMeta.alt}:`, e);
+          results.push(
+            `- Image (${imgMeta.alt}): Technical Error (Screenshot Failed). Please verify manually.`
+          );
         }
       }
       session.destroy();
 
-      // --- FAIL-SAFE: Verify we actually analyzed something ---
       if (processedCount === 0 && domContext.images.length > 0) {
         return {
           verdict: "CANNOT_TELL",
@@ -440,13 +456,17 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
         };
       }
 
+      const hasErrors = results.some((r) => r.includes("Technical Error"));
+
       if (results.length > 0) {
         const prefix =
           rule.id === "1.4.5"
             ? "Images of Text detected"
             : "Visual reliance on color detected";
+        const verdict = hasErrors ? "CANNOT_TELL" : "FAIL";
+
         return {
-          verdict: "FAIL",
+          verdict: verdict,
           reason: `${prefix}:\n` + results.join("\n"),
           pageTitle: domContext.pageTitle,
         };
@@ -478,6 +498,11 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
 }
 
 // --- UTILS ---
+async function getWindowId(tabId) {
+  const tab = await chrome.tabs.get(tabId);
+  return tab.windowId;
+}
+
 async function getTabScreenshot() {
   const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
   return new Promise((resolve) => {
@@ -578,6 +603,8 @@ function finishAudit() {
 
   document.getElementById("statusArea").setAttribute("hidden", "true");
   document.getElementById("completeView").removeAttribute("hidden");
+  document.getElementById("focusWarning").setAttribute("hidden", "true"); // HIDE WARNING
+
   document.getElementById("downloadBtn").onclick = () => {
     chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
   };

@@ -1,7 +1,6 @@
 :root {
     --pico-font-family-sans-serif: 'Arivo', system-ui, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, Helvetica, Arial, "Helvetica Neue", sans-serif, var(--pico-font-family-emoji);
     --pico-font-family-monospace: 'Cousine', ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace, var(--pico-font-family-emoji);
-    --pico-muted-color: ;
 }
 
 body {
@@ -85,10 +84,22 @@ label {
     border: 1px solid var(--pico-card-border-color);
 }
 
-/* #settingsModal>article {
-    margin-top: 9rem;
-    position: relative;
-} */
+
+.warning-box {
+
+    background-color: var(--pico-card-background-color);
+    color: var(--pico-color);
+    border: 1px solid var(--pico-card-border-color);
+
+
+    padding: 1rem;
+    border-radius: var(--pico-border-radius);
+    margin-bottom: 1.5rem;
+
+
+    border-left: 5px solid var(--pico-primary-border);
+    box-shadow: var(--pico-card-box-shadow);
+}
 
 #settingsModal article>header {
     display: flex;
@@ -96,8 +107,3 @@ label {
     justify-content: space-between;
     align-items: center;
 }
-
-
-/* #settingsModal article>header * {
-    margin: 1rem 0rem;
-} */
