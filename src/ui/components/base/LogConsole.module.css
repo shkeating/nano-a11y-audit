@@ -1,0 +1,17 @@
+.logArea {
+    height: 200px;
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+    /* Or use var(--pico-card-background-color) */
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.entry {
+    margin-bottom: 4px;
+    word-break: break-word;
+    /* Prevent long URLs from breaking layout */
+}

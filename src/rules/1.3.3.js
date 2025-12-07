@@ -1,3 +1,4 @@
+// src/rules/1.3.3.js
 export const id = "1.3.3";
 export const earlId = "WCAG22:sensory-characteristics";
 export const relevantElements = ["p", "li", "span", "div", "td", "th"];
@@ -19,25 +20,9 @@ Flag text describing:
 - Sound (beep, chime, ring)
 
 **STRICT NEGATIVE CONSTRAINTS (IGNORE THESE)**
-1. **Test Suite Titles:** IGNORE page titles or test labels like:
-   - "Link only identifiable by colour alone"
-   - "Image with partial text alternative"
-   - "Content identified by location"
-   These are labels for the test case, not instructions to the user.
-
-2. **Alt Text & Image Quality:** DO NOT flag images for having bad or missing alt text. That is WCAG 1.1.1.
-   - Bad: "The text alternative is insufficient..." -> IGNORE.
-   - Good: "Instructions rely on 'green icon'..." -> REPORT.
-
-3. **Link Design:** DO NOT flag links for being color-only. That is WCAG 1.4.1.
-
-**EXAMPLES**
-- Violation: "Click the **green** button." (Action + Color = Fail)
-- Violation: "See the sidebar on the **left**." (Action + Location = Fail)
-- Pass: "Link only identifiable by colour alone." (No action verb = Pass)
-- Pass: "Image with partial text alternative." (No action verb = Pass)
-- Pass: "Red button." (Label only = Pass)
-- Pass: "Click the 'Submit' button (green)." (Has text label 'Submit' = Pass)
+1. **Test Suite Titles:** IGNORE page titles or test labels.
+2. **Alt Text & Image Quality:** DO NOT flag images for having bad or missing alt text.
+3. **Status Messages:** DO NOT flag status text like "Confirmed", "Cancelled", "Active", or "Inactive" unless it tells the user to DO something based on that status (e.g. "Click the Active item").
 
 **OUTPUT FORMAT**
 Return a JSON object with a "verdict" and a "reason".
@@ -60,6 +45,41 @@ export function extractor() {
     );
   }
 
+  // KEYWORD FILTER: Only check text that might actually be sensory.
+  // This drastically reduces hallucinations.
+  const SENSORY_KEYWORDS = [
+    "left",
+    "right",
+    "top",
+    "bottom",
+    "above",
+    "below",
+    "corner",
+    "side", // Location
+    "green",
+    "red",
+    "blue",
+    "yellow",
+    "orange",
+    "purple",
+    "black",
+    "white",
+    "color", // Color
+    "round",
+    "square",
+    "triangle",
+    "circle",
+    "shape", // Shape
+    "large",
+    "small",
+    "big",
+    "tiny", // Size
+    "beep",
+    "chime",
+    "ring",
+    "sound", // Sound
+  ];
+
   const potentialInstructions = [];
   const elements = Array.from(
     document.querySelectorAll("p, li, span, div, td, th")
@@ -68,16 +88,41 @@ export function extractor() {
   for (const el of elements) {
     if (!isVisible(el)) continue;
 
-    const text = el.innerText.trim();
+    // 1. Get direct text (ignoring children to avoid huge blocks)
+    // We clone to remove children safely for text extraction
+    const clone = el.cloneNode(true);
+    Array.from(clone.children).forEach((c) => c.remove());
+    const text = clone.innerText.trim().toLowerCase();
 
-    if (!text || text.length < 10) continue;
+    if (!text || text.length < 5) continue;
     if (text.startsWith("<") || text.includes("{")) continue;
 
-    if (potentialInstructions.includes(text)) continue;
+    // 2. CHECK KEYWORDS
+    // If the text doesn't mention a sensory word, we don't even send it to the AI.
+    const hasKeyword = SENSORY_KEYWORDS.some((kw) => text.includes(kw));
 
-    potentialInstructions.push(text);
+    if (hasKeyword) {
+      // Send the full original text (case preserved) for context
+      const originalText = el.innerText.trim();
+      // Avoid duplicates
+      if (
+        !potentialInstructions.includes(originalText) &&
+        originalText.length < 300
+      ) {
+        potentialInstructions.push(originalText);
+      }
+    }
 
-    if (potentialInstructions.length >= 20) break;
+    if (potentialInstructions.length >= 15) break;
+  }
+
+  if (potentialInstructions.length === 0) {
+    return {
+      computedVerdict: "PASS",
+      reason:
+        "No text containing sensory keywords (right, left, green, round, etc.) found.",
+      pageTitle: document.title,
+    };
   }
 
   return { potentialInstructions };

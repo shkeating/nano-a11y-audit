@@ -1,0 +1,5 @@
+/* Currently empty, but ready for custom overrides if you want to drop Pico later */
+.button {
+    /* Example: ensure consistent min-width or touch targets */
+    min-width: 100px;
+}
