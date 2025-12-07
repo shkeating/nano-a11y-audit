@@ -5,7 +5,8 @@
     "build": "vite build",
     "watch": "vite build --watch",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "chromatic": "npx chromatic --project-token=chpt_383cd9395e36458"
   },
   "dependencies": {
     "@picocss/pico": "^2.1.1",
