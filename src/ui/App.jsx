@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "preact/hooks";
 import Papa from "papaparse";
 import { loadSafeList, saveSafeList } from "../services/storage";
-import { analyzePage } from "../services/audit-runner"; // Your optimized runner
+import { analyzePage } from "../services/audit-runner";
 import { generateEarlReport } from "../utils/earl-reporter";
 import { injectReportFunction } from "../utils/report-injector";
 
@@ -18,31 +18,29 @@ export function App() {
     currentUrl: "Waiting...",
   });
 
-  // Settings
+  // Settings State
   const [showSettings, setShowSettings] = useState(false);
   const [safeList, setSafeList] = useState([]);
   const [enableMultimodal, setEnableMultimodal] = useState(true);
   const [includePassed, setIncludePassed] = useState(false);
   const [includeNotPresent, setIncludeNotPresent] = useState(false);
 
-  // Auto-scroll ref for logs
+  // Refs
   const logEndRef = useRef(null);
 
   // --- EFFECTS ---
-
-  // Load settings on boot
   useEffect(() => {
     loadSafeList().then(setSafeList);
   }, []);
 
-  // Auto-scroll logs whenever they change
+  // Auto-scroll logs
   useEffect(() => {
     if (logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [logs]);
 
-  // --- ACTIONS ---
+  // --- HANDLERS ---
 
   const addLog = (msg) => {
     setLogs((prev) => [...prev, `> ${msg}`]);
@@ -62,20 +60,26 @@ export function App() {
 
         if (urls.length > 0) {
           setUrlQueue(urls);
-          addLog(`✅ Loaded ${urls.length} URLs.`);
+          // Optional: You could show a success toast here
         } else {
-          addLog("❌ No valid URLs found. Check CSV headers.");
+          alert(
+            "No valid URLs found in the CSV. Please check the file headers."
+          );
         }
       },
     });
   };
 
   const runAudit = async () => {
-    if (urlQueue.length === 0) return;
+    // ACCESSIBILITY FIX: Explicit feedback instead of disabled button
+    if (urlQueue.length === 0) {
+      alert("Please upload a CSV file with URLs to start the audit.");
+      return;
+    }
 
     setView("auditing");
     setAuditResults([]);
-    setLogs([]); // Clear previous logs
+    setLogs([]);
 
     const resultsAccumulator = [];
 
@@ -87,7 +91,6 @@ export function App() {
       try {
         const tab = await getActiveTab();
 
-        // Navigation Step
         try {
           await navigateTab(tab.id, url);
         } catch (navErr) {
@@ -102,12 +105,11 @@ export function App() {
           continue;
         }
 
-        // Analysis Step
         addLog(`Analyzing DOM...`);
         const pageResults = await analyzePage(tab.id, url, {
           safeList,
           enableMultimodal,
-          logger: addLog, // Pass our state-updater as the logger
+          logger: addLog,
         });
 
         resultsAccumulator.push(...pageResults);
@@ -125,17 +127,11 @@ export function App() {
     const reportOptions = { includePassed, includeNotPresent };
     const earlReport = generateEarlReport(finalResults, reportOptions);
 
-    // Auto-download
-    const jsonString = JSON.stringify(earlReport, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
+    downloadReport(earlReport);
 
     setView("complete");
     addLog("✨ Audit Complete.");
 
-    // Inject into W3C Tool
     const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
     chrome.tabs.create({ url: reportToolUrl }, (tab) => {
       const executeInjection = (targetTabId) => {
@@ -164,6 +160,13 @@ export function App() {
     });
   };
 
+  const downloadReport = (reportData) => {
+    const jsonString = JSON.stringify(reportData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
+  };
+
   // --- HELPERS ---
   const getActiveTab = async () => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -176,14 +179,13 @@ export function App() {
       const listener = (tid, changeInfo, tab) => {
         if (tid === tabId && changeInfo.status === "complete") {
           chrome.tabs.onUpdated.removeListener(listener);
-          // Check for chrome error pages
           if (
             tab.url.startsWith("chrome-error:") ||
             tab.url.startsWith("view-source:")
           ) {
             reject(new Error("Tab failed to load."));
           } else {
-            setTimeout(resolve, 500); // Wait for render
+            setTimeout(resolve, 500);
           }
         }
       };
@@ -194,10 +196,7 @@ export function App() {
   const downloadAgain = () => {
     const reportOptions = { includePassed, includeNotPresent };
     const earlReport = generateEarlReport(auditResults, reportOptions);
-    const jsonString = JSON.stringify(earlReport, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
+    downloadReport(earlReport);
   };
 
   // --- RENDER ---
@@ -207,7 +206,7 @@ export function App() {
         <h2>Nano A11y Audit</h2>
       </header>
 
-      {/* VIEW: SETUP */}
+      {/* SETUP VIEW */}
       {view === "setup" && (
         <div id="setup">
           <h3>Getting Started</h3>
@@ -225,6 +224,13 @@ export function App() {
                 accept=".csv"
                 onChange={handleFileUpload}
               />
+              {urlQueue.length > 0 && (
+                <small
+                  style={{ color: "green", display: "block", marginTop: "5px" }}
+                >
+                  ✅ {urlQueue.length} URLs loaded ready for testing.
+                </small>
+              )}
             </section>
           </div>
 
@@ -235,14 +241,13 @@ export function App() {
             >
               Configure Settings
             </button>
-            <button onClick={runAudit} disabled={urlQueue.length === 0}>
-              Start Batch Audit
-            </button>
+            {/* BUTTON IS NO LONGER DISABLED */}
+            <button onClick={runAudit}>Start Batch Audit</button>
           </div>
         </div>
       )}
 
-      {/* VIEW: AUDITING */}
+      {/* AUDIT VIEW */}
       {view === "auditing" && (
         <div id="auditView">
           {enableMultimodal && (
@@ -269,7 +274,6 @@ export function App() {
               <strong>Current:</strong> <span>{progress.currentUrl}</span>
             </div>
 
-            {/* Log Area */}
             <section id="log" role="log" aria-live="polite">
               {logs.map((msg, i) => (
                 <div key={i} className="log-entry">
@@ -282,7 +286,7 @@ export function App() {
         </div>
       )}
 
-      {/* VIEW: COMPLETE */}
+      {/* COMPLETE VIEW */}
       {view === "complete" && (
         <div
           className="complete-box"
@@ -299,7 +303,7 @@ export function App() {
         </div>
       )}
 
-      {/* MODAL: SETTINGS */}
+      {/* SETTINGS MODAL */}
       <dialog open={showSettings}>
         <article>
           <header>
@@ -321,7 +325,7 @@ export function App() {
                 checked={enableMultimodal}
                 onChange={(e) => setEnableMultimodal(e.target.checked)}
               />{" "}
-              Enable Multimodal AI (Images)
+              Enable Multimodal AI (Screenshots)
             </label>
             <small
               style={{ display: "block", marginBottom: "10px", color: "#888" }}
