@@ -43,58 +43,46 @@ let auditResults = [];
 let currentSafeList = [...DEFAULT_SAFE_TERMS];
 
 // --- 1. SETTINGS MANAGEMENT ---
-
-// Load Settings on Init
 chrome.storage.local.get(["safeList"], (result) => {
   if (result.safeList) {
     currentSafeList = result.safeList;
   }
-  // Populate Modal UI
   const input = document.getElementById("safeListInput");
   if (input) input.value = currentSafeList.join(", ");
 });
 
-// -- MODAL CONTROLS --
+// Modal Logic
 const modal = document.getElementById("settingsModal");
 const openBtn = document.getElementById("openSettingsBtn");
 const closeX = document.getElementById("modalCloseX");
 const cancelBtn = document.getElementById("modalCancelBtn");
 const saveBtn = document.getElementById("saveSettingsBtn");
 
-// Open Modal
-openBtn.addEventListener("click", () => {
-  modal.showModal();
-});
-
-// Close Modal (Cancel)
-const closeModal = () => modal.close();
-closeX.addEventListener("click", closeModal);
-cancelBtn.addEventListener("click", closeModal);
-
-// Close on outside click
-modal.addEventListener("click", (event) => {
-  if (event.target === modal) closeModal();
-});
-
-// Save Settings
-saveBtn.addEventListener("click", () => {
-  const input = document.getElementById("safeListInput");
-  const raw = input.value;
-
-  // Parse CSV to Array
-  const newList = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  chrome.storage.local.set({ safeList: newList }, () => {
-    currentSafeList = newList;
-    // Visual feedback handled by closing the modal
-    modal.close();
-    // Optional: Log to console/UI
-    console.log("Settings saved:", currentSafeList);
+if (openBtn)
+  openBtn.addEventListener("click", () => modal && modal.showModal());
+if (closeX) closeX.addEventListener("click", () => modal && modal.close());
+if (cancelBtn)
+  cancelBtn.addEventListener("click", () => modal && modal.close());
+if (modal)
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.close();
   });
-});
+
+if (saveBtn) {
+  saveBtn.addEventListener("click", () => {
+    const input = document.getElementById("safeListInput");
+    const raw = input.value;
+    const newList = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    chrome.storage.local.set({ safeList: newList }, () => {
+      currentSafeList = newList;
+      if (modal) modal.close();
+      console.log("Settings saved:", currentSafeList);
+    });
+  });
+}
 
 // --- HELPER: ROBUST JSON PARSER ---
 function parseAIResponse(responseString) {
@@ -102,11 +90,9 @@ function parseAIResponse(responseString) {
     let clean = responseString.replace(/```json|```/g, "").trim();
     const startIndex = clean.indexOf("{");
     const endIndex = clean.lastIndexOf("}");
-
     if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
       throw new Error("No JSON object found.");
     }
-
     const jsonString = clean.substring(startIndex, endIndex + 1);
     return JSON.parse(jsonString);
   } catch (e) {
@@ -119,7 +105,6 @@ function parseAIResponse(responseString) {
 document.getElementById("csvFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
-
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
@@ -127,12 +112,8 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
       urlQueue = results.data
         .filter((r) => r.url && r.url.startsWith("http"))
         .map((r) => r.url);
-
-      if (urlQueue.length > 0) {
-        log(`✅ Loaded ${urlQueue.length} URLs.`);
-      } else {
-        log("❌ No valid URLs found. Check CSV headers.");
-      }
+      if (urlQueue.length > 0) log(`✅ Loaded ${urlQueue.length} URLs.`);
+      else log("❌ No valid URLs found. Check CSV headers.");
     },
   });
 });
@@ -143,11 +124,19 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     alert("Please upload a valid CSV file before starting.");
     return;
   }
+  const enableMultimodal = document.getElementById("enableMultimodal").checked;
 
   document.getElementById("setup").setAttribute("hidden", "true");
   document.getElementById("auditView").removeAttribute("hidden");
   document.getElementById("statusArea").removeAttribute("hidden");
   document.getElementById("completeView").setAttribute("hidden", "true");
+
+  // SHOW WARNING if multimodal is on
+  if (enableMultimodal) {
+    document.getElementById("focusWarning").removeAttribute("hidden");
+  } else {
+    document.getElementById("focusWarning").setAttribute("hidden", "true");
+  }
 
   const progressBar = document.getElementById("auditProgress");
   progressBar.value = 0;
@@ -164,7 +153,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
 
-      // WAIT FOR LOAD
       try {
         const loadPromise = waitForTabLoad(tab.id);
         await chrome.tabs.update(tab.id, { url: url });
@@ -174,28 +162,18 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         auditResults.push({
           url,
           verdict: "ERROR",
-          reason: "Page failed to load (404 or Server Down).",
+          reason: "Page failed to load.",
           pageTitle: "Load Error",
         });
         continue;
       }
 
       log(`Analyzing DOM...`);
-
-      // 1. Run Axe Core Audit
       log(`Running Axe Core...`);
       const axeResults = await runAxeAudit(tab.id);
-
       axeResults.forEach((r) => {
-        if (r.verdict === "FAIL") {
-          log(`[Axe: ${r.ruleId}] ❌ FAIL`);
-        }
-        if (r.verdict !== "INCOMPLETE") {
-          auditResults.push({
-            url,
-            ...r,
-          });
-        }
+        if (r.verdict === "FAIL") log(`[Axe: ${r.ruleId}] ❌ FAIL`);
+        auditResults.push({ url, ...r });
       });
       log(`✅ Axe Complete: ${axeResults.length} checks processed.`);
 
@@ -203,15 +181,12 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         (r) => r.verdict === "INCOMPLETE"
       );
 
-      // 2. Run Gemini Nano Audit
       log(`Running Gemini Nano...`);
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
-
         const relevantLeads = incompleteLeads.filter(
           (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
         );
-
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
@@ -220,9 +195,9 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             await new Promise((r) => setTimeout(r, 500));
           }
 
-          // Pass currentSafeList to the rule
           const result = await runAuditOnTab(tab.id, rule, targetSelectors, {
             safeList: currentSafeList,
+            enableMultimodal: enableMultimodal,
           });
 
           const statusIcon =
@@ -232,20 +207,14 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               ? "✅"
               : result.verdict === "INAPPLICABLE"
               ? "⚪"
+              : result.verdict === "CANNOT_TELL"
+              ? "❓"
               : "⚠️";
-
-          if (result.verdict === "INAPPLICABLE") {
-            // Downgraded to log to prevent console warnings
+          if (result.verdict === "INAPPLICABLE")
             console.log(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
-          }
-
           log(`[Nano: ${ruleId}] ${statusIcon} ${result.verdict}`);
 
-          auditResults.push({
-            url,
-            earlId: rule.earlId,
-            ...result,
-          });
+          auditResults.push({ url, earlId: rule.earlId, ...result });
         } catch (ruleErr) {
           console.error(ruleErr);
           log(`⚠️ Error [${ruleId}]: ${ruleErr.message}`);
@@ -257,48 +226,40 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             pageTitle: "Error",
           });
         } finally {
-          if (rule.teardown) {
-            await rule.teardown(tab.id);
-          }
+          if (rule.teardown) await rule.teardown(tab.id);
         }
       }
     } catch (err) {
       log(`⛔ Critical Error: ${err.message}`);
     }
   }
-
   finishAudit();
 });
 
 // 4. THE AI AUDITOR
 async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
   try {
-    // A. PRE-FLIGHT CHECK
+    const { enableMultimodal } = options;
+
     if (rule.relevantElements && rule.relevantElements.length > 0) {
       const checkResult = await chrome.scripting.executeScript({
         target: { tabId },
-        func: (selectors) => {
-          return selectors.some((s) => document.querySelector(s) !== null);
-        },
+        func: (selectors) =>
+          selectors.some((s) => document.querySelector(s) !== null),
         args: [rule.relevantElements],
       });
-
       if (checkResult && checkResult[0] && !checkResult[0].result) {
         return {
           verdict: "INAPPLICABLE",
-          reason: `No relevant elements (${rule.relevantElements.join(
-            ","
-          )}) found on page.`,
+          reason: `No relevant elements found.`,
           pageTitle: "N/A",
         };
       }
     }
 
-    // B. Inject Extractor
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
       func: rule.extractor,
-      // Pass both selectors AND options (safeList)
       args: [targetSelectors, options],
     });
 
@@ -313,8 +274,20 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
       };
     }
 
-    // C. AI API Detection
+    const isVisualRule = rule.id === "1.4.5" || rule.id === "1.4.1-images";
     const aiOrigin = window.LanguageModel;
+
+    // CHECK: Handle Multimodal Disabled
+    if (isVisualRule) {
+      if (!enableMultimodal || !aiOrigin) {
+        return {
+          verdict: "CANNOT_TELL",
+          reason:
+            "The images on this page were not evaluated because the multimodal ai features were disabled for this test run. please manually assess the images on the page for this criteria, or re-run the test with the multimodal features turned on",
+          pageTitle: domContext.pageTitle,
+        };
+      }
+    }
 
     if (!aiOrigin) {
       if (domContext.computedVerdict) {
@@ -326,15 +299,15 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
       }
       return {
         verdict: "INAPPLICABLE",
-        reason: "AI API missing (window.LanguageModel undefined).",
+        reason: "AI API missing.",
         pageTitle: domContext.pageTitle,
       };
     }
 
-    // --- D. MULTIMODAL LOGIC ---
-    if (rule.id === "1.4.5" && domContext.images) {
-      const screenshot = await getTabScreenshot();
+    // --- E. MULTIMODAL EXECUTION (SCROLL & SNAP) ---
+    if (isVisualRule && domContext.images) {
       const results = [];
+      let processedCount = 0;
       let session;
 
       try {
@@ -351,17 +324,105 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
       }
 
       for (const imgMeta of domContext.images) {
-        const imageBlob = await cropImage(screenshot, imgMeta.rect);
-        const imageBitmap = await createImageBitmap(imageBlob);
+        // THROTTLE: 2 Seconds to Avoid Rate Limit
+        await new Promise((r) => setTimeout(r, 2000));
 
+        let captureRect = imgMeta.rect;
+        let viewportWidth = 0;
+
+        if (imgMeta.selector) {
+          try {
+            const scrollResult = await chrome.scripting.executeScript({
+              target: { tabId },
+              func: (selector) => {
+                const el = document.querySelector(selector);
+                if (!el) return null;
+                el.scrollIntoView({ behavior: "instant", block: "center" });
+
+                const r = el.getBoundingClientRect();
+                return {
+                  rect: {
+                    x: r.x,
+                    y: r.y,
+                    width: r.width,
+                    height: r.height,
+                    top: r.top,
+                    left: r.left,
+                  },
+                  windowWidth: window.innerWidth,
+                };
+              },
+              args: [imgMeta.selector],
+            });
+
+            if (scrollResult && scrollResult[0] && scrollResult[0].result) {
+              captureRect = scrollResult[0].result.rect;
+              viewportWidth = scrollResult[0].result.windowWidth;
+              // Wait for painting/rendering
+              await new Promise((r) => setTimeout(r, 500));
+            } else {
+              continue; // Scroll failed
+            }
+          } catch (e) {
+            console.warn("Scroll failed:", e);
+            continue;
+          }
+        }
+
+        // VALIDATION
+        if (
+          !captureRect ||
+          typeof captureRect.width !== "number" ||
+          captureRect.width <= 0 ||
+          captureRect.height <= 0
+        ) {
+          console.warn(`Nano A11y: Skipped 0-size image: ${imgMeta.alt}`);
+          continue;
+        }
+
+        // 3. CAPTURE & SCALE
         try {
-          const promptText = `
-SYSTEM INSTRUCTIONS:
-${rule.systemPrompt}
+          // FORCE FOCUS
+          await chrome.windows.update(await getWindowId(tabId), {
+            focused: true,
+          });
+          await chrome.tabs.update(tabId, { active: true });
+          await new Promise((r) => setTimeout(r, 100));
 
-USER REQUEST:
-Analyze this image. Alt text provided: "${imgMeta.alt}"
-`;
+          const screenshot = await getTabScreenshot();
+
+          if (!screenshot || screenshot.width === 0) {
+            console.warn("Screenshot capture failed (empty).");
+            continue;
+          }
+
+          // DPI SCALING
+          let scaledRect = captureRect;
+          if (viewportWidth > 0 && screenshot.width > 0) {
+            const zoomFactor = screenshot.width / viewportWidth;
+            if (Math.abs(zoomFactor - 1) > 0.05) {
+              scaledRect = {
+                x: captureRect.x * zoomFactor,
+                y: captureRect.y * zoomFactor,
+                width: captureRect.width * zoomFactor,
+                height: captureRect.height * zoomFactor,
+              };
+            }
+          }
+
+          const imageBlob = await cropImage(screenshot, scaledRect);
+
+          if (!imageBlob) {
+            console.warn(
+              `Nano A11y: Failed to create blob for: ${imgMeta.alt}`
+            );
+            continue;
+          }
+
+          const imageBitmap = await createImageBitmap(imageBlob);
+          processedCount++;
+
+          const promptText = `\nSYSTEM INSTRUCTIONS:\n${rule.systemPrompt}\n\nUSER REQUEST:\nAnalyze this image. Alt text provided: "${imgMeta.alt}"\n`;
           const responseString = await session.prompt([
             {
               role: "user",
@@ -371,56 +432,76 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
               ],
             },
           ]);
-
           const result = parseAIResponse(responseString);
-
-          if (result.verdict === "FAIL") {
+          if (result.verdict === "FAIL" || result.verdict === "CANNOT_TELL") {
             results.push(
               `- Image (${imgMeta.src.substring(0, 30)}...): ${result.reason}`
             );
           }
         } catch (e) {
-          console.error("AI Processing Error:", e);
+          console.error(`Capture/AI Error for ${imgMeta.alt}:`, e);
+          results.push(
+            `- Image (${imgMeta.alt}): Technical Error (Screenshot Failed). Please verify manually.`
+          );
         }
       }
-
       session.destroy();
 
-      if (results.length > 0) {
+      if (processedCount === 0 && domContext.images.length > 0) {
         return {
-          verdict: "FAIL",
-          reason: "Images of Text detected:\n" + results.join("\n"),
+          verdict: "CANNOT_TELL",
+          reason:
+            "Technical Error: Visual analysis failed for all detected images (screenshot/blob errors).",
+          pageTitle: domContext.pageTitle,
+        };
+      }
+
+      const hasErrors = results.some((r) => r.includes("Technical Error"));
+
+      if (results.length > 0) {
+        const prefix =
+          rule.id === "1.4.5"
+            ? "Images of Text detected"
+            : "Visual reliance on color detected";
+        const verdict = hasErrors ? "CANNOT_TELL" : "FAIL";
+
+        return {
+          verdict: verdict,
+          reason: `${prefix}:\n` + results.join("\n"),
           pageTitle: domContext.pageTitle,
         };
       } else {
+        const passReason =
+          rule.id === "1.4.5"
+            ? "No images of text found."
+            : "No color-only charts or diagrams detected.";
         return {
           verdict: "PASS",
-          reason: "No images of text found.",
+          reason: passReason,
           pageTitle: domContext.pageTitle,
         };
       }
     }
 
-    // --- E. STANDARD TEXT-ONLY LOGIC ---
+    // --- F. STANDARD TEXT-ONLY LOGIC ---
     const session = await aiOrigin.create({
       initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
-
     const resultString = await session.prompt(JSON.stringify(domContext));
     const result = parseAIResponse(resultString);
     session.destroy();
-
-    return {
-      ...result,
-      pageTitle: domContext.pageTitle,
-    };
+    return { ...result, pageTitle: domContext.pageTitle };
   } catch (err) {
     throw err;
   }
 }
 
 // --- UTILS ---
+async function getWindowId(tabId) {
+  const tab = await chrome.tabs.get(tabId);
+  return tab.windowId;
+}
 
 async function getTabScreenshot() {
   const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
@@ -432,15 +513,21 @@ async function getTabScreenshot() {
 }
 
 async function cropImage(sourceImage, rect) {
+  // Prevent zero-size or negative dimensions
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
   const canvas = document.createElement("canvas");
   canvas.width = rect.width;
   canvas.height = rect.height;
   const ctx = canvas.getContext("2d");
 
+  const sx = Math.max(0, rect.x);
+  const sy = Math.max(0, rect.y);
+
   ctx.drawImage(
     sourceImage,
-    rect.x,
-    rect.y,
+    sx,
+    sy,
     rect.width,
     rect.height,
     0,
@@ -448,7 +535,6 @@ async function cropImage(sourceImage, rect) {
     rect.width,
     rect.height
   );
-
   return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
 
@@ -501,7 +587,6 @@ function finishAudit() {
     includePassed: document.getElementById("includePassed").checked,
     includeNotPresent: document.getElementById("includeNotPresent").checked,
   };
-
   const earlReport = generateEarlReport(auditResults, reportOptions);
   const jsonString = JSON.stringify(earlReport, null, 2);
   const blob = new Blob([jsonString], { type: "application/json" });
@@ -510,24 +595,19 @@ function finishAudit() {
   chrome.downloads.download(
     { url: url, filename: "nano-audit-report.json" },
     (downloadId) => {
-      if (chrome.runtime.lastError) {
+      if (chrome.runtime.lastError)
         log(`⚠️ Download failed: ${chrome.runtime.lastError.message}`);
-      } else {
-        log(`⬇️ Report downloaded (ID: ${downloadId})`);
-      }
+      else log(`⬇️ Report downloaded (ID: ${downloadId})`);
     }
   );
 
   document.getElementById("statusArea").setAttribute("hidden", "true");
   document.getElementById("completeView").removeAttribute("hidden");
+  document.getElementById("focusWarning").setAttribute("hidden", "true"); // HIDE WARNING
 
   document.getElementById("downloadBtn").onclick = () => {
-    chrome.downloads.download({
-      url: url,
-      filename: "nano-audit-report.json",
-    });
+    chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
   };
-
   log("✨ Audit Complete.");
 
   const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
@@ -536,15 +616,11 @@ function finishAudit() {
       log("🚀 Injecting report into W3C Tool...");
       chrome.scripting.executeScript(
         { target: { tabId }, func: injectReportFunction, args: [earlReport] },
-        () => {
-          log("✅ Report injection script started.");
-        }
+        () => log("✅ Report injection script started.")
       );
     };
-
-    if (tab.status === "complete") {
-      inject(tab.id);
-    } else {
+    if (tab.status === "complete") inject(tab.id);
+    else {
       const listener = (tabId, changeInfo) => {
         if (tabId === tab.id && changeInfo.status === "complete") {
           chrome.tabs.onUpdated.removeListener(listener);

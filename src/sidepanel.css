@@ -11,7 +11,7 @@ body {
     font-size: 16px;
 }
 
-header {
+#appHeader {
     position: fixed;
     background: var(--pico-background-color);
     border-bottom: solid var(--pico-primary-border) 2px;
@@ -20,13 +20,18 @@ header {
     width: 100%;
 }
 
-header h2 {
+
+#appHeader h2 {
     padding-left: 3rem;
     margin-bottom: 0;
 }
 
 progress {
     margin: 10px;
+}
+
+label {
+    font-size: 1rem;
 }
 
 .flex {
@@ -79,8 +84,21 @@ progress {
     border: 1px solid var(--pico-card-border-color);
 }
 
-#settingsModal>article {
-    margin-top: 3rem;
+
+.warning-box {
+
+    background-color: var(--pico-card-background-color);
+    color: var(--pico-color);
+    border: 1px solid var(--pico-card-border-color);
+
+
+    padding: 1rem;
+    border-radius: var(--pico-border-radius);
+    margin-bottom: 1.5rem;
+
+
+    border-left: 5px solid var(--pico-primary-border);
+    box-shadow: var(--pico-card-box-shadow);
 }
 
 #settingsModal article>header {
@@ -88,10 +106,4 @@ progress {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    width: calc(100% - var(--pico-spacing) - var(--pico-spacing));
-    margin: var(--pico-spacing);
-}
-
-#settingsModal article>header * {
-    margin: 1rem 2rem;
 }

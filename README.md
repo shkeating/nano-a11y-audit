@@ -169,6 +169,26 @@ This extension relies on experimental browser features. It **will not work** in 
 
 ---
 
+## Important Usage Notes
+
+### Window Focus Required
+
+For multimodal checks (e.g., **1.4.1 Use of Color**, **1.4.5 Images of Text**), the extension must take screenshots of the page.
+
+- **Keep the browser window in focus** during the audit.
+- Do not minimize the window or switch tabs while the audit is running.
+- Chrome's `captureVisibleTab` API returns empty data if the tab is not being actively painted.
+
+### High-DPI / Retina Displays
+
+The tool automatically detects your device's pixel ratio to ensure screenshots are cropped correctly. No manual configuration is needed for 4K or Retina displays.
+
+### Performance Throttling
+
+To comply with Chrome's API quotas, image-based checks are automatically throttled (approx. 2 seconds per image). If your page has many charts or icons, the audit may take slightly longer.
+
+--
+
 ## Installation
 
 1.  **Clone the repository:**

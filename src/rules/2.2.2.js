@@ -7,18 +7,17 @@ Task: Evaluate moving, blinking, or scrolling content.
 
 **CRITERIA**
 1. **Duration:** Content that moves/blinks for more than **5 seconds** automatically must have a user control.
-2. **Suspicious Elements:** Elements with IDs/Classes like "blink" or "marquee" usually indicate script-based movement and should be flagged for manual review.
+2. **Suspicious Elements:** Elements with IDs/Classes like "blink" or "marquee" usually indicate script-based movement.
 
-**INSTRUCTIONS**
-- Review the 'movingElements' list.
-- **Verdict:** If the list is empty, PASS. If items exist, FAIL.
-- **Reasoning:** You MUST list **EVERY** item found in the input. Do not summarize or skip items.
-- Use a bulleted list format: "- [Type] on [Element]: [Details]"
+**VERDICT DETERMINATION**
+- **PASS:** If the 'movingElements' list is empty.
+- **CANNOT_TELL:** If items are found in the list.
+  *Rationale:* You can detect *potential* movement, but you cannot programmatically verify if the user has a mechanism to pause/stop it. A human must check this.
 
 **OUTPUT FORMAT**
 Return a JSON object:
-- If violations: {"verdict": "FAIL", "reason": "Moving content found without pause controls:\\n- [Item 1]\\n- [Item 2]..."}
-- If no violations: {"verdict": "PASS", "reason": "No moving content violations found."}
+- If potential issues found: {"verdict": "CANNOT_TELL", "reason": "Moving content detected. Manual verification required to ensure pause/stop controls exist:\\n- [Item 1]\\n- [Item 2]..."}
+- If no issues: {"verdict": "PASS", "reason": "No moving content violations found."}
 `;
 
 export function extractor() {

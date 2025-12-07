@@ -1,6 +1,14 @@
 export const id = "1.4.1";
 export const earlId = "WCAG22:use-of-color";
-export const relevantElements = ["a", "button", "input", "select", "textarea"];
+export const relevantElements = [
+  "a",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "[aria-current]",
+  "[aria-selected]",
+];
 
 export const systemPrompt = `
 You are a violation reporter.
@@ -19,6 +27,10 @@ Task: Format the input JSON data into a simple bulleted list.
   Write: "Form fields relying on color were found:\\n"
   Then list items using the 'text' field (Format: "- [text]\\n").
 
+- **If 'stateElements' has items:**
+  Write: "Active/Selected states relying on color were found (G14 Check):\\n"
+  Then list items using the 'text' and 'issue' fields.
+
 - **If 'textFragments' has items:**
   Write: "Text content relying on color was found:\\n"
   Then list items using the 'text' field (Format: "- [text]\\n").
@@ -29,7 +41,7 @@ Task: Format the input JSON data into a simple bulleted list.
 `;
 
 export function extractor(incompleteSelectors = []) {
-  // --- HELPERS (Restored) ---
+  // --- HELPERS ---
   function parseRgb(colorStr) {
     const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
     return match
@@ -56,33 +68,75 @@ export function extractor(incompleteSelectors = []) {
     return (lighter + 0.05) / (darker + 0.05);
   }
 
-  function hasValidHoverStyle(element) {
-    let hasCue = false;
+  /**
+   * Checks if an element has a non-color visual cue (underline, border, bold, outline)
+   * on BOTH :hover AND :focus states.
+   */
+  function hasValidVisualCues(element) {
+    const states = [":hover", ":focus"];
+    let hasHoverCue = false;
+    let hasFocusCue = false;
+
+    // Check for browser default outline on focus (if not overridden)
+    if (element.style.outline !== "none" && element.style.outline !== "0px") {
+      // We assume default focus ring exists unless we find a rule removing it
+      hasFocusCue = true;
+    }
+
     for (const sheet of document.styleSheets) {
       try {
         const rules = sheet.cssRules || sheet.rules;
         if (!rules) continue;
         for (const rule of rules) {
-          if (!rule.selectorText || !rule.selectorText.includes(":hover"))
-            continue;
-          const selectors = rule.selectorText.split(",");
-          for (const sel of selectors) {
-            if (!sel.includes(":hover")) continue;
-            const baseSel = sel.replace(/:hover/g, "").trim();
-            if (baseSel === "" || baseSel === "a" || element.matches(baseSel)) {
-              const s = rule.style;
-              if (
-                s.textDecorationLine?.includes("underline") ||
-                s.textDecoration?.includes("underline") ||
-                (s.borderBottomStyle && s.borderBottomStyle !== "none")
-              ) {
-                hasCue = true;
-              } else if (
-                (s.textDecorationLine?.includes("none") ||
-                  s.textDecoration === "none") &&
-                (s.borderBottomStyle === "none" || !s.borderBottomStyle)
-              ) {
-                hasCue = false;
+          if (!rule.selectorText) continue;
+
+          // Check for Hover/Focus rules matching this element
+          for (const state of states) {
+            if (!rule.selectorText.includes(state)) continue;
+
+            const selectors = rule.selectorText.split(",");
+            for (const sel of selectors) {
+              if (!sel.includes(state)) continue;
+
+              // Strip pseudo-class to test if the base selector matches our element
+              const baseSel = sel.replace(state, "").trim();
+              let matches = false;
+              try {
+                if (
+                  baseSel === "" ||
+                  baseSel === "a" ||
+                  element.matches(baseSel)
+                ) {
+                  matches = true;
+                }
+              } catch (e) {}
+
+              if (matches) {
+                const s = rule.style;
+                // Check for "Valid" Cues (Decoration, Border, Outline, Bold)
+                const hasCue =
+                  (s.textDecorationLine &&
+                    s.textDecorationLine.includes("underline")) ||
+                  (s.textDecoration &&
+                    s.textDecoration.includes("underline")) ||
+                  (s.borderBottomStyle && s.borderBottomStyle !== "none") ||
+                  (s.borderStyle && s.borderStyle !== "none") ||
+                  (s.outlineStyle && s.outlineStyle !== "none") ||
+                  (s.fontWeight &&
+                    (s.fontWeight === "bold" || parseInt(s.fontWeight) >= 700));
+
+                if (hasCue) {
+                  if (state === ":hover") hasHoverCue = true;
+                  if (state === ":focus") hasFocusCue = true;
+                }
+
+                // Check if they explicitly REMOVED the default focus ring
+                if (
+                  state === ":focus" &&
+                  (s.outline === "none" || s.outlineWidth === "0px")
+                ) {
+                  hasFocusCue = false; // Reset unless they added something else
+                }
               }
             }
           }
@@ -91,10 +145,11 @@ export function extractor(incompleteSelectors = []) {
         continue;
       }
     }
-    return hasCue;
+    // G183 requires cues on BOTH hover and focus
+    return hasHoverCue && hasFocusCue;
   }
 
-  // --- 1. LINK LOGIC ---
+  // --- 1. LINK LOGIC (G183) ---
   const failingLinks = [];
   let linksToCheck = [];
 
@@ -120,7 +175,7 @@ export function extractor(incompleteSelectors = []) {
       (s.borderBottomStyle !== "none" && parseFloat(s.borderBottomWidth) > 0);
     const hasBold = parseInt(s.fontWeight) >= 700 || s.fontWeight === "bold";
 
-    if (hasStaticCue) continue;
+    if (hasStaticCue) continue; // Pass if underlined by default
 
     const ratio = getContrastRatio(
       s.color,
@@ -133,19 +188,20 @@ export function extractor(incompleteSelectors = []) {
           text: link.innerText.substring(0, 40),
           issue: `Contrast ${ratio.toFixed(2)}:1 is too low (<3:1).`,
         });
-      } else if (!hasBold && !hasValidHoverStyle(link)) {
+      } else if (!hasBold && !hasValidVisualCues(link)) {
+        // Updated to check BOTH hover and focus
         failingLinks.push({
           text: link.innerText.substring(0, 40),
           issue: `Contrast OK (${ratio.toFixed(
             2
-          )}:1) but missing visual cue on hover.`,
+          )}:1) but missing visual cue on Hover or Focus.`,
         });
       }
     }
     if (failingLinks.length >= 5) break;
   }
 
-  // --- 2. FORM LOGIC ---
+  // --- 2. FORM LOGIC (G14/F81) ---
   function hasVisualIndicator(el, label) {
     const text = label ? label.innerText.toLowerCase() : "";
     return (
@@ -189,7 +245,44 @@ export function extractor(incompleteSelectors = []) {
     if (failingForms.length >= 5) break;
   }
 
-  // --- 3. TEXT FRAGMENTS ---
+  // --- 3. STATE INDICATORS (G14 - Active/Selected States) ---
+  const failingStates = [];
+  const stateElements = document.querySelectorAll(
+    "[aria-current], [aria-selected='true']"
+  );
+
+  for (const el of stateElements) {
+    if (el.offsetParent === null) continue;
+
+    // Ignore if explicitly set to false/null
+    if (el.getAttribute("aria-current") === "false") continue;
+
+    const s = window.getComputedStyle(el);
+    const hasShapeCue =
+      (s.textDecorationLine && s.textDecorationLine.includes("underline")) ||
+      (s.borderStyle && s.borderStyle !== "none") ||
+      (s.outlineStyle && s.outlineStyle !== "none") ||
+      parseInt(s.fontWeight) >= 700 ||
+      s.fontWeight === "bold";
+
+    // Check for icons in pseudo-elements
+    const beforeContent = window.getComputedStyle(el, "::before").content;
+    const afterContent = window.getComputedStyle(el, "::after").content;
+    const hasIcon =
+      (beforeContent && beforeContent !== "none") ||
+      (afterContent && afterContent !== "none");
+
+    if (!hasShapeCue && !hasIcon) {
+      failingStates.push({
+        text: el.innerText.substring(0, 30) || el.tagName,
+        issue:
+          "Selected state relies only on color (missing bold, underline, or icon).",
+      });
+    }
+    if (failingStates.length >= 5) break;
+  }
+
+  // --- 4. TEXT FRAGMENTS (G182) ---
   function hasOnlyColorDifference(element, parent) {
     const s1 = window.getComputedStyle(element);
     const s2 = window.getComputedStyle(parent);
@@ -226,7 +319,9 @@ export function extractor(incompleteSelectors = []) {
   const hasFailures =
     failingLinks.length > 0 ||
     failingForms.length > 0 ||
+    failingStates.length > 0 ||
     failingFragments.length > 0;
+
   const result = {
     pageTitle: document.title,
     computedVerdict: hasFailures ? "FAIL" : "PASS",
@@ -234,6 +329,7 @@ export function extractor(incompleteSelectors = []) {
 
   if (failingLinks.length > 0) result.links = failingLinks;
   if (failingForms.length > 0) result.formElements = failingForms;
+  if (failingStates.length > 0) result.stateElements = failingStates;
   if (failingFragments.length > 0) result.textFragments = failingFragments;
 
   return result;

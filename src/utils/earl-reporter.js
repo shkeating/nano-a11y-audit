@@ -3,8 +3,6 @@
  * Handles the generation of the W3C EARL (Evaluation and Report Language) JSON-LD reports.
  */
 
-// We keep this list as a baseline for "Untested" assertions (so the report isn't empty).
-// But we will MERGE this with actual results to ensure we cover everything.
 const BASELINE_IDS = [
   "WCAG22:non-text-content",
   "WCAG22:audio-only-and-video-only-prerecorded",
@@ -129,31 +127,47 @@ export function generateEarlReport(auditResults, options = {}) {
 
       // --- AGGREGATE WEBSITE ASSERTION ---
       const anyFailures = relevantResults.some((r) => r.verdict === "FAIL");
+      // NEW: Check for Cannot Tell
+      const anyCannotTell = relevantResults.some(
+        (r) => r.verdict === "CANNOT_TELL"
+      );
       const onlyInapplicable = relevantResults.every(
         (r) => r.verdict === "INAPPLICABLE"
       );
 
       let aggregateOutcome;
+      let aggregateDescription = "";
+
       if (anyFailures) {
         aggregateOutcome = {
           id: "earl:failed",
           type: ["OutcomeValue", "Fail"],
           title: "Failed",
         };
+        aggregateDescription = "Issues were found in the sample.";
+      } else if (anyCannotTell) {
+        // NEW: Prioritize Cannot Tell over Pass, but under Fail
+        aggregateOutcome = {
+          id: "earl:cantTell",
+          type: ["OutcomeValue", "CannotTell"],
+          title: "Cannot Tell",
+        };
+        aggregateDescription =
+          "Some checks could not be completed automatically.";
       } else if (onlyInapplicable) {
-        if (!includeNotPresent) return; // Skip if filtered out
         aggregateOutcome = {
           id: "earl:inapplicable",
           type: ["OutcomeValue", "NotApplicable"],
           title: "Not Present",
         };
+        if (includeNotPresent) aggregateDescription = "Not Present";
       } else {
-        if (!includePassed) return; // Skip if filtered out
         aggregateOutcome = {
           id: "earl:passed",
           type: ["OutcomeValue", "Pass"],
           title: "Passed",
         };
+        if (includePassed) aggregateDescription = "Passed";
       }
 
       allAssertions.push({
@@ -163,9 +177,7 @@ export function generateEarlReport(auditResults, options = {}) {
         result: {
           type: "TestResult",
           date: date,
-          description: anyFailures
-            ? "Issues were found in the sample."
-            : "No issues found in the sample.",
+          description: aggregateDescription,
           outcome: aggregateOutcome,
         },
         subject: {
@@ -185,42 +197,69 @@ export function generateEarlReport(auditResults, options = {}) {
 
       for (const [url, pageResults] of Object.entries(resultsByUrl)) {
         const isFailure = pageResults.some((r) => r.verdict === "FAIL");
+        // NEW: Check per-page Cannot Tell
+        const isCannotTell = pageResults.some(
+          (r) => r.verdict === "CANNOT_TELL"
+        );
         const isInapplicable = pageResults.every(
           (r) => r.verdict === "INAPPLICABLE"
         );
 
         let outcomeObj;
+        let pageDescription = "";
+
         if (isFailure) {
           outcomeObj = {
             id: "earl:failed",
             type: ["OutcomeValue", "Fail"],
             title: "Failed",
           };
+          pageDescription = pageResults
+            .filter((r) => r.verdict === "FAIL")
+            .map((r) => {
+              const prefix = r.source ? `[${r.source}] ` : "";
+              const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
+              return `${prefix}${r.reason}${ruleSuffix}`;
+            })
+            .join("\n\n");
+        } else if (isCannotTell) {
+          // NEW: Handle Cannot Tell
+          outcomeObj = {
+            id: "earl:cantTell",
+            type: ["OutcomeValue", "CannotTell"],
+            title: "Cannot Tell",
+          };
+          // Include the "Cannot Tell" reasons (like the multimodal warning)
+          pageDescription = pageResults
+            .filter((r) => r.verdict === "CANNOT_TELL")
+            .map((r) => {
+              const prefix = r.source ? `[${r.source}] ` : "";
+              return `${prefix}${r.reason}`;
+            })
+            .join("\n\n");
         } else if (isInapplicable) {
           outcomeObj = {
             id: "earl:inapplicable",
             type: ["OutcomeValue", "NotApplicable"],
             title: "Not Present",
           };
+          if (includeNotPresent) pageDescription = "Not Present";
         } else {
           outcomeObj = {
             id: "earl:passed",
             type: ["OutcomeValue", "Pass"],
             title: "Passed",
           };
+          if (includePassed) {
+            pageDescription = pageResults
+              .map((r) => {
+                const prefix = r.source ? `[${r.source}] ` : "";
+                const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
+                return `${prefix}${r.reason}${ruleSuffix}`;
+              })
+              .join("\n\n");
+          }
         }
-
-        const itemsToDescribe = isFailure
-          ? pageResults.filter((r) => r.verdict === "FAIL")
-          : pageResults;
-
-        const combinedDescription = itemsToDescribe
-          .map((r) => {
-            const prefix = r.source ? `[${r.source}] ` : "";
-            const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
-            return `${prefix}${r.reason}${ruleSuffix}`;
-          })
-          .join("\n\n");
 
         allAssertions.push({
           type: "Assertion",
@@ -229,7 +268,7 @@ export function generateEarlReport(auditResults, options = {}) {
           result: {
             type: "TestResult",
             date: date,
-            description: combinedDescription,
+            description: pageDescription,
             outcome: outcomeObj,
           },
           subject: { id: urlToIdMap[url] },
@@ -238,7 +277,7 @@ export function generateEarlReport(auditResults, options = {}) {
       }
     }
 
-    // --- UNTESTED ASSERTION (If no results found for this ID) ---
+    // --- UNTESTED ASSERTION ---
     if (!hasResult) {
       allAssertions.push({
         type: "Assertion",

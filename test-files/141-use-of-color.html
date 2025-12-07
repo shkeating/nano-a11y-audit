@@ -4,58 +4,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SC 1.4.1 | Accessibility Test Lab</title>
+    <title>Conference Registration | 2025 Tech Summit</title>
     <style>
-        .bad-link {
-            color: #2e2eff;
-            text-decoration: none;
-            border: none;
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
         }
 
-        .low-contrast-link {
+        h1,
+        h2 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        /* --- NAVIGATION (State Tests) --- */
+        .nav-tabs {
+            display: flex;
+            list-style: none;
+            padding: 0;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 30px;
+        }
+
+        .nav-tabs li {
+            margin-right: 5px;
+        }
+
+        .nav-tabs a {
+            text-decoration: none;
+            padding: 10px 20px;
+            display: block;
+            border-radius: 5px 5px 0 0;
             color: #555;
+            background: #f9f9f9;
+        }
+
+        /* VIOLATION: Current state indicated ONLY by color (Blue background) */
+        /* Missing: Bold text, bottom border, or icon */
+        .nav-tabs a[aria-current="page"] {
+            background-color: #007bff;
+            color: white;
+        }
+
+        /* --- CONTENT LINKS (Link Tests) --- */
+        /* VIOLATION: Links are color-only (no underline). 
+           Contrast is 4.5:1 (Blue #0066cc vs White), so it passes contrast.
+           But it FAILS 1.4.1 because it has no non-color cue (underline) on the page. 
+           It also lacks a focus ring cue in some browsers if reset. */
+        .content-link {
+            color: #0066cc;
             text-decoration: none;
+            font-weight: normal;
         }
 
-        /* Against #000 text */
-        .error-field {
-            border: 2px solid red;
-            padding: 5px;
+        /* On hover, it only changes color (Still a violation for color-blind users) */
+        .content-link:hover {
+            color: #004499;
+            cursor: pointer;
         }
 
-        .good-link {
-            color: blue;
-            text-decoration: underline;
+        /* --- FORM STYLES (Form Tests) --- */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        /* VIOLATION: Required fields indicated ONLY by red label text */
+        .req-color-only {
+            color: #d9534f;
+        }
+
+        /* VIOLATION: Error state indicated ONLY by red border */
+        .field-error {
+            border-color: red !important;
+        }
+
+        /* PASSING: Uses text */
+        .req-text::after {
+            content: " *";
+            color: #d9534f;
+        }
+
+        /* --- STATUS TEXT (Text Fragment Test) --- */
+        .schedule-grid div {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* VIOLATION: Status conveyed only by text color */
+        .status-cancelled {
+            color: #dc3545;
+            /* Red means cancelled */
+        }
+
+        .status-confirmed {
+            color: #28a745;
+            /* Green means confirmed */
         }
     </style>
 </head>
 
 <body>
-    <section>
-        <h1>SC 1.4.1 Failures: Use of Color</h1>
+    <header>
+        <h1>2025 Tech Summit</h1>
+    </header>
 
-        <div class="test-case" data-rule="1.4.1" data-failure="G183">
-            <h3>Link: Color Only (No Underline)</h3>
-            <p>This paragraph contains a <a href="#" class="bad-link">hidden link</a> that looks like text.</p>
-        </div>
+    <nav>
+        <ul class="nav-tabs">
+            <li><a href="#">Home</a></li>
+            <li><a href="#">Speakers</a></li>
+            <li><a href="#" aria-current="page">Register</a></li>
+            <li><a href="#">Contact</a></li>
+        </ul>
+    </nav>
 
-        <div class="test-case" data-rule="1.4.1" data-failure="Contrast">
-            <h3>Link: Low Contrast & No Underline</h3>
-            <p style="color: black;">Text vs <a href="#" class="low-contrast-link">Low Contrast Link</a>.</p>
-        </div>
+    <main>
+        <section>
+            <h2>Event Details</h2>
 
-        <div class="test-case" data-rule="1.4.1" data-failure="Form Error">
-            <h3>Form: Error indicated by Color Only</h3>
-            <label for="email">Email Address</label>
-            <input type="text" id="email" class="error-field" value="invalid-email" />
-            <p>Errors are marked with red borders.</p>
-        </div>
+            <p>
+                Join us for three days of innovation. You can <a href="#" class="content-link">download the agenda</a>
+                or view the <a href="#" class="content-link">speaker bios</a> online.
+                Our keynote will cover the future of AI in accessibility.
+            </p>
 
-        <div class="test-case" data-rule="1.4.1" data-failure="None">
-            <h3>Passing Example</h3>
-            <p>This is a <a href="#" class="good-link">standard link</a> with an underline.</p>
-        </div>
-    </section>
+            <div class="schedule-grid">
+                <div><strong>Session 1:</strong> Introduction to WCAG <span class="status-confirmed">Confirmed</span>
+                </div>
+                <div><strong>Session 2:</strong> Advanced ARIA Patterns <span class="status-cancelled">Cancelled</span>
+                </div>
+                <div><strong>Session 3:</strong> Automated Testing <span class="status-confirmed">Confirmed</span></div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Registration Form</h2>
+            <p>Please complete the details below.</p>
+
+            <form action="#">
+
+                <div class="form-group">
+                    <label for="name" class="req-color-only">Full Name</label>
+                    <input type="text" id="name" name="name">
+                </div>
+
+                <div class="form-group">
+                    <label for="email" class="req-text">Email Address</label>
+                    <input type="email" id="email" name="email">
+                </div>
+
+                <div class="form-group">
+                    <label for="company">Company</label>
+                    <input type="text" id="company" name="company" class="field-error" value="Invalid Input"
+                        aria-invalid="true">
+                </div>
+
+                <button type="submit"
+                    style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px;">
+                    Submit Registration
+                </button>
+            </form>
+        </section>
+    </main>
 </body>
 
 </html>
