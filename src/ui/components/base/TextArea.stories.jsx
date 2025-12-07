@@ -10,9 +10,6 @@ export default {
     value: { control: "text" },
     rows: { control: "number" },
   },
-  args: {
-    onInput: fn(),
-  },
 };
 
 export const Default = {

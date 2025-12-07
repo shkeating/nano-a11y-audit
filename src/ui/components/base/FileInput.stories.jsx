@@ -8,9 +8,6 @@ export default {
     label: { control: "text" },
     accept: { control: "text" },
   },
-  args: {
-    onChange: fn(),
-  },
 };
 
 export const Default = {

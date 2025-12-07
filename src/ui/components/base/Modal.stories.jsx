@@ -9,9 +9,6 @@ export default {
     isOpen: { control: "boolean" },
     title: { control: "text" },
   },
-  args: {
-    onClose: fn(),
-  },
 };
 
 export const Default = {
