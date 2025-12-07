@@ -43,6 +43,8 @@ let auditResults = [];
 let currentSafeList = [...DEFAULT_SAFE_TERMS];
 
 // --- 1. SETTINGS MANAGEMENT ---
+
+// Load Settings on Init
 chrome.storage.local.get(["safeList"], (result) => {
   if (result.safeList) {
     currentSafeList = result.safeList;
@@ -51,22 +53,45 @@ chrome.storage.local.get(["safeList"], (result) => {
   if (input) input.value = currentSafeList.join(", ");
 });
 
+// Modal Logic (CSP Compliant)
 const modal = document.getElementById("settingsModal");
 const openBtn = document.getElementById("openSettingsBtn");
 const closeX = document.getElementById("modalCloseX");
 const cancelBtn = document.getElementById("modalCancelBtn");
 const saveBtn = document.getElementById("saveSettingsBtn");
 
-if (openBtn) openBtn.addEventListener("click", () => modal.showModal());
-const closeModal = () => modal.close();
-if (closeX) closeX.addEventListener("click", closeModal);
-if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
-if (modal)
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) closeModal();
+// OPEN
+if (openBtn) {
+  openBtn.addEventListener("click", () => {
+    if (modal) modal.showModal();
   });
+}
 
-if (saveBtn)
+// CLOSE (X Button)
+if (closeX) {
+  closeX.addEventListener("click", () => {
+    if (modal) modal.close();
+  });
+}
+
+// CLOSE (Cancel Button)
+if (cancelBtn) {
+  cancelBtn.addEventListener("click", () => {
+    if (modal) modal.close();
+  });
+}
+
+// CLOSE (Clicking Overlay/Outside)
+if (modal) {
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      modal.close();
+    }
+  });
+}
+
+// SAVE
+if (saveBtn) {
   saveBtn.addEventListener("click", () => {
     const input = document.getElementById("safeListInput");
     const raw = input.value;
@@ -77,10 +102,11 @@ if (saveBtn)
 
     chrome.storage.local.set({ safeList: newList }, () => {
       currentSafeList = newList;
-      modal.close();
+      if (modal) modal.close();
       console.log("Settings saved:", currentSafeList);
     });
   });
+}
 
 // --- HELPER: ROBUST JSON PARSER ---
 function parseAIResponse(responseString) {
@@ -129,6 +155,8 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     alert("Please upload a valid CSV file before starting.");
     return;
   }
+  // CAPTURE SETTINGS
+  const enableMultimodal = document.getElementById("enableMultimodal").checked;
 
   document.getElementById("setup").setAttribute("hidden", "true");
   document.getElementById("auditView").removeAttribute("hidden");
@@ -150,6 +178,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
 
+      // WAIT FOR LOAD
       try {
         const loadPromise = waitForTabLoad(tab.id);
         await chrome.tabs.update(tab.id, { url: url });
@@ -167,6 +196,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 
       log(`Analyzing DOM...`);
 
+      // 1. Run Axe Core Audit
       log(`Running Axe Core...`);
       const axeResults = await runAxeAudit(tab.id);
 
@@ -174,11 +204,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         if (r.verdict === "FAIL") {
           log(`[Axe: ${r.ruleId}] ❌ FAIL`);
         }
-        // MODIFICATION: Always push result, even if INCOMPLETE
-        auditResults.push({
-          url,
-          ...r,
-        });
+        auditResults.push({ url, ...r });
       });
       log(`✅ Axe Complete: ${axeResults.length} checks processed.`);
 
@@ -186,12 +212,15 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         (r) => r.verdict === "INCOMPLETE"
       );
 
+      // 2. Run Gemini Nano Audit
       log(`Running Gemini Nano...`);
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
+
         const relevantLeads = incompleteLeads.filter(
           (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
         );
+
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
@@ -200,8 +229,10 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             await new Promise((r) => setTimeout(r, 500));
           }
 
+          // PASS THE SETTING INTO THE RUNNER
           const result = await runAuditOnTab(tab.id, rule, targetSelectors, {
             safeList: currentSafeList,
+            enableMultimodal: enableMultimodal,
           });
 
           const statusIcon =
@@ -211,6 +242,8 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               ? "✅"
               : result.verdict === "INAPPLICABLE"
               ? "⚪"
+              : result.verdict === "CANNOT_TELL" // Added icon for CANNOT TELL
+              ? "❓"
               : "⚠️";
 
           if (result.verdict === "INAPPLICABLE") {
@@ -251,6 +284,8 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 // 4. THE AI AUDITOR
 async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
   try {
+    const { safeList, enableMultimodal } = options;
+
     // A. PRE-FLIGHT CHECK
     if (rule.relevantElements && rule.relevantElements.length > 0) {
       const checkResult = await chrome.scripting.executeScript({
@@ -290,9 +325,27 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
       };
     }
 
-    // C. AI API Detection
+    // --- C. CHECK MULTIMODAL CAPABILITY EARLY ---
+    // If elements exist (Extractor didn't return PASS), but we can't/shouldn't use the Image Model:
+    const isVisualRule = rule.id === "1.4.5" || rule.id === "1.4.1-images";
     const aiOrigin = window.LanguageModel;
+
+    if (isVisualRule) {
+      // If disabled by settings OR missing browser API
+      if (!enableMultimodal || !aiOrigin) {
+        return {
+          verdict: "CANNOT_TELL",
+          reason:
+            "Visual content detected, but Multimodal AI is disabled or unavailable. Manual review required.",
+          pageTitle: domContext.pageTitle,
+        };
+      }
+    }
+
+    // D. TEXT-ONLY AI CHECK (Fallback for missing API)
     if (!aiOrigin) {
+      // If we are here, it's a Text-Only rule (non-visual), because visual ones were handled above.
+      // If it's a text rule and we have data (computedVerdict wasn't PASS), we fail gently if no AI.
       if (domContext.computedVerdict) {
         return {
           verdict: domContext.computedVerdict,
@@ -307,11 +360,8 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
       };
     }
 
-    // --- D. MULTIMODAL LOGIC ---
-    if (
-      (rule.id === "1.4.5" || rule.id === "1.4.1-images") &&
-      domContext.images
-    ) {
+    // --- E. MULTIMODAL EXECUTION ---
+    if (isVisualRule && domContext.images) {
       const screenshot = await getTabScreenshot();
       const results = [];
       let session;
@@ -372,10 +422,6 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
             : "Visual reliance on color detected";
 
         return {
-          // If ANY fail was found, we default to FAIL, unless your prompt specifically requested CANNOT_TELL
-          // For now, let's respect what the prompt returned.
-          // If it was 2.2.2, we likely wouldn't be in this image block.
-          // For 1.4.1-images, we assume FAIL is definitive.
           verdict: "FAIL",
           reason: `${prefix}:\n` + results.join("\n"),
           pageTitle: domContext.pageTitle,
@@ -394,7 +440,7 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
       }
     }
 
-    // --- E. STANDARD TEXT-ONLY LOGIC ---
+    // --- F. STANDARD TEXT-ONLY LOGIC ---
     const session = await aiOrigin.create({
       initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
