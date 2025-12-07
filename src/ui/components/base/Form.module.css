@@ -1,0 +1,36 @@
+.fieldGroup {
+    margin-bottom: 1rem;
+}
+
+.label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.checkboxLabel {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.checkboxInput {
+    margin-right: 0.5rem;
+}
+
+.helperText {
+    display: block;
+    margin-top: 5px;
+    color: var(--pico-muted-color, #666);
+    font-size: 0.85em;
+}
+
+.textarea {
+    font-size: 0.9em;
+    width: 100%;
+    resize: vertical;
+}
+
+.fileInput {
+    width: 100%;
+}

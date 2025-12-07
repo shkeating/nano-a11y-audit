@@ -1,19 +1,15 @@
+import styles from "./ProgressBar.module.css";
+
 export function ProgressBar({ current, total, label }) {
   return (
-    <div className="progress-container" style={{ marginBottom: "1rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: "5px",
-        }}
-      >
-        <strong>{label}</strong>
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <strong className={styles.label}>{label}</strong>
         <span>
           {current} / {total}
         </span>
       </div>
-      <progress value={current} max={total} style={{ width: "100%" }} />
+      <progress value={current} max={total} className={styles.bar} />
     </div>
   );
 }

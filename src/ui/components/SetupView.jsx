@@ -1,4 +1,5 @@
 import { Button } from "./base/Button";
+import { FileInput } from "./base/FileInput";
 
 export function SetupView({
   onFileUpload,
@@ -16,20 +17,21 @@ export function SetupView({
       <div className="flex">
         <section style={{ width: "100%" }}>
           <h3>Test Sample</h3>
-          <label htmlFor="csvFile">Load URLs (CSV):</label>
-          <input
-            type="file"
-            id="csvFile"
+
+          <FileInput
+            label="Load URLs (CSV):"
             accept=".csv"
             onChange={onFileUpload}
+            helperContent={
+              urlCount > 0 && (
+                <small
+                  style={{ color: "green", display: "block", marginTop: "5px" }}
+                >
+                  ✅ {urlCount} URLs loaded ready for testing.
+                </small>
+              )
+            }
           />
-          {urlCount > 0 && (
-            <small
-              style={{ color: "green", display: "block", marginTop: "5px" }}
-            >
-              ✅ {urlCount} URLs loaded ready for testing.
-            </small>
-          )}
         </section>
       </div>
 

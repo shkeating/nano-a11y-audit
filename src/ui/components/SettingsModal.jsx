@@ -1,4 +1,7 @@
-// src/ui/components/SettingsModal.jsx
+import { Modal } from "./base/Modal";
+import { Button } from "./base/Button";
+import { Checkbox } from "./base/Checkbox";
+import { TextArea } from "./base/TextArea";
 
 export function SettingsModal({
   isOpen,
@@ -7,90 +10,69 @@ export function SettingsModal({
   settings,
   onUpdateSetting,
 }) {
-  if (!isOpen) return null;
-
   const { enableMultimodal, safeList, includePassed, includeNotPresent } =
     settings;
 
+  const footer = (
+    <>
+      <Button variant="secondary" onClick={onClose}>
+        Cancel
+      </Button>
+      <Button onClick={onSave}>Save Changes</Button>
+    </>
+  );
+
   return (
-    <dialog open>
-      <article>
-        <header>
-          <h3>Settings</h3>
-          <button
-            aria-label="Close"
-            className="close"
-            onClick={onClose}
-          ></button>
-        </header>
+    <Modal isOpen={isOpen} onClose={onClose} title="Settings" footer={footer}>
+      <fieldset>
+        <legend>
+          <h4>Testing</h4>
+        </legend>
 
-        <fieldset>
-          <legend>
-            <h4>Testing</h4>
-          </legend>
-          <label>
-            <input
-              type="checkbox"
-              checked={enableMultimodal}
-              onChange={(e) =>
-                onUpdateSetting("enableMultimodal", e.target.checked)
-              }
-            />{" "}
-            Enable Multimodal AI (Images)
-          </label>
-          <small
-            style={{ display: "block", marginBottom: "10px", color: "#888" }}
-          >
-            Uncheck for faster, text-only audits.
-          </small>
-          <hr />
-          <label>2.4.6 Heading & Labels Safe Terms (Comma Separated)</label>
-          <textarea
-            rows="6"
-            style={{ fontSize: "0.9em" }}
-            value={safeList.join(", ")}
-            onInput={(e) =>
-              onUpdateSetting(
-                "safeList",
-                e.target.value.split(",").map((s) => s.trim())
-              )
-            }
-          />
-        </fieldset>
+        <Checkbox
+          label="Enable Multimodal AI (Images)"
+          checked={enableMultimodal}
+          onChange={(e) =>
+            onUpdateSetting("enableMultimodal", e.target.checked)
+          }
+          description="Uncheck for faster, text-only audits."
+        />
 
-        <fieldset>
-          <legend>
-            <h4>Reporting</h4>
-          </legend>
-          <label>
-            <input
-              type="checkbox"
-              checked={includePassed}
-              onChange={(e) =>
-                onUpdateSetting("includePassed", e.target.checked)
-              }
-            />
-            Include 'Passed' results
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={includeNotPresent}
-              onChange={(e) =>
-                onUpdateSetting("includeNotPresent", e.target.checked)
-              }
-            />
-            Include 'Not Present' results
-          </label>
-        </fieldset>
+        <hr />
 
-        <footer>
-          <button className="secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button onClick={onSave}>Save Changes</button>
-        </footer>
-      </article>
-    </dialog>
+        <TextArea
+          label="2.4.6 Heading & Labels Safe Terms (Comma Separated)"
+          value={safeList.join(", ")}
+          onInput={(e) =>
+            onUpdateSetting(
+              "safeList",
+              e.target.value.split(",").map((s) => s.trim())
+            )
+          }
+          description="Add your organization's specific acronyms or internal terms here to prevent false positives."
+          rows={6}
+        />
+      </fieldset>
+
+      <fieldset>
+        <legend>
+          <h4>Reporting</h4>
+        </legend>
+
+        <Checkbox
+          label="Include 'Passed' results"
+          checked={includePassed}
+          onChange={(e) => onUpdateSetting("includePassed", e.target.checked)}
+        />
+
+        <Checkbox
+          label="Include 'Not Present' results"
+          checked={includeNotPresent}
+          onChange={(e) =>
+            onUpdateSetting("includeNotPresent", e.target.checked)
+          }
+        />
+      </fieldset>
+    </Modal>
   );
 }

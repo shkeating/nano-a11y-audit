@@ -1,3 +1,5 @@
+import styles from "./Button.module.css";
+
 export function Button({
   children,
   onClick,
@@ -7,18 +9,18 @@ export function Button({
   className = "",
   ...props
 }) {
-  // Map variants to Pico classes
-  let classNames = [];
-  if (variant === "secondary") classNames.push("secondary");
-  if (variant === "contrast") classNames.push("contrast");
-  if (outline) classNames.push("outline");
-  if (className) classNames.push(className);
+  // Map variants to global PicoCSS classes
+  let globalClasses = [];
+  if (variant === "secondary") globalClasses.push("secondary");
+  if (variant === "contrast") globalClasses.push("contrast");
+  if (outline) globalClasses.push("outline");
+  if (className) globalClasses.push(className);
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={classNames.join(" ")}
+      className={`${styles.button} ${globalClasses.join(" ")}`}
       {...props}
     >
       {children}
