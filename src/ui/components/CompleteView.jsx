@@ -1,4 +1,4 @@
-// src/ui/components/CompleteView.jsx
+import { Button } from "./base/Button";
 
 export function CompleteView({ onDownloadAgain, onStartNew }) {
   return (
@@ -9,10 +9,10 @@ export function CompleteView({ onDownloadAgain, onStartNew }) {
       <h3>Audit Completed</h3>
       <p>The report has been downloaded and the W3C Tool opened.</p>
       <div className="grid">
-        <button className="contrast" onClick={onDownloadAgain}>
+        <Button variant="contrast" onClick={onDownloadAgain}>
           Download Report Again
-        </button>
-        <button onClick={onStartNew}>Start New Audit</button>
+        </Button>
+        <Button onClick={onStartNew}>Start New Audit</Button>
       </div>
     </div>
   );

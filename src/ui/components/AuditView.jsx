@@ -1,6 +1,7 @@
-// src/ui/components/AuditView.jsx
+import { ProgressBar } from "./base/ProgressBar";
+import { LogConsole } from "./base/LogConsole";
 
-export function AuditView({ enableMultimodal, progress, logs, logEndRef }) {
+export function AuditView({ enableMultimodal, progress, logs }) {
   return (
     <div id="auditView">
       {enableMultimodal && (
@@ -15,26 +16,18 @@ export function AuditView({ enableMultimodal, progress, logs, logEndRef }) {
 
       <div className="status-box">
         <h3>Audit Status</h3>
-        <div>
-          <strong>Progress:</strong> {progress.current}/{progress.total}
-        </div>
-        <progress
-          value={progress.current}
-          max={progress.total}
-          style={{ width: "100%" }}
-        ></progress>
-        <div className="status-current-url">
+
+        <ProgressBar
+          current={progress.current}
+          total={progress.total}
+          label="Progress"
+        />
+
+        <div className="status-current-url" style={{ marginBottom: "10px" }}>
           <strong>Current:</strong> <span>{progress.currentUrl}</span>
         </div>
 
-        <section id="log" role="log" aria-live="polite">
-          {logs.map((msg, i) => (
-            <div key={i} className="log-entry">
-              {msg}
-            </div>
-          ))}
-          <div ref={logEndRef} />
-        </section>
+        <LogConsole logs={logs} />
       </div>
     </div>
   );

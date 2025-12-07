@@ -1,4 +1,4 @@
-// src/ui/components/SetupView.jsx
+import { Button } from "./base/Button";
 
 export function SetupView({
   onFileUpload,
@@ -34,10 +34,10 @@ export function SetupView({
       </div>
 
       <div className="grid" style={{ marginTop: "20px" }}>
-        <button className="secondary outline" onClick={onOpenSettings}>
+        <Button variant="secondary" outline onClick={onOpenSettings}>
           Configure Settings
-        </button>
-        <button onClick={onStartAudit}>Start Batch Audit</button>
+        </Button>
+        <Button onClick={onStartAudit}>Start Batch Audit</Button>
       </div>
     </div>
   );
