@@ -1,4 +1,3 @@
-import { fn } from "@storybook/test";
 import { TextArea } from "./TextArea";
 
 export default {

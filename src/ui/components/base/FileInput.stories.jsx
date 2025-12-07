@@ -1,4 +1,3 @@
-import { fn } from "@storybook/test";
 import { FileInput } from "./FileInput";
 
 export default {

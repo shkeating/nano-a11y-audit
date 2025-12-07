@@ -1,4 +1,3 @@
-import { fn } from "@storybook/test";
 import { Modal } from "./Modal";
 import { Button } from "./Button";
 

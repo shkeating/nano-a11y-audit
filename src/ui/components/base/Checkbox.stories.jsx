@@ -1,4 +1,3 @@
-import { fn } from "@storybook/test";
 import { Checkbox } from "./Checkbox";
 
 export default {
@@ -9,9 +8,6 @@ export default {
     label: { control: "text" },
     description: { control: "text" },
     checked: { control: "boolean" },
-  },
-  args: {
-    onChange: fn(),
   },
 };
 

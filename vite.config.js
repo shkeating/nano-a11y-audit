@@ -5,7 +5,7 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 import preact from "@preact/preset-vite";
 
 export default defineConfig(({ mode }) => {
-  // Check if we are running inside Storybook
+  // Robust check for Storybook
   const isStorybook =
     process.env.STORYBOOK === "true" ||
     process.argv.some((arg) => arg.includes("storybook"));
@@ -25,17 +25,22 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    // 👇 THIS IS THE CRITICAL FIX 👇
+    // 1. Set root to "." for Storybook so it finds /src/stories/ correctly.
+    //    Set root to "src" for extension build to match manifest paths.
     root: isStorybook ? "." : "src",
+
     plugins,
+
     resolve: {
       alias: {
-        // Critical for Storybook MDX to work with Preact
+        // 2. Comprehensive Preact Aliases to fix "__H" errors
         react: "preact/compat",
+        "react-dom/test-utils": "preact/test-utils",
         "react-dom": "preact/compat",
         "react/jsx-runtime": "preact/jsx-runtime",
       },
     },
+
     build: {
       outDir: "../dist",
       emptyOutDir: true,
