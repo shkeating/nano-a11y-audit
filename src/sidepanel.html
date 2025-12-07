@@ -7,7 +7,7 @@
 
 <body>
     <script type="module" src="sidepanel.js"></script>
-    <header>
+    <header id="appHeader">
         <h2>Nano A11y Audit</h2>
     </header>
     <main>
@@ -35,26 +35,35 @@
             <article>
                 <header>
                     <h3>Settings</h3>
-                    <button aria-label="Close" rel="prev" id="modalCloseX"></button>
-
+                    <button aria-label="Close" rel="prev" id="modalCloseX" class="close"></button>
                 </header>
                 <fieldset>
-                    <legend>Testing</legend>
+                    <legend>
+                        <h4>Testing</h4>
+                    </legend>
+                    <label class="settings-label">
+                        <input type="checkbox" id="enableMultimodal" checked> Enable Multimodal AI (Images)
+                    </label>
+                    <small style="display:block; margin-bottom: 10px; color: #888;">
+                        Uncheck if you cannot use the visual model or want a faster text-only audit.
+                    </small>
+                    <hr>
                     <label for="safeListInput">
                         2.4.6 Heading & Labels Safe Terms (Comma Separated)
                     </label>
                     <small style="display: block; margin-bottom: 10px; color: var(--pico-muted-color);">
-                        <strong>Why:</strong> The test will flag generic words (e.g., "Input", "Data") as violations.
-                        used in heading and labels <br>
-                        <strong>What to Add:</strong> Add your organization's specific acronyms or internal terms (e.g.,
-                        "PID", "CID", "Org Code") here to prevent them from being flagged as vague labels.
+                        <strong>Why:</strong> The test will flag generic words (e.g., "Input", "Data") as violations
+                        used in heading and labels.<br>
+                        <strong>What to Add:</strong> Add your organization's specific acronyms or internal terms here.
                     </small>
                     <textarea id="safeListInput" rows="6" style="font-size: 0.9em;"></textarea>
                 </fieldset>
-
+                <hr>
 
                 <fieldset>
-                    <legend>Reporting</legend>
+                    <legend>
+                        <h4>Reporting</h4>
+                    </legend>
                     <label>
                         <input type="checkbox" id="includePassed"> Include 'Passed' results descriptions
                     </label>
@@ -63,12 +72,13 @@
                     </label>
                 </fieldset>
 
-                <hr>
-
-
                 <footer>
-                    <button id="modalCancelBtn" class="secondary">Cancel</button>
-                    <button id="saveSettingsBtn">Save Changes</button>
+                    <button id="modalCancelBtn" class="secondary">
+                        Cancel
+                    </button>
+                    <button id="saveSettingsBtn">
+                        Save Changes
+                    </button>
                 </footer>
             </article>
         </dialog>

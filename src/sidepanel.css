@@ -1,6 +1,7 @@
 :root {
     --pico-font-family-sans-serif: 'Arivo', system-ui, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, Helvetica, Arial, "Helvetica Neue", sans-serif, var(--pico-font-family-emoji);
     --pico-font-family-monospace: 'Cousine', ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace, var(--pico-font-family-emoji);
+    --pico-muted-color: ;
 }
 
 body {
@@ -11,7 +12,7 @@ body {
     font-size: 16px;
 }
 
-header {
+#appHeader {
     position: fixed;
     background: var(--pico-background-color);
     border-bottom: solid var(--pico-primary-border) 2px;
@@ -20,13 +21,18 @@ header {
     width: 100%;
 }
 
-header h2 {
+
+#appHeader h2 {
     padding-left: 3rem;
     margin-bottom: 0;
 }
 
 progress {
     margin: 10px;
+}
+
+label {
+    font-size: 1rem;
 }
 
 .flex {
@@ -79,19 +85,19 @@ progress {
     border: 1px solid var(--pico-card-border-color);
 }
 
-#settingsModal>article {
-    margin-top: 3rem;
-}
+/* #settingsModal>article {
+    margin-top: 9rem;
+    position: relative;
+} */
 
 #settingsModal article>header {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    width: calc(100% - var(--pico-spacing) - var(--pico-spacing));
-    margin: var(--pico-spacing);
 }
 
-#settingsModal article>header * {
-    margin: 1rem 2rem;
-}
+
+/* #settingsModal article>header * {
+    margin: 1rem 0rem;
+} */
