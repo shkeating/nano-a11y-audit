@@ -19,6 +19,7 @@ export const Default = {
   args: {
     isOpen: true,
     title: "Confirm Settings",
+    // Note: We use a simple function to return JSX here to avoid parsing issues
     children: (
       <p>
         Are you sure you want to save these changes? This action cannot be
