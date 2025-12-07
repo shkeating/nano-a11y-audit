@@ -5,9 +5,9 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 import preact from "@preact/preset-vite";
 
 export default defineConfig(({ mode }) => {
-  // Check if we are running inside Storybook
+  // Robust check for Storybook environment
   const isStorybook =
-    process.env.STORYBOOK === "true" ||
+    mode === "development" &&
     process.argv.some((arg) => arg.includes("storybook"));
 
   const plugins = [preact()];
@@ -25,12 +25,15 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    root: "src",
+    // CRITICAL FIX: Always use project root for Storybook.
+    // For the extension build, we use "src" as the root so paths match the manifest.
+    root: isStorybook ? "." : "src",
     plugins,
     resolve: {
       alias: {
         // Critical for Storybook MDX to work with Preact
         react: "preact/compat",
+        "react-dom/test-utils": "preact/test-utils",
         "react-dom": "preact/compat",
         "react/jsx-runtime": "preact/jsx-runtime",
       },
