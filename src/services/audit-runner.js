@@ -1,10 +1,15 @@
 // src/services/audit-runner.js
 import { RULES } from "../rules/index.js";
 import { runAxeAudit } from "../utils/axe-runner.js";
+import { runInBatches, delay } from "../utils/async-helpers.js";
+
+// Rules that require the tab to be visible/focused and cannot be parallelized easily
+const VISUAL_RULE_IDS = ["1.4.5", "1.4.1-images", "2.4.7"];
 
 /**
  * Runs the full suite of tests (Axe + Nano) on a specific tab.
- * @param {number} tabId
+ * Uses batching for static rules and sequential execution for visual rules.
+ * * @param {number} tabId
  * @param {string} url
  * @param {Object} config - { safeList, enableMultimodal, logger }
  * @returns {Promise<Array>} List of audit results.
@@ -13,7 +18,7 @@ export async function analyzePage(tabId, url, config) {
   const { safeList, enableMultimodal, logger } = config;
   const pageResults = [];
 
-  // 1. Run Axe Core
+  // --- PHASE 1: BASELINE (AXE) ---
   logger(`Running Axe Core...`);
   const axeResults = await runAxeAudit(tabId);
 
@@ -22,66 +27,108 @@ export async function analyzePage(tabId, url, config) {
     pageResults.push({ url, ...r });
   });
 
-  // 2. Identify "Incomplete" Axe results that need AI verification
+  // Identify "Incomplete" Axe results that need AI verification
   const incompleteLeads = axeResults.filter((r) => r.verdict === "INCOMPLETE");
 
-  // 3. Run Gemini Nano Rules
-  logger(`Running Gemini Nano...`);
+  // --- PHASE 2: SORT & PREPARE RULES ---
+  const staticTasks = [];
+  const visualTasks = [];
 
   for (const ruleId in RULES) {
     const rule = RULES[ruleId];
 
-    // Filter selectors relevant to this rule (if any came from Axe)
+    // Filter selectors relevant to this rule (from Axe incomplete items)
     const relevantLeads = incompleteLeads.filter(
       (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
     );
     const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
-    try {
-      // Rule Setup (e.g., attach debugger)
-      if (rule.setup) {
-        await rule.setup(tabId);
-        await new Promise((r) => setTimeout(r, 500));
-      }
+    const taskPayload = {
+      tabId,
+      rule,
+      targetSelectors,
+      options: { safeList, enableMultimodal },
+    };
 
-      // Execute Extraction & Analysis
-      const result = await runAuditOnTab(tabId, rule, targetSelectors, {
-        safeList,
-        enableMultimodal,
+    if (VISUAL_RULE_IDS.includes(ruleId)) {
+      visualTasks.push(taskPayload);
+    } else {
+      // Create a task function for batch execution
+      staticTasks.push(async () => {
+        const res = await runAuditOnTab(
+          tabId,
+          rule,
+          targetSelectors,
+          taskPayload.options
+        );
+        return { ruleId, res }; // Return ID so we can log it correctly later
       });
-
-      // Log & Store
-      const statusIcon = getStatusIcon(result.verdict);
-      if (result.verdict === "INAPPLICABLE") {
-        console.log(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
-      }
-      logger(`[Nano: ${ruleId}] ${statusIcon} ${result.verdict}`);
-
-      pageResults.push({ url, earlId: rule.earlId, ...result });
-    } catch (ruleErr) {
-      console.error(ruleErr);
-      logger(`⚠️ Error [${ruleId}]: ${ruleErr.message}`);
-      pageResults.push({
-        url,
-        earlId: rule.earlId,
-        verdict: "ERROR",
-        reason: ruleErr.message,
-        pageTitle: "Error",
-      });
-    } finally {
-      // Rule Teardown
-      if (rule.teardown) await rule.teardown(tabId);
     }
+  }
+
+  // --- PHASE 3: EXECUTE STATIC RULES (PARALLEL) ---
+  logger(`Running Static Checks (${staticTasks.length})...`);
+
+  // Run 5 checks concurrently. This makes text-based auditing nearly instant.
+  const staticOutcomes = await runInBatches(staticTasks, 5);
+
+  staticOutcomes.forEach((outcome) => {
+    if (outcome.error) {
+      // Handle crashes in individual rules
+      logger(`⚠️ Error in static rule: ${outcome.error.message}`);
+    } else {
+      const { ruleId, res } = outcome;
+      logResult(logger, ruleId, res);
+      pageResults.push({ url, earlId: RULES[ruleId].earlId, ...res });
+    }
+  });
+
+  // --- PHASE 4: EXECUTE VISUAL RULES (SEQUENTIAL) ---
+  if (visualTasks.length > 0 && enableMultimodal) {
+    logger(`Running Visual Checks (${visualTasks.length})...`);
+
+    // These MUST be sequential because they manipulate window focus and scroll
+    for (const task of visualTasks) {
+      try {
+        // Run Setup (e.g., inject styles or debugger)
+        if (task.rule.setup) {
+          await task.rule.setup(tabId);
+          await delay(200); // Small buffer for layout shift
+        }
+
+        const res = await runAuditOnTab(
+          tabId,
+          task.rule,
+          task.targetSelectors,
+          task.options
+        );
+        logResult(logger, task.rule.id, res);
+        pageResults.push({ url, earlId: task.rule.earlId, ...res });
+      } catch (ruleErr) {
+        logger(`⚠️ Error [${task.rule.id}]: ${ruleErr.message}`);
+        pageResults.push({
+          url,
+          earlId: task.rule.earlId,
+          verdict: "ERROR",
+          reason: ruleErr.message,
+        });
+      } finally {
+        // Run Teardown (remove styles/debugger)
+        if (task.rule.teardown) await task.rule.teardown(tabId);
+      }
+    }
+  } else if (visualTasks.length > 0) {
+    logger("Skipping Visual Checks (Multimodal Disabled)");
   }
 
   return pageResults;
 }
 
 /**
- * Internal helper to run a single rule on the tab.
+ * Internal helper to run a single rule logic
  */
 async function runAuditOnTab(tabId, rule, targetSelectors, options) {
-  // A. Check Applicability
+  // A. Check Applicability (Fast Check)
   if (rule.relevantElements && rule.relevantElements.length > 0) {
     const checkResult = await chrome.scripting.executeScript({
       target: { tabId },
@@ -89,7 +136,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
         selectors.some((s) => document.querySelector(s) !== null),
       args: [rule.relevantElements],
     });
-    if (checkResult && checkResult[0] && !checkResult[0].result) {
+    if (!checkResult?.[0]?.result) {
       return {
         verdict: "INAPPLICABLE",
         reason: `No relevant elements found.`,
@@ -98,17 +145,16 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
     }
   }
 
-  // B. Extract Data from DOM
+  // B. Extract Data (Script Injection)
   const injection = await chrome.scripting.executeScript({
     target: { tabId },
     func: rule.extractor,
     args: [targetSelectors, options],
   });
 
-  if (!injection || !injection[0]) throw new Error("Script injection failed");
+  if (!injection?.[0]) throw new Error("Script injection failed");
   const domContext = injection[0].result;
 
-  // Immediate Pass Check
   if (domContext.computedVerdict === "PASS") {
     return {
       verdict: "PASS",
@@ -117,22 +163,22 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
     };
   }
 
-  const isVisualRule = rule.id === "1.4.5" || rule.id === "1.4.1-images";
   const aiOrigin = window.LanguageModel;
+  const isVisualRule = VISUAL_RULE_IDS.includes(rule.id);
 
-  // C. Visual Rule Handling
+  // C. Visual AI Analysis
   if (isVisualRule) {
     if (!options.enableMultimodal || !aiOrigin) {
       return {
         verdict: "CANNOT_TELL",
-        reason: "Multimodal AI disabled or unavailable.",
+        reason: "Multimodal AI disabled.",
         pageTitle: domContext.pageTitle,
       };
     }
     return await runVisualAnalysis(tabId, rule, domContext, aiOrigin);
   }
 
-  // D. Text Rule Handling
+  // D. Text AI Analysis
   if (!aiOrigin) {
     return {
       verdict: "INAPPLICABLE",
@@ -141,20 +187,27 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
     };
   }
 
-  const session = await aiOrigin.create({
-    initialPrompts: [{ role: "system", content: rule.systemPrompt }],
-    expectedOutputs: [{ type: "text", languages: ["en"] }],
-  });
-
-  const resultString = await session.prompt(JSON.stringify(domContext));
-  const result = parseAIResponse(resultString);
-  session.destroy();
-
-  return { ...result, pageTitle: domContext.pageTitle };
+  try {
+    // Single-shot Prompt (Faster than creating full sessions for text)
+    const session = await aiOrigin.create({
+      initialPrompts: [{ role: "system", content: rule.systemPrompt }],
+      expectedOutputs: [{ type: "text", languages: ["en"] }],
+    });
+    const resultString = await session.prompt(JSON.stringify(domContext));
+    const result = parseAIResponse(resultString);
+    session.destroy();
+    return { ...result, pageTitle: domContext.pageTitle };
+  } catch (e) {
+    return {
+      verdict: "ERROR",
+      reason: `AI Error: ${e.message}`,
+      pageTitle: domContext.pageTitle,
+    };
+  }
 }
 
 /**
- * Handles Screenshot capture, cropping, and prompting for visual rules.
+ * Visual Analysis with Scrolling and Smart Retries
  */
 async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
   if (!domContext.images || domContext.images.length === 0) {
@@ -166,7 +219,6 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
   }
 
   const results = [];
-  let processedCount = 0;
   let session;
 
   try {
@@ -177,59 +229,107 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
   } catch (err) {
     return {
       verdict: "INAPPLICABLE",
-      reason: `AI Create Failed: ${err.message}`,
+      reason: `AI Session Failed: ${err.message}`,
       pageTitle: domContext.pageTitle,
     };
   }
 
   for (const imgMeta of domContext.images) {
-    // Artificial Throttle (can be optimized later)
-    await new Promise((r) => setTimeout(r, 2000));
+    // Throttle: Short wait between images to let GPU catch up
+    await delay(500);
 
-    // Scroll & Capture Logic
     let captureRect = imgMeta.rect;
-    let viewportWidth = 0;
 
-    // ... (Scroll logic omitted for brevity, identical to original but cleaner if we had more space)
-    // For this refactor, we assume the helper logic below handles the core screenshot task.
+    // 1. SCROLL INTO VIEW (If selector exists)
+    if (imgMeta.selector) {
+      try {
+        const scrollResult = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: (selector) => {
+            const el = document.querySelector(selector);
+            if (!el) return null;
+            el.scrollIntoView({ behavior: "instant", block: "center" });
+            const r = el.getBoundingClientRect();
+            return {
+              x: r.x,
+              y: r.y,
+              width: r.width,
+              height: r.height,
+              windowWidth: window.innerWidth,
+            };
+          },
+          args: [imgMeta.selector],
+        });
+
+        if (scrollResult?.[0]?.result) {
+          captureRect = scrollResult[0].result;
+          // Wait for painting after scroll
+          await delay(200);
+        }
+      } catch (e) {
+        console.warn("Scroll failed, using original rect", e);
+      }
+    }
 
     try {
-      // FORCE FOCUS needed for captureVisibleTab
+      // 2. CAPTURE & CROP
       const winId = await getWindowId(tabId);
+      // Force focus for screenshots
       await chrome.windows.update(winId, { focused: true });
       await chrome.tabs.update(tabId, { active: true });
-      await new Promise((r) => setTimeout(r, 100));
+      await delay(100);
 
       const screenshot = await getTabScreenshot();
       if (!screenshot || screenshot.width === 0) continue;
 
-      // Simple crop (assuming coordinates are correct from extractor)
       const imageBlob = await cropImage(screenshot, captureRect);
       if (!imageBlob) continue;
 
       const imageBitmap = await createImageBitmap(imageBlob);
-      processedCount++;
 
+      // 3. PROMPT WITH RETRY
       const promptText = `\nSYSTEM INSTRUCTIONS:\n${rule.systemPrompt}\n\nUSER REQUEST:\nAnalyze this image. Alt text provided: "${imgMeta.alt}"\n`;
-      const responseString = await session.prompt([
-        {
-          role: "user",
-          content: [
-            { type: "text", value: promptText },
-            { type: "image", value: imageBitmap },
-          ],
-        },
-      ]);
+
+      let attempts = 0;
+      let success = false;
+      let responseString = "";
+
+      while (attempts < 3 && !success) {
+        try {
+          responseString = await session.prompt([
+            {
+              role: "user",
+              content: [
+                { type: "text", value: promptText },
+                { type: "image", value: imageBitmap },
+              ],
+            },
+          ]);
+          success = true;
+        } catch (promptErr) {
+          attempts++;
+          // Exponential backoff: 1s, 2s, 3s
+          console.warn(`AI Prompt busy/error, retrying (${attempts}/3)...`);
+          await delay(1000 * attempts);
+        }
+      }
+
+      if (!success) {
+        results.push(`- Image (${imgMeta.alt}): AI Busy/Timeout.`);
+        continue;
+      }
 
       const result = parseAIResponse(responseString);
       if (result.verdict === "FAIL" || result.verdict === "CANNOT_TELL") {
         results.push(
-          `- Image (${imgMeta.src.substring(0, 30)}...): ${result.reason}`
+          `- Image (${
+            imgMeta.src ? imgMeta.src.substring(0, 30) : "Graphic"
+          }...): ${result.reason}`
         );
       }
     } catch (e) {
       console.error("Visual Analysis Error", e);
-      results.push(`- Image (${imgMeta.alt}): Technical Error.`);
+      results.push(`- Image (${imgMeta.alt}): Capture Error.`);
     }
   }
   session.destroy();
@@ -241,7 +341,6 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
       pageTitle: domContext.pageTitle,
     };
   }
-
   return {
     verdict: "PASS",
     reason: "No visual violations found.",
@@ -250,6 +349,16 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
 }
 
 // --- UTILS ---
+
+function logResult(logger, ruleId, result) {
+  const icon = getStatusIcon(result.verdict);
+  if (result.verdict !== "INAPPLICABLE") {
+    logger(`[Nano: ${ruleId}] ${icon} ${result.verdict}`);
+  } else {
+    // Optional: Log inapplicable rules to console only to keep UI clean
+    console.log(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
+  }
+}
 
 function getStatusIcon(verdict) {
   if (verdict === "FAIL") return "❌";
@@ -267,8 +376,7 @@ function parseAIResponse(responseString) {
     if (startIndex === -1 || endIndex === -1) throw new Error("No JSON found");
     return JSON.parse(clean.substring(startIndex, endIndex + 1));
   } catch (e) {
-    console.error("AI Parse Error", responseString);
-    throw e;
+    return { verdict: "ERROR", reason: "Invalid AI Response format" };
   }
 }
 
@@ -278,12 +386,19 @@ async function getWindowId(tabId) {
 }
 
 async function getTabScreenshot() {
-  const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.src = dataUrl;
-  });
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(null, {
+      format: "png",
+    });
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  } catch (e) {
+    return null;
+  }
 }
 
 async function cropImage(sourceImage, rect) {
@@ -292,8 +407,11 @@ async function cropImage(sourceImage, rect) {
   canvas.width = rect.width;
   canvas.height = rect.height;
   const ctx = canvas.getContext("2d");
+
+  // Ensure we don't crop outside the image bounds
   const sx = Math.max(0, rect.x);
   const sy = Math.max(0, rect.y);
+
   ctx.drawImage(
     sourceImage,
     sx,

@@ -6,7 +6,7 @@ import Papa from "papaparse";
 // Modules
 import { loadSafeList, saveSafeList } from "./services/storage.js";
 import { UI } from "./ui/ui-controller.js";
-import { analyzePage } from "./services/audit-runner.js";
+import { analyzePage } from "./services/audit-runner.js"; // <--- This uses your new optimized runner
 import { generateEarlReport } from "./utils/earl-reporter.js";
 import { injectReportFunction } from "./utils/report-injector.js";
 
@@ -91,10 +91,11 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 
       // Run Analysis
       UI.log(`Analyzing DOM...`);
+      // Here we pass the UI logger so the runner can print updates live
       const pageResults = await analyzePage(tab.id, url, {
         safeList: currentSafeList,
         enableMultimodal: enableMultimodal,
-        logger: UI.log.bind(UI), // Pass logger so runner can print to UI
+        logger: UI.log.bind(UI),
       });
 
       auditResults.push(...pageResults);
@@ -145,7 +146,14 @@ function finishAudit() {
   const url = URL.createObjectURL(blob);
 
   // Auto-download
-  chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
+  chrome.downloads.download(
+    { url: url, filename: "nano-audit-report.json" },
+    (downloadId) => {
+      if (chrome.runtime.lastError)
+        UI.log(`⚠️ Download failed: ${chrome.runtime.lastError.message}`);
+      else UI.log(`⬇️ Report downloaded (ID: ${downloadId})`);
+    }
+  );
 
   // Update UI
   UI.setAuditState(false);
