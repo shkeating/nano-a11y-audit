@@ -6,6 +6,12 @@ import { analyzePage } from "../services/audit-runner";
 import { generateEarlReport } from "../utils/earl-reporter";
 import { injectReportFunction } from "../utils/report-injector";
 
+// Import Components
+import { SetupView } from "./components/SetupView";
+import { AuditView } from "./components/AuditView";
+import { CompleteView } from "./components/CompleteView";
+import { SettingsModal } from "./components/SettingsModal";
+
 export function App() {
   // --- STATE ---
   const [view, setView] = useState("setup"); // 'setup', 'auditing', 'complete'
@@ -20,27 +26,38 @@ export function App() {
 
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
-  const [safeList, setSafeList] = useState([]);
-  const [enableMultimodal, setEnableMultimodal] = useState(true);
-  const [includePassed, setIncludePassed] = useState(false);
-  const [includeNotPresent, setIncludeNotPresent] = useState(false);
+  const [settings, setSettings] = useState({
+    safeList: [],
+    enableMultimodal: true,
+    includePassed: false,
+    includeNotPresent: false,
+  });
 
-  // Refs
   const logEndRef = useRef(null);
 
   // --- EFFECTS ---
   useEffect(() => {
-    loadSafeList().then(setSafeList);
+    loadSafeList().then((list) => {
+      setSettings((prev) => ({ ...prev, safeList: list }));
+    });
   }, []);
 
-  // Auto-scroll logs
   useEffect(() => {
     if (logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [logs]);
 
-  // --- HANDLERS ---
+  // --- ACTIONS ---
+
+  const updateSetting = (key, value) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const saveSettingsToStorage = () => {
+    saveSafeList(settings.safeList);
+    setShowSettings(false);
+  };
 
   const addLog = (msg) => {
     setLogs((prev) => [...prev, `> ${msg}`]);
@@ -60,18 +77,14 @@ export function App() {
 
         if (urls.length > 0) {
           setUrlQueue(urls);
-          // Optional: You could show a success toast here
         } else {
-          alert(
-            "No valid URLs found in the CSV. Please check the file headers."
-          );
+          alert("No valid URLs found. Please check CSV headers.");
         }
       },
     });
   };
 
   const runAudit = async () => {
-    // ACCESSIBILITY FIX: Explicit feedback instead of disabled button
     if (urlQueue.length === 0) {
       alert("Please upload a CSV file with URLs to start the audit.");
       return;
@@ -107,8 +120,8 @@ export function App() {
 
         addLog(`Analyzing DOM...`);
         const pageResults = await analyzePage(tab.id, url, {
-          safeList,
-          enableMultimodal,
+          safeList: settings.safeList,
+          enableMultimodal: settings.enableMultimodal,
           logger: addLog,
         });
 
@@ -124,9 +137,11 @@ export function App() {
   };
 
   const finishAudit = (finalResults) => {
-    const reportOptions = { includePassed, includeNotPresent };
+    const reportOptions = {
+      includePassed: settings.includePassed,
+      includeNotPresent: settings.includeNotPresent,
+    };
     const earlReport = generateEarlReport(finalResults, reportOptions);
-
     downloadReport(earlReport);
 
     setView("complete");
@@ -167,6 +182,15 @@ export function App() {
     chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
   };
 
+  const downloadAgain = () => {
+    const reportOptions = {
+      includePassed: settings.includePassed,
+      includeNotPresent: settings.includeNotPresent,
+    };
+    const earlReport = generateEarlReport(auditResults, reportOptions);
+    downloadReport(earlReport);
+  };
+
   // --- HELPERS ---
   const getActiveTab = async () => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -193,12 +217,6 @@ export function App() {
     });
   };
 
-  const downloadAgain = () => {
-    const reportOptions = { includePassed, includeNotPresent };
-    const earlReport = generateEarlReport(auditResults, reportOptions);
-    downloadReport(earlReport);
-  };
-
   // --- RENDER ---
   return (
     <main className="container">
@@ -206,184 +224,38 @@ export function App() {
         <h2>Nano A11y Audit</h2>
       </header>
 
-      {/* SETUP VIEW */}
       {view === "setup" && (
-        <div id="setup">
-          <h3>Getting Started</h3>
-          <p className="instruction-text">
-            Upload a CSV of URLs to begin the hybrid audit.
-          </p>
-
-          <div className="flex">
-            <section style={{ width: "100%" }}>
-              <h3>Test Sample</h3>
-              <label htmlFor="csvFile">Load URLs (CSV):</label>
-              <input
-                type="file"
-                id="csvFile"
-                accept=".csv"
-                onChange={handleFileUpload}
-              />
-              {urlQueue.length > 0 && (
-                <small
-                  style={{ color: "green", display: "block", marginTop: "5px" }}
-                >
-                  ✅ {urlQueue.length} URLs loaded ready for testing.
-                </small>
-              )}
-            </section>
-          </div>
-
-          <div className="grid" style={{ marginTop: "20px" }}>
-            <button
-              className="secondary outline"
-              onClick={() => setShowSettings(true)}
-            >
-              Configure Settings
-            </button>
-            {/* BUTTON IS NO LONGER DISABLED */}
-            <button onClick={runAudit}>Start Batch Audit</button>
-          </div>
-        </div>
+        <SetupView
+          onFileUpload={handleFileUpload}
+          onOpenSettings={() => setShowSettings(true)}
+          onStartAudit={runAudit}
+          urlCount={urlQueue.length}
+        />
       )}
 
-      {/* AUDIT VIEW */}
       {view === "auditing" && (
-        <div id="auditView">
-          {enableMultimodal && (
-            <div className="warning-box">
-              <strong>IMPORTANT: Keep Window Focused</strong>
-              <p style={{ marginBottom: 0, fontSize: "0.9em" }}>
-                Visual checks require the page to be visible on screen. Do not
-                minimize.
-              </p>
-            </div>
-          )}
-
-          <div className="status-box">
-            <h3>Audit Status</h3>
-            <div>
-              <strong>Progress:</strong> {progress.current}/{progress.total}
-            </div>
-            <progress
-              value={progress.current}
-              max={progress.total}
-              style={{ width: "100%" }}
-            ></progress>
-            <div className="status-current-url">
-              <strong>Current:</strong> <span>{progress.currentUrl}</span>
-            </div>
-
-            <section id="log" role="log" aria-live="polite">
-              {logs.map((msg, i) => (
-                <div key={i} className="log-entry">
-                  {msg}
-                </div>
-              ))}
-              <div ref={logEndRef} />
-            </section>
-          </div>
-        </div>
+        <AuditView
+          enableMultimodal={settings.enableMultimodal}
+          progress={progress}
+          logs={logs}
+          logEndRef={logEndRef}
+        />
       )}
 
-      {/* COMPLETE VIEW */}
       {view === "complete" && (
-        <div
-          className="complete-box"
-          style={{ textAlign: "center", marginTop: "2rem" }}
-        >
-          <h3>Audit Completed</h3>
-          <p>The report has been downloaded and the W3C Tool opened.</p>
-          <div className="grid">
-            <button className="contrast" onClick={downloadAgain}>
-              Download Report Again
-            </button>
-            <button onClick={() => setView("setup")}>Start New Audit</button>
-          </div>
-        </div>
+        <CompleteView
+          onDownloadAgain={downloadAgain}
+          onStartNew={() => setView("setup")}
+        />
       )}
 
-      {/* SETTINGS MODAL */}
-      <dialog open={showSettings}>
-        <article>
-          <header>
-            <h3>Settings</h3>
-            <button
-              aria-label="Close"
-              className="close"
-              onClick={() => setShowSettings(false)}
-            ></button>
-          </header>
-
-          <fieldset>
-            <legend>
-              <h4>Testing</h4>
-            </legend>
-            <label>
-              <input
-                type="checkbox"
-                checked={enableMultimodal}
-                onChange={(e) => setEnableMultimodal(e.target.checked)}
-              />{" "}
-              Enable Multimodal AI (Screenshots)
-            </label>
-            <small
-              style={{ display: "block", marginBottom: "10px", color: "#888" }}
-            >
-              Uncheck for faster, text-only audits.
-            </small>
-            <hr />
-            <label>2.4.6 Heading & Labels Safe Terms (Comma Separated)</label>
-            <textarea
-              rows="6"
-              style={{ fontSize: "0.9em" }}
-              value={safeList.join(", ")}
-              onInput={(e) =>
-                setSafeList(e.target.value.split(",").map((s) => s.trim()))
-              }
-            />
-          </fieldset>
-
-          <fieldset>
-            <legend>
-              <h4>Reporting</h4>
-            </legend>
-            <label>
-              <input
-                type="checkbox"
-                checked={includePassed}
-                onChange={(e) => setIncludePassed(e.target.checked)}
-              />
-              Include 'Passed' results
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={includeNotPresent}
-                onChange={(e) => setIncludeNotPresent(e.target.checked)}
-              />
-              Include 'Not Present' results
-            </label>
-          </fieldset>
-
-          <footer>
-            <button
-              className="secondary"
-              onClick={() => setShowSettings(false)}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                saveSafeList(safeList);
-                setShowSettings(false);
-              }}
-            >
-              Save Changes
-            </button>
-          </footer>
-        </article>
-      </dialog>
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onSave={saveSettingsToStorage}
+        settings={settings}
+        onUpdateSetting={updateSetting}
+      />
     </main>
   );
 }
