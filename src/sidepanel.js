@@ -43,8 +43,6 @@ let auditResults = [];
 let currentSafeList = [...DEFAULT_SAFE_TERMS];
 
 // --- 1. SETTINGS MANAGEMENT ---
-
-// Load Settings on Init
 chrome.storage.local.get(["safeList"], (result) => {
   if (result.safeList) {
     currentSafeList = result.safeList;
@@ -53,44 +51,23 @@ chrome.storage.local.get(["safeList"], (result) => {
   if (input) input.value = currentSafeList.join(", ");
 });
 
-// Modal Logic (CSP Compliant)
+// Modal Logic
 const modal = document.getElementById("settingsModal");
 const openBtn = document.getElementById("openSettingsBtn");
 const closeX = document.getElementById("modalCloseX");
 const cancelBtn = document.getElementById("modalCancelBtn");
 const saveBtn = document.getElementById("saveSettingsBtn");
 
-// OPEN
-if (openBtn) {
-  openBtn.addEventListener("click", () => {
-    if (modal) modal.showModal();
+if (openBtn)
+  openBtn.addEventListener("click", () => modal && modal.showModal());
+if (closeX) closeX.addEventListener("click", () => modal && modal.close());
+if (cancelBtn)
+  cancelBtn.addEventListener("click", () => modal && modal.close());
+if (modal)
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.close();
   });
-}
 
-// CLOSE (X Button)
-if (closeX) {
-  closeX.addEventListener("click", () => {
-    if (modal) modal.close();
-  });
-}
-
-// CLOSE (Cancel Button)
-if (cancelBtn) {
-  cancelBtn.addEventListener("click", () => {
-    if (modal) modal.close();
-  });
-}
-
-// CLOSE (Clicking Overlay/Outside)
-if (modal) {
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) {
-      modal.close();
-    }
-  });
-}
-
-// SAVE
 if (saveBtn) {
   saveBtn.addEventListener("click", () => {
     const input = document.getElementById("safeListInput");
@@ -99,7 +76,6 @@ if (saveBtn) {
       .split(",")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-
     chrome.storage.local.set({ safeList: newList }, () => {
       currentSafeList = newList;
       if (modal) modal.close();
@@ -114,11 +90,9 @@ function parseAIResponse(responseString) {
     let clean = responseString.replace(/```json|```/g, "").trim();
     const startIndex = clean.indexOf("{");
     const endIndex = clean.lastIndexOf("}");
-
     if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
       throw new Error("No JSON object found.");
     }
-
     const jsonString = clean.substring(startIndex, endIndex + 1);
     return JSON.parse(jsonString);
   } catch (e) {
@@ -131,7 +105,6 @@ function parseAIResponse(responseString) {
 document.getElementById("csvFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
-
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
@@ -139,12 +112,8 @@ document.getElementById("csvFile").addEventListener("change", (e) => {
       urlQueue = results.data
         .filter((r) => r.url && r.url.startsWith("http"))
         .map((r) => r.url);
-
-      if (urlQueue.length > 0) {
-        log(`✅ Loaded ${urlQueue.length} URLs.`);
-      } else {
-        log("❌ No valid URLs found. Check CSV headers.");
-      }
+      if (urlQueue.length > 0) log(`✅ Loaded ${urlQueue.length} URLs.`);
+      else log("❌ No valid URLs found. Check CSV headers.");
     },
   });
 });
@@ -155,7 +124,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     alert("Please upload a valid CSV file before starting.");
     return;
   }
-  // CAPTURE SETTINGS
   const enableMultimodal = document.getElementById("enableMultimodal").checked;
 
   document.getElementById("setup").setAttribute("hidden", "true");
@@ -178,7 +146,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
       log(`Navigating to: ${url}`);
       const tab = await getActiveTab();
 
-      // WAIT FOR LOAD
       try {
         const loadPromise = waitForTabLoad(tab.id);
         await chrome.tabs.update(tab.id, { url: url });
@@ -188,22 +155,17 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         auditResults.push({
           url,
           verdict: "ERROR",
-          reason: "Page failed to load (404 or Server Down).",
+          reason: "Page failed to load.",
           pageTitle: "Load Error",
         });
         continue;
       }
 
       log(`Analyzing DOM...`);
-
-      // 1. Run Axe Core Audit
       log(`Running Axe Core...`);
       const axeResults = await runAxeAudit(tab.id);
-
       axeResults.forEach((r) => {
-        if (r.verdict === "FAIL") {
-          log(`[Axe: ${r.ruleId}] ❌ FAIL`);
-        }
+        if (r.verdict === "FAIL") log(`[Axe: ${r.ruleId}] ❌ FAIL`);
         auditResults.push({ url, ...r });
       });
       log(`✅ Axe Complete: ${axeResults.length} checks processed.`);
@@ -212,15 +174,12 @@ document.getElementById("startBtn").addEventListener("click", async () => {
         (r) => r.verdict === "INCOMPLETE"
       );
 
-      // 2. Run Gemini Nano Audit
       log(`Running Gemini Nano...`);
       for (const ruleId in RULES) {
         const rule = RULES[ruleId];
-
         const relevantLeads = incompleteLeads.filter(
           (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
         );
-
         const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
 
         try {
@@ -229,7 +188,6 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             await new Promise((r) => setTimeout(r, 500));
           }
 
-          // PASS THE SETTING INTO THE RUNNER
           const result = await runAuditOnTab(tab.id, rule, targetSelectors, {
             safeList: currentSafeList,
             enableMultimodal: enableMultimodal,
@@ -242,21 +200,14 @@ document.getElementById("startBtn").addEventListener("click", async () => {
               ? "✅"
               : result.verdict === "INAPPLICABLE"
               ? "⚪"
-              : result.verdict === "CANNOT_TELL" // Added icon for CANNOT TELL
+              : result.verdict === "CANNOT_TELL"
               ? "❓"
               : "⚠️";
-
-          if (result.verdict === "INAPPLICABLE") {
+          if (result.verdict === "INAPPLICABLE")
             console.log(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
-          }
-
           log(`[Nano: ${ruleId}] ${statusIcon} ${result.verdict}`);
 
-          auditResults.push({
-            url,
-            earlId: rule.earlId,
-            ...result,
-          });
+          auditResults.push({ url, earlId: rule.earlId, ...result });
         } catch (ruleErr) {
           console.error(ruleErr);
           log(`⚠️ Error [${ruleId}]: ${ruleErr.message}`);
@@ -268,46 +219,37 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             pageTitle: "Error",
           });
         } finally {
-          if (rule.teardown) {
-            await rule.teardown(tab.id);
-          }
+          if (rule.teardown) await rule.teardown(tab.id);
         }
       }
     } catch (err) {
       log(`⛔ Critical Error: ${err.message}`);
     }
   }
-
   finishAudit();
 });
 
 // 4. THE AI AUDITOR
 async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
   try {
-    const { safeList, enableMultimodal } = options;
+    const { enableMultimodal } = options;
 
-    // A. PRE-FLIGHT CHECK
     if (rule.relevantElements && rule.relevantElements.length > 0) {
       const checkResult = await chrome.scripting.executeScript({
         target: { tabId },
-        func: (selectors) => {
-          return selectors.some((s) => document.querySelector(s) !== null);
-        },
+        func: (selectors) =>
+          selectors.some((s) => document.querySelector(s) !== null),
         args: [rule.relevantElements],
       });
-
       if (checkResult && checkResult[0] && !checkResult[0].result) {
         return {
           verdict: "INAPPLICABLE",
-          reason: `No relevant elements (${rule.relevantElements.join(
-            ","
-          )}) found on page.`,
+          reason: `No relevant elements found.`,
           pageTitle: "N/A",
         };
       }
     }
 
-    // B. Inject Extractor
     const injection = await chrome.scripting.executeScript({
       target: { tabId },
       func: rule.extractor,
@@ -325,27 +267,20 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
       };
     }
 
-    // --- C. CHECK MULTIMODAL CAPABILITY EARLY ---
-    // If elements exist (Extractor didn't return PASS), but we can't/shouldn't use the Image Model:
     const isVisualRule = rule.id === "1.4.5" || rule.id === "1.4.1-images";
     const aiOrigin = window.LanguageModel;
 
     if (isVisualRule) {
-      // If disabled by settings OR missing browser API
       if (!enableMultimodal || !aiOrigin) {
         return {
           verdict: "CANNOT_TELL",
-          reason:
-            "Visual content detected, but Multimodal AI is disabled or unavailable. Manual review required.",
+          reason: "Multimodal AI unavailable.",
           pageTitle: domContext.pageTitle,
         };
       }
     }
 
-    // D. TEXT-ONLY AI CHECK (Fallback for missing API)
     if (!aiOrigin) {
-      // If we are here, it's a Text-Only rule (non-visual), because visual ones were handled above.
-      // If it's a text rule and we have data (computedVerdict wasn't PASS), we fail gently if no AI.
       if (domContext.computedVerdict) {
         return {
           verdict: domContext.computedVerdict,
@@ -355,15 +290,15 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
       }
       return {
         verdict: "INAPPLICABLE",
-        reason: "AI API missing (window.LanguageModel undefined).",
+        reason: "AI API missing.",
         pageTitle: domContext.pageTitle,
       };
     }
 
-    // --- E. MULTIMODAL EXECUTION ---
+    // --- E. MULTIMODAL EXECUTION (SCROLL & SNAP) ---
     if (isVisualRule && domContext.images) {
-      const screenshot = await getTabScreenshot();
       const results = [];
+      let processedCount = 0; // NEW: Track valid captures
       let session;
 
       try {
@@ -380,17 +315,100 @@ async function runAuditOnTab(tabId, rule, targetSelectors = [], options = {}) {
       }
 
       for (const imgMeta of domContext.images) {
-        const imageBlob = await cropImage(screenshot, imgMeta.rect);
-        const imageBitmap = await createImageBitmap(imageBlob);
+        // THROTTLE: 2 Seconds to Avoid Rate Limit
+        await new Promise((r) => setTimeout(r, 2000));
 
+        let captureRect = imgMeta.rect;
+        let viewportWidth = 0;
+
+        if (imgMeta.selector) {
+          try {
+            const scrollResult = await chrome.scripting.executeScript({
+              target: { tabId },
+              func: (selector) => {
+                const el = document.querySelector(selector);
+                if (!el) return null;
+                el.scrollIntoView({ behavior: "instant", block: "center" });
+
+                // --- FIX: MANUALLY SERIALIZE RECT ---
+                // DOMRect objects often fail to serialize via messaging
+                const r = el.getBoundingClientRect();
+                return {
+                  rect: {
+                    x: r.x,
+                    y: r.y,
+                    width: r.width,
+                    height: r.height,
+                    top: r.top,
+                    left: r.left,
+                  },
+                  windowWidth: window.innerWidth,
+                };
+              },
+              args: [imgMeta.selector],
+            });
+
+            if (scrollResult && scrollResult[0] && scrollResult[0].result) {
+              captureRect = scrollResult[0].result.rect;
+              viewportWidth = scrollResult[0].result.windowWidth;
+              // Wait for painting/rendering
+              await new Promise((r) => setTimeout(r, 500));
+            } else {
+              continue; // Scroll failed
+            }
+          } catch (e) {
+            console.warn("Scroll failed:", e);
+            continue;
+          }
+        }
+
+        // VALIDATION: Strict check for undefined/NaN
+        if (
+          !captureRect ||
+          typeof captureRect.width !== "number" ||
+          captureRect.width <= 0 ||
+          captureRect.height <= 0
+        ) {
+          console.warn(`Nano A11y: Skipped 0-size image: ${imgMeta.alt}`);
+          continue;
+        }
+
+        // 3. CAPTURE & SCALE
         try {
-          const promptText = `
-SYSTEM INSTRUCTIONS:
-${rule.systemPrompt}
+          const screenshot = await getTabScreenshot();
 
-USER REQUEST:
-Analyze this image. Alt text provided: "${imgMeta.alt}"
-`;
+          if (!screenshot || screenshot.width === 0) {
+            console.warn("Screenshot capture failed (empty).");
+            continue;
+          }
+
+          // --- DPI SCALING LOGIC ---
+          let scaledRect = captureRect;
+          if (viewportWidth > 0 && screenshot.width > 0) {
+            const zoomFactor = screenshot.width / viewportWidth;
+            if (Math.abs(zoomFactor - 1) > 0.05) {
+              scaledRect = {
+                x: captureRect.x * zoomFactor,
+                y: captureRect.y * zoomFactor,
+                width: captureRect.width * zoomFactor,
+                height: captureRect.height * zoomFactor,
+              };
+            }
+          }
+
+          const imageBlob = await cropImage(screenshot, scaledRect);
+
+          if (!imageBlob) {
+            console.warn(
+              `Nano A11y: Failed to create blob for: ${imgMeta.alt}`
+            );
+            continue;
+          }
+
+          const imageBitmap = await createImageBitmap(imageBlob);
+          processedCount++; // Success!
+
+          const promptText = `\nSYSTEM INSTRUCTIONS:\n${rule.systemPrompt}\n\nUSER REQUEST:\nAnalyze this image. Alt text provided: "${imgMeta.alt}"\n`;
           const responseString = await session.prompt([
             {
               role: "user",
@@ -400,27 +418,33 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
               ],
             },
           ]);
-
           const result = parseAIResponse(responseString);
-
           if (result.verdict === "FAIL" || result.verdict === "CANNOT_TELL") {
             results.push(
               `- Image (${imgMeta.src.substring(0, 30)}...): ${result.reason}`
             );
           }
         } catch (e) {
-          console.error("AI Processing Error:", e);
+          console.error(`Capture/AI Error for ${imgMeta.alt}:`, e);
         }
       }
-
       session.destroy();
+
+      // --- FAIL-SAFE: Verify we actually analyzed something ---
+      if (processedCount === 0 && domContext.images.length > 0) {
+        return {
+          verdict: "CANNOT_TELL",
+          reason:
+            "Technical Error: Visual analysis failed for all detected images (screenshot/blob errors).",
+          pageTitle: domContext.pageTitle,
+        };
+      }
 
       if (results.length > 0) {
         const prefix =
           rule.id === "1.4.5"
             ? "Images of Text detected"
             : "Visual reliance on color detected";
-
         return {
           verdict: "FAIL",
           reason: `${prefix}:\n` + results.join("\n"),
@@ -431,7 +455,6 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
           rule.id === "1.4.5"
             ? "No images of text found."
             : "No color-only charts or diagrams detected.";
-
         return {
           verdict: "PASS",
           reason: passReason,
@@ -445,15 +468,10 @@ Analyze this image. Alt text provided: "${imgMeta.alt}"
       initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
-
     const resultString = await session.prompt(JSON.stringify(domContext));
     const result = parseAIResponse(resultString);
     session.destroy();
-
-    return {
-      ...result,
-      pageTitle: domContext.pageTitle,
-    };
+    return { ...result, pageTitle: domContext.pageTitle };
   } catch (err) {
     throw err;
   }
@@ -470,14 +488,21 @@ async function getTabScreenshot() {
 }
 
 async function cropImage(sourceImage, rect) {
+  // Prevent zero-size or negative dimensions
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
   const canvas = document.createElement("canvas");
   canvas.width = rect.width;
   canvas.height = rect.height;
   const ctx = canvas.getContext("2d");
+
+  const sx = Math.max(0, rect.x);
+  const sy = Math.max(0, rect.y);
+
   ctx.drawImage(
     sourceImage,
-    rect.x,
-    rect.y,
+    sx,
+    sy,
     rect.width,
     rect.height,
     0,
@@ -537,7 +562,6 @@ function finishAudit() {
     includePassed: document.getElementById("includePassed").checked,
     includeNotPresent: document.getElementById("includeNotPresent").checked,
   };
-
   const earlReport = generateEarlReport(auditResults, reportOptions);
   const jsonString = JSON.stringify(earlReport, null, 2);
   const blob = new Blob([jsonString], { type: "application/json" });
@@ -546,24 +570,17 @@ function finishAudit() {
   chrome.downloads.download(
     { url: url, filename: "nano-audit-report.json" },
     (downloadId) => {
-      if (chrome.runtime.lastError) {
+      if (chrome.runtime.lastError)
         log(`⚠️ Download failed: ${chrome.runtime.lastError.message}`);
-      } else {
-        log(`⬇️ Report downloaded (ID: ${downloadId})`);
-      }
+      else log(`⬇️ Report downloaded (ID: ${downloadId})`);
     }
   );
 
   document.getElementById("statusArea").setAttribute("hidden", "true");
   document.getElementById("completeView").removeAttribute("hidden");
-
   document.getElementById("downloadBtn").onclick = () => {
-    chrome.downloads.download({
-      url: url,
-      filename: "nano-audit-report.json",
-    });
+    chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
   };
-
   log("✨ Audit Complete.");
 
   const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
@@ -572,15 +589,11 @@ function finishAudit() {
       log("🚀 Injecting report into W3C Tool...");
       chrome.scripting.executeScript(
         { target: { tabId }, func: injectReportFunction, args: [earlReport] },
-        () => {
-          log("✅ Report injection script started.");
-        }
+        () => log("✅ Report injection script started.")
       );
     };
-
-    if (tab.status === "complete") {
-      inject(tab.id);
-    } else {
+    if (tab.status === "complete") inject(tab.id);
+    else {
       const listener = (tabId, changeInfo) => {
         if (tabId === tab.id && changeInfo.status === "complete") {
           chrome.tabs.onUpdated.removeListener(listener);

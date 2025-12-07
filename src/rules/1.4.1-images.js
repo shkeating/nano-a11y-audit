@@ -1,47 +1,57 @@
 export const id = "1.4.1-images";
-export const earlId = "WCAG22:use-of-color"; // Maps to the same criteria in the report
+export const earlId = "WCAG22:use-of-color";
 export const relevantElements = ["img", "svg", "canvas"];
 
 export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 1.4.1 Use of Color.
-Task: Analyze the provided image to determine if color is the ONLY means of conveying information.
+Task: Analyze the image/graphic to determine if color is the *sole* means of conveying information.
 
-**SCOPE**
-- Focus on: Charts, graphs, maps, diagrams, and status indicators.
-- Ignore: Photographs, logos, decorative images, and icons accompanied by text.
+**IMPORTANT: ALT TEXT vs VISUALS**
+- The user provides "Alt Text" for context, but your verdict must be based **ONLY ON THE VISUAL IMAGE**.
+- Even if the Alt Text says "Offline" or "Year 7", you must FAIL the image if the **visual pixels** rely only on color to convey that same info.
 
-**CRITERIA**
-1. **FAIL:** If the image is a data visualization (chart/graph) where categories are distinguished *solely* by color (e.g., a legend with colored squares but no labels on the chart segments).
-2. **PASS:**
-   - If the chart uses patterns, textures, or direct text labels to differentiate data.
-   - If the image is a photograph or decorative.
-   - If the image contains text that sufficiently explains the color-coded data.
+**CATEGORIZATION & CRITERIA**
+
+**1. CHART / GRAPH (Technique G111)**
+- **FAIL** if data series are distinguished *only* by color (e.g., Red Bar vs Blue Bar) with a legend, and NO patterns (stripes, dots) or direct labels on the bars/slices.
+- **PASS** if bars/slices have patterns, textures, or text labels directly identifying them.
+
+**2. STATUS INDICATOR / ICON (Technique G14)**
+- **FAIL** if status is conveyed *only* by color change (e.g., a "Green Dot" for Online vs "Red Dot" for Offline) without a change in shape or a visible text label next to it.
+- **PASS** if the shape also changes (e.g., Green Checkmark vs Red X) or if text accompanies it (e.g., "Offline").
+
+**3. MAP / COMPLEX DIAGRAM (Technique G14)**
+- **FAIL** if regions or lines are identified *only* by color matching a legend (e.g., "Red Line = Subway", "Blue Line = Bus") without labels on the lines themselves.
+- **PASS** if the regions/lines have direct text labels or distinct line styles (dotted vs solid).
+
+**4. ALT TEXT CHECK (Failure F13)**
+- **FAIL** if the image conveys state via color (e.g. Red = Error) but the provided Alt Text ignores it (e.g. alt="Status Icon").
 
 **OUTPUT FORMAT**
 Return a JSON object:
-- Fail: {"verdict": "FAIL", "reason": "Chart/Diagram relies solely on color to distinguish categories (no labels/patterns)."}
-- Pass: {"verdict": "PASS", "reason": "Image uses labels/patterns or is not a data visualization."}
+- Fail: {"verdict": "FAIL", "reason": "[Category]: [Specific missing non-color cue]"}
+- Pass: {"verdict": "PASS", "reason": "[Category]: Uses [Pattern/Shape/Label] to distinguish information."}
 `;
 
 export function extractor() {
   const images = [];
-  // Select images and potential chart containers
   const imageCandidates = document.querySelectorAll("img, svg, canvas");
 
   for (const el of imageCandidates) {
     const rect = el.getBoundingClientRect();
-    // Filter out small icons or off-screen elements
-    if (
-      rect.width < 50 ||
-      rect.height < 50 ||
-      rect.bottom < 0 ||
-      rect.top > window.innerHeight
-    )
-      continue;
 
-    // Filter out purely decorative/presentation items
+    // Filter out tiny elements
+    if (rect.width < 10 || rect.height < 10) continue;
+
+    // Filter out decorative
     const role = el.getAttribute("role");
     if (role === "presentation" || role === "none") continue;
+
+    // --- ROBUST TAGGING FIX ---
+    // Instead of guessing a CSS path, we stamp a unique ID directly on the element.
+    // This ensures the Side Panel finds the EXACT same node later.
+    const uniqueId = "nano-" + Math.random().toString(36).substr(2, 9);
+    el.setAttribute("data-nano-id", uniqueId);
 
     let src = "";
     if (el.tagName === "IMG") src = el.src;
@@ -59,20 +69,20 @@ export function extractor() {
         width: rect.width,
         height: rect.height,
       },
+      selector: `[data-nano-id="${uniqueId}"]`, // Simple, bulletproof selector
     });
   }
 
   if (images.length === 0) {
     return {
       computedVerdict: "PASS",
-      reason: "No relevant chart/image candidates found.",
+      reason: "No relevant graphical content found.",
       pageTitle: document.title,
     };
   }
 
-  // Return images for the sidepanel to process
   return {
     pageTitle: document.title,
-    images: images.slice(0, 3), // Analyze top 3 candidates to save resources
+    images: images.slice(0, 5),
   };
 }
