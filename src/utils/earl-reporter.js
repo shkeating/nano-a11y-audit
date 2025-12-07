@@ -127,6 +127,10 @@ export function generateEarlReport(auditResults, options = {}) {
 
       // --- AGGREGATE WEBSITE ASSERTION ---
       const anyFailures = relevantResults.some((r) => r.verdict === "FAIL");
+      // NEW: Check for Cannot Tell
+      const anyCannotTell = relevantResults.some(
+        (r) => r.verdict === "CANNOT_TELL"
+      );
       const onlyInapplicable = relevantResults.every(
         (r) => r.verdict === "INAPPLICABLE"
       );
@@ -141,13 +145,21 @@ export function generateEarlReport(auditResults, options = {}) {
           title: "Failed",
         };
         aggregateDescription = "Issues were found in the sample.";
+      } else if (anyCannotTell) {
+        // NEW: Prioritize Cannot Tell over Pass, but under Fail
+        aggregateOutcome = {
+          id: "earl:cantTell",
+          type: ["OutcomeValue", "CannotTell"],
+          title: "Cannot Tell",
+        };
+        aggregateDescription =
+          "Some checks could not be completed automatically.";
       } else if (onlyInapplicable) {
         aggregateOutcome = {
           id: "earl:inapplicable",
           type: ["OutcomeValue", "NotApplicable"],
           title: "Not Present",
         };
-        // Only add text if user wants it
         if (includeNotPresent) aggregateDescription = "Not Present";
       } else {
         aggregateOutcome = {
@@ -155,7 +167,6 @@ export function generateEarlReport(auditResults, options = {}) {
           type: ["OutcomeValue", "Pass"],
           title: "Passed",
         };
-        // Only add text if user wants it
         if (includePassed) aggregateDescription = "Passed";
       }
 
@@ -186,6 +197,10 @@ export function generateEarlReport(auditResults, options = {}) {
 
       for (const [url, pageResults] of Object.entries(resultsByUrl)) {
         const isFailure = pageResults.some((r) => r.verdict === "FAIL");
+        // NEW: Check per-page Cannot Tell
+        const isCannotTell = pageResults.some(
+          (r) => r.verdict === "CANNOT_TELL"
+        );
         const isInapplicable = pageResults.every(
           (r) => r.verdict === "INAPPLICABLE"
         );
@@ -199,13 +214,27 @@ export function generateEarlReport(auditResults, options = {}) {
             type: ["OutcomeValue", "Fail"],
             title: "Failed",
           };
-          // Failures ALWAYS get full descriptions
           pageDescription = pageResults
             .filter((r) => r.verdict === "FAIL")
             .map((r) => {
               const prefix = r.source ? `[${r.source}] ` : "";
               const ruleSuffix = r.ruleId ? ` (Rule: ${r.ruleId})` : "";
               return `${prefix}${r.reason}${ruleSuffix}`;
+            })
+            .join("\n\n");
+        } else if (isCannotTell) {
+          // NEW: Handle Cannot Tell
+          outcomeObj = {
+            id: "earl:cantTell",
+            type: ["OutcomeValue", "CannotTell"],
+            title: "Cannot Tell",
+          };
+          // Include the "Cannot Tell" reasons (like the multimodal warning)
+          pageDescription = pageResults
+            .filter((r) => r.verdict === "CANNOT_TELL")
+            .map((r) => {
+              const prefix = r.source ? `[${r.source}] ` : "";
+              return `${prefix}${r.reason}`;
             })
             .join("\n\n");
         } else if (isInapplicable) {
@@ -222,7 +251,6 @@ export function generateEarlReport(auditResults, options = {}) {
             title: "Passed",
           };
           if (includePassed) {
-            // Include verbose passed observations
             pageDescription = pageResults
               .map((r) => {
                 const prefix = r.source ? `[${r.source}] ` : "";
@@ -249,7 +277,7 @@ export function generateEarlReport(auditResults, options = {}) {
       }
     }
 
-    // --- UNTESTED ASSERTION (If no results found for this ID) ---
+    // --- UNTESTED ASSERTION ---
     if (!hasResult) {
       allAssertions.push({
         type: "Assertion",
