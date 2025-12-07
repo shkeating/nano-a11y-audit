@@ -29,17 +29,30 @@ This architecture ensures comprehensive test coverage while maintaining **zero l
 
 ## Technical Architecture
 
-The tool is orchestrated by a **Side Panel Controller** that manages the entire audit workflow:
+The tool uses a **modular, reactive architecture** built with **Preact** and **Vite**. It decouples the UI from the audit logic to ensure performance and maintainability.
 
-1.  **URL Intake:** The user uploads a CSV file of URLs via the side panel UI (`sidepanel.html`).
-2.  **Queue Management:** The **Side Panel Controller** (`sidepanel.js`) parses the file and manages the queue of URLs to be tested.
-3.  **Navigation & Execution Loop:** For each URL in the queue, the controller:
-    a. Navigates an active browser tab to the URL.
-    b. Injects the **Axe Runner** (`utils/axe-runner.js`) to perform a baseline audit.
-    c. Iterates through the **Rules Registry** (`src/rules/index.js`).
-    d. **Multimodal Analysis:** For visual rules (e.g., 1.4.5), the extension captures a screenshot of the viewport, crops it to the relevant element coordinates, and passes the image data directly to the Gemini Nano Prompt API.
-4.  **Report Aggregation:** Results from both Axe and all Nano-powered checks are collected.
-5.  **Automated Submission:** Upon completion, the tool automates the submission of the generated JSON-LD report to the W3C Report Tool.
+1.  **UI Layer (Preact):**
+
+    - **Components:** The interface is built with reusable, accessible components (`Button`, `Modal`, `LogConsole`) styled with CSS Modules and PicoCSS.
+    - **State Management:** `App.jsx` orchestrates the application state (progress, logs, results) and passes data down to specific views (`SetupView`, `AuditView`, `CompleteView`).
+    - **Reactive Updates:** The UI updates instantly in response to audit events without manual DOM manipulation.
+
+2.  **Service Layer:**
+
+    - **Audit Runner (`audit-runner.js`):** The core engine that executes tests on a specific tab. It intelligently splits rules into "Static" (text-based) and "Visual" (screenshot-based) categories.
+    - **Optimization Strategy:**
+      - **Parallel Execution:** Static rules run concurrently in batches to maximize speed.
+      - **Smart Throttling:** Visual rules use exponential backoff and smart retries instead of hard-coded waits, reducing idle time.
+    - **Storage Service:** Manages user configuration (Safe Lists) via Chrome's Storage API.
+
+3.  **Hybrid Execution Loop:**
+
+    - **Axe Core:** Runs first to establish a baseline.
+    - **Gemini Nano:** Consumes data extracted from the DOM. For visual rules, it captures, crops, and analyzes screenshots entirely on-device.
+
+4.  **Automated Reporting:**
+    - Generates a WCAG-EM compliant JSON-LD report.
+    - Automates the W3C Report Tool by injecting data directly into the DOM.
 
 ---
 
@@ -296,36 +309,33 @@ The hybrid engine provides broad coverage. The current scope includes:
 ```text
 nano-a11y-audit/
 ├── src/
-│   ├── manifest.json           # Extension config, permissions
-│   ├── sidepanel.html          # Main UI (file input, logs, settings)
-│   ├── sidepanel.js            # Core controller for the audit process
+│   ├── sidepanel.jsx           # Entry point (Preact Mount)
+│   ├── sidepanel.html          # HTML Shell
+│   ├── manifest.json           # Extension config
 │   ├── background.js           # Service worker
-│   ├── lib/                    # Static assets (copied to dist/)
-│   ├── rules/                  # AI Rule definitions
-│   │   ├── 1.3.2.js            # Meaningful Sequence Rule
-│   │   ├── 1.3.3.js            # Sensory Characteristics Rule
-│   │   ├── 1.3.4-landscape.js  # Orientation Rule (Landscape check)
-│   │   ├── 1.3.4-portrait.js   # Orientation Rule (Portrait check)
-│   │   ├── 1.4.1.js            # Use of Color Rule
-│   │   ├── 1.4.5.js            # Images of Text Rule (Multimodal)
-│   │   ├── 1.4.10.js           # Reflow Rule (320px viewport simulation)
-│   │   ├── 1.4.12.js           # Text Spacing Rule (Style injection)
-│   │   ├── 2.2.2.js            # Pause, Stop, Hide Rule
-│   │   ├── 2.4.5.js            # Multiple Ways Rule
-│   │   ├── 2.4.6.js            # Headings and Labels Rule (New!)
-│   │   ├── 2.4.7.js            # Focus Visible Rule
-│   │   ├── 2.5.3.js            # Label in Name Rule
-│   │   ├── 3.2.2.js            # On Input Rule
-│   │   ├── 3.3.2.js            # Labels & Instructions Rule
+│   │
+│   ├── ui/                     # UI Layer
+│   │   ├── App.jsx             # Main Application State & Logic
+│   │   ├── components/         # Feature Components (Setup, Audit, Complete)
+│   │   └── components/base/    # Foundational Components (Button, Modal, etc.)
+│   │
+│   ├── services/               # Business Logic
+│   │   ├── audit-runner.js     # Orchestrates Axe + Nano execution
+│   │   └── storage.js          # Chrome Storage wrapper
+│   │
+│   ├── rules/                  # AI Rule Definitions (Prompt + Extractor)
+│   │   ├── 1.3.2.js
+│   │   ├── ... (Rule files)
 │   │   └── index.js            # Rule Registry
-│   └── utils/
-│       ├── axe-runner.js       # Axe Core injection & execution
-│       ├── earl-reporter.js    # JSON-LD report generation
+│   │
+│   └── utils/                  # Helper Utilities
+│       ├── axe-runner.js       # Axe Core injection
+│       ├── async-helpers.js    # Batching & Retry logic
+│       ├── earl-reporter.js    # JSON-LD generation
 │       └── report-injector.js  # W3C Tool automation
-├── test-files/                 # Local test harness with failure examples
-├── dist/                       # Build output (Load this in Chrome)
-├── vite.config.js              # Build configuration
-└── package.json                # Dependencies and scripts
+│
+├── dist/                       # Build output
+└── vite.config.js              # Vite + Preact configuration
 ```
 
 ## Development
