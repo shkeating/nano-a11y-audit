@@ -7,8 +7,10 @@
   },
   "dependencies": {
     "@picocss/pico": "^2.1.1",
+    "@preact/preset-vite": "^2.10.2",
     "axe-core": "^4.11.0",
-    "papaparse": "^5.4.1"
+    "papaparse": "^5.4.1",
+    "preact": "^10.28.0"
   },
   "devDependencies": {
     "vite": "^5.0.0",
