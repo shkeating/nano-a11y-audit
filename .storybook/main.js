@@ -1,0 +1,13 @@
+/** @type { import('@storybook/preact-vite').StorybookConfig } */
+const config = {
+  // Since root is now ".", these paths are relative to .storybook/ folder
+  stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
+  addons: [
+    "@chromatic-com/storybook",
+    "@storybook/addon-a11y",
+    "@storybook/addon-docs",
+  ],
+  framework: "@storybook/preact-vite",
+  staticDirs: ["../static"],
+};
+export default config;
