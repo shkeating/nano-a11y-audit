@@ -1,1 +1,0 @@
-import{u as e}from"./jsxRuntime.module-D3_-wz5Q.js";import{s as a}from"./Form.module-B8-Q64s3.js";function o({label:r,value:s,onInput:t,rows:m=4,description:l}){return e("div",{className:a.fieldGroup,children:[e("label",{className:a.label,children:r}),l&&e("small",{className:a.helperText,children:l}),e("textarea",{rows:m,className:a.textarea,value:s,onInput:t})]})}export{o as T};

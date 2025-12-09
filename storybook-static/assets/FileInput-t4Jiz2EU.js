@@ -1,1 +1,0 @@
-import{u as e}from"./jsxRuntime.module-D3_-wz5Q.js";import{s as l}from"./Form.module-B8-Q64s3.js";function p({label:i,accept:s,onChange:a,helperContent:r}){return e("div",{className:l.fieldGroup,children:[e("label",{className:l.label,children:i}),e("input",{type:"file",accept:s,onChange:a,className:l.fileInput}),r]})}export{p as F};

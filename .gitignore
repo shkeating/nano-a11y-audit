@@ -15,3 +15,4 @@ data/urls.csv
 node_modules/
 dist/
 *storybook.log
+storybook-static
