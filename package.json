@@ -5,7 +5,7 @@
     "build": "vite build",
     "watch": "vite build --watch",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build -o storybook-static"
   },
   "dependencies": {
     "@picocss/pico": "^2.1.1",
