@@ -354,3 +354,9 @@ To add a new AI-powered accessibility check:
     - Import the new file in `src/rules/index.js`.
     - Add it to the `RULES` object.
 4.  **Rebuild**: Run `npm run build` to update the extension.
+
+### UI Components
+
+This project uses Storybook to track UI components for development
+The storybook can be run locally with the command `npm run storybook`
+The main branch storybook is deployed to Netlify and updates are deloyed on build at [https://nano-a11y-audit-ui.netlify.app/](https://nano-a11y-audit-ui.netlify.app/?path=/story/welcome--overview)
