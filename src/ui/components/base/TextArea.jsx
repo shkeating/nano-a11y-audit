@@ -1,9 +1,18 @@
 import styles from "./Form.module.css";
 
-export function TextArea({ label, value, onInput, rows = 4, description }) {
+export function TextArea({
+  label,
+  value,
+  onInput,
+  rows = 4,
+  description,
+  taid = "textarea-id",
+}) {
   return (
     <div className={styles.fieldGroup}>
-      <label className={styles.label}>{label}</label>
+      <label htmlFor={taid} className={styles.label}>
+        {label}
+      </label>
       {description && (
         <small className={styles.helperText}>{description}</small>
       )}
@@ -12,6 +21,7 @@ export function TextArea({ label, value, onInput, rows = 4, description }) {
         className={styles.textarea}
         value={value}
         onInput={onInput}
+        id={taid}
       />
     </div>
   );
