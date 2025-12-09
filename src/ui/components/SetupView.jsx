@@ -24,11 +24,11 @@ export function SetupView({
             onChange={onFileUpload}
             helperContent={
               urlCount > 0 && (
-                <small
+                <strong
                   style={{ color: "green", display: "block", marginTop: "5px" }}
                 >
                   ✅ {urlCount} URLs loaded ready for testing.
-                </small>
+                </strong>
               )
             }
           />

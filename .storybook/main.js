@@ -8,5 +8,6 @@ const config = {
     "@storybook/addon-docs",
   ],
   framework: "@storybook/preact-vite",
+  staticDirs: ["../static"],
 };
 export default config;
