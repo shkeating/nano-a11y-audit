@@ -2,11 +2,14 @@
     height: 200px;
     overflow-y: auto;
     padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #f8f9fa;
-    /* Or use var(--pico-card-background-color) */
-    font-family: monospace;
+
+    /* Refactored to use Pico CSS variables */
+    border: 1px solid var(--pico-card-border-color);
+    background-color: var(--pico-card-background-color);
+    color: var(--pico-color);
+    border-radius: var(--pico-border-radius);
+
+    font-family: var(--pico-font-family-monospace, monospace);
     font-size: 0.9em;
 }
 

@@ -1,0 +1,55 @@
+.container {
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.heading {
+    margin-bottom: 0.5rem;
+}
+
+.metaText {
+    font-size: 0.9rem;
+    color: var(--pico-muted-color);
+}
+
+.summaryGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 2rem;
+    margin-top: 1rem;
+}
+
+.statCard {
+    background: var(--pico-card-background-color);
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--pico-card-border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.number {
+    font-size: 2rem;
+    font-weight: bold;
+    line-height: 1;
+    margin-bottom: 5px;
+}
+
+.label {
+    font-size: 0.8rem;
+    color: var(--pico-muted-color);
+}
+
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.importButton {
+    width: 100%;
+    font-weight: bold;
+}
