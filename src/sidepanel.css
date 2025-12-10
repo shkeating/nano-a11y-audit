@@ -1,6 +1,23 @@
 :root {
+    --pico-color-lime: #a5d601;
+    --pico-color-green-450: #409614;
+    --pico-outline-width: 3px;
+    --pico-primary-focus: var(--pico-color-green-450);
     --pico-font-family-sans-serif: 'Arivo', system-ui, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, Helvetica, Arial, "Helvetica Neue", sans-serif, var(--pico-font-family-emoji);
     --pico-font-family-monospace: 'Cousine', ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace, var(--pico-font-family-emoji);
+}
+
+@media only screen and (prefers-color-scheme: dark) {
+
+    :root:not([data-theme]),
+    :host:not([data-theme]) {
+        --pico-primary-focus: var(--pico-color-lime);
+    }
+}
+
+*:focus-visible {
+    outline: var(--pico-outline-width) var(--pico-primary-focus) solid !important;
+    outline-offset: 5px;
 }
 
 body {

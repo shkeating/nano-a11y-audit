@@ -20,8 +20,8 @@
 
 .helperText {
     display: block;
-    margin-top: 5px;
-    color: var(--pico-muted-color, #666);
+    margin: 4px 0px 8px;
+    color: var(--pico-muted-color);
     font-size: 0.85em;
 }
 
@@ -33,5 +33,15 @@
 
 .fileInput {
     width: 100%;
-    margin-bottom: 4px;
+
+}
+
+.fileInput button {
+    background-color: var(--pico-secondary);
+}
+
+input:not([type=checkbox], [type=radio]),
+select,
+textarea {
+    margin-bottom: calc(var(--pico-spacing) - 11px);
 }
