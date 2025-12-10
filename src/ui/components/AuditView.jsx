@@ -1,20 +1,21 @@
 import { ProgressBar } from "./base/ProgressBar";
 import { LogConsole } from "./base/LogConsole";
+import styles from "./AuditView.module.css";
 
 export function AuditView({ enableMultimodal, progress, logs }) {
   return (
     <div id="auditView">
       {enableMultimodal && (
-        <div className="warning-box">
+        <div className={styles.warningBox}>
           <strong>IMPORTANT: Keep Window Focused</strong>
-          <p style={{ marginBottom: 0, fontSize: "0.9em" }}>
+          <p className={styles.warningText}>
             Visual checks require the page to be visible on screen. Do not
             minimize.
           </p>
         </div>
       )}
 
-      <div className="status-box">
+      <div className={styles.statusBox}>
         <h3>Audit Status</h3>
 
         <ProgressBar
@@ -23,7 +24,7 @@ export function AuditView({ enableMultimodal, progress, logs }) {
           label="Progress"
         />
 
-        <div className="status-current-url" style={{ marginBottom: "10px" }}>
+        <div className={styles.currentUrl}>
           <strong>Current:</strong> <span>{progress.currentUrl}</span>
         </div>
 

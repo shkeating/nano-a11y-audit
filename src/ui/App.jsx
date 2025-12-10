@@ -12,9 +12,31 @@ import { AuditView } from "./components/AuditView";
 import { CompleteView } from "./components/CompleteView";
 import { SettingsModal } from "./components/SettingsModal";
 
+// Level AAA Criteria IDs to exclude from the AA summary count
+const AAA_IDS = [
+  "WCAG22:contrast-enhanced",
+  "WCAG22:images-of-text-no-exception",
+  "WCAG22:keyboard-no-exception",
+  "WCAG22:no-timing",
+  "WCAG22:interruptions",
+  "WCAG22:re-authenticating",
+  "WCAG22:timeouts",
+  "WCAG22:three-flashes",
+  "WCAG22:focus-not-obscured-enhanced",
+  "WCAG22:target-size", // 2.5.5 (AAA) vs target-size-minimum (AA)
+  "WCAG22:unusual-words",
+  "WCAG22:abbreviations",
+  "WCAG22:reading-level",
+  "WCAG22:pronunciation",
+  "WCAG22:change-on-request",
+  "WCAG22:help",
+  "WCAG22:error-prevention-all",
+  "WCAG22:accessible-authentication-enhanced",
+];
+
 export function App() {
   // --- STATE ---
-  const [view, setView] = useState("setup"); // 'setup', 'auditing', 'complete'
+  const [view, setView] = useState("setup");
   const [urlQueue, setUrlQueue] = useState([]);
   const [auditResults, setAuditResults] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -24,7 +46,17 @@ export function App() {
     currentUrl: "Waiting...",
   });
 
-  // Settings State
+  // New State for Report Data & Summary
+  const [finalReport, setFinalReport] = useState(null);
+  const [summaryStats, setSummaryStats] = useState({
+    passed: 0,
+    failed: 0,
+    cantTell: 0,
+    inapplicable: 0,
+    untested: 0,
+    totalCriteria: 55, // Fixed to WCAG 2.2 AA count
+  });
+
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState({
     safeList: [],
@@ -137,15 +169,60 @@ export function App() {
   };
 
   const finishAudit = (finalResults) => {
+    // 1. Generate the JSON-LD Report
     const reportOptions = {
-      includePassed: settings.includePassed,
-      includeNotPresent: settings.includeNotPresent,
+      includePassed: true,
+      includeNotPresent: true,
     };
     const earlReport = generateEarlReport(finalResults, reportOptions);
-    downloadReport(earlReport);
+
+    // 2. Calculate Statistics
+    const TOTAL_AA_CRITERIA = 55;
+    const stats = {
+      passed: 0,
+      failed: 0,
+      cantTell: 0,
+      inapplicable: 0,
+      untested: 0,
+      totalCriteria: TOTAL_AA_CRITERIA,
+    };
+
+    if (earlReport.auditSample) {
+      // Filter: Website-level assertions only AND exclude AAA criteria
+      const criterionAssertions = earlReport.auditSample.filter(
+        (a) =>
+          a.subject &&
+          a.subject.type &&
+          a.subject.type.includes("Website") &&
+          !AAA_IDS.includes(a.test.id)
+      );
+
+      criterionAssertions.forEach((assertion) => {
+        const outcomeId = assertion.result.outcome.id;
+        if (outcomeId === "earl:passed") stats.passed++;
+        else if (outcomeId === "earl:failed") stats.failed++;
+        else if (outcomeId === "earl:cantTell") stats.cantTell++;
+        else if (outcomeId === "earl:inapplicable") stats.inapplicable++;
+        // We do NOT count 'untested' from the report loop directly to avoid double counting or AAA noise
+      });
+    }
+
+    // 3. Force mathematical consistency for "Untested"
+    const evaluatedCount =
+      stats.passed + stats.failed + stats.cantTell + stats.inapplicable;
+    stats.untested = Math.max(0, stats.totalCriteria - evaluatedCount);
+
+    setFinalReport(earlReport);
+    setSummaryStats(stats);
 
     setView("complete");
-    addLog("✨ Audit Complete.");
+    addLog("✨ Audit Complete. Ready for review.");
+  };
+
+  // --- ACTIONS ---
+
+  const handleImportToW3C = () => {
+    if (!finalReport) return;
 
     const reportToolUrl = "https://www.w3.org/WAI/eval/report-tool/";
     chrome.tabs.create({ url: reportToolUrl }, (tab) => {
@@ -155,7 +232,7 @@ export function App() {
           {
             target: { tabId: targetTabId },
             func: injectReportFunction,
-            args: [earlReport],
+            args: [finalReport],
           },
           () => addLog("✅ Report injection script started.")
         );
@@ -175,20 +252,12 @@ export function App() {
     });
   };
 
-  const downloadReport = (reportData) => {
-    const jsonString = JSON.stringify(reportData, null, 2);
+  const handleDownloadJson = () => {
+    if (!finalReport) return;
+    const jsonString = JSON.stringify(finalReport, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     chrome.downloads.download({ url: url, filename: "nano-audit-report.json" });
-  };
-
-  const downloadAgain = () => {
-    const reportOptions = {
-      includePassed: settings.includePassed,
-      includeNotPresent: settings.includeNotPresent,
-    };
-    const earlReport = generateEarlReport(auditResults, reportOptions);
-    downloadReport(earlReport);
   };
 
   // --- HELPERS ---
@@ -244,7 +313,9 @@ export function App() {
 
       {view === "complete" && (
         <CompleteView
-          onDownloadAgain={downloadAgain}
+          summary={summaryStats}
+          onImport={handleImportToW3C}
+          onDownload={handleDownloadJson}
           onStartNew={() => setView("setup")}
         />
       )}
