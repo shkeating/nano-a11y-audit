@@ -61,3 +61,17 @@ label {
         flex-direction: row;
     }
 }
+
+:where(select, textarea):not([readonly]):focus,
+input:not([type=submit], [type=button], [type=reset], [type=range], [type=file], [readonly]):focus {
+    --pico-box-shadow: none;
+}
+
+[role=button]:focus,
+[type=button]:focus,
+[type=file]::file-selector-button:focus,
+[type=reset]:focus,
+[type=submit]:focus,
+button:focus {
+    --pico-box-shadow: none;
+}
