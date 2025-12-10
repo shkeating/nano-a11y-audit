@@ -21,10 +21,6 @@ export const WithHelperContent = {
   args: {
     label: "Upload Config:",
     accept: ".json",
-    helperContent: (
-      <small style={{ color: "green", display: "block", marginTop: "5px" }}>
-        ✅ Config loaded successfully.
-      </small>
-    ),
+    helperContent: <strong>✅ Config loaded successfully.</strong>,
   },
 };
