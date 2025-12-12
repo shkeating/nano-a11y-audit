@@ -205,9 +205,22 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
   }
 
   try {
+    // --- NEW: INJECT SAFE LIST INTO PROMPT ---
+    let finalSystemPrompt = rule.systemPrompt;
+
+    if (
+      rule.id === "2.4.6" && // Only apply to Headings/Labels rule
+      options.safeList &&
+      options.safeList.length > 0
+    ) {
+      const safeTerms = options.safeList.join("\n- ");
+      finalSystemPrompt += `\n\n*** USER CONFIGURATION: SAFE LIST ***\nThe user has explicitly marked the following terms as Descriptive (PASS). Allow variations (case/plural):\n- ${safeTerms}`;
+    }
+    // ----------------------------------------
+
     // Single-shot Prompt
     const session = await aiOrigin.create({
-      initialPrompts: [{ role: "system", content: rule.systemPrompt }],
+      initialPrompts: [{ role: "system", content: finalSystemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
     const resultString = await session.prompt(JSON.stringify(domContext));

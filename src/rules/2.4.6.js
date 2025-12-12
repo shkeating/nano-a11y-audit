@@ -11,78 +11,48 @@ export const relevantElements = [
   "legend",
 ];
 
+// We use "Few-Shot Prompting" here.
+// By providing a concrete Q&A example, we force the model to mimic the logic
+// rather than interpreting abstract rules about "vagueness".
 export const systemPrompt = `
-You are a WCAG text classifier.
-Task: Classify web text as **PASS** (Descriptive) or **FAIL** (Non-Descriptive).
+You are a WCAG accessibility classifier.
+Task: Identify text that is VAGUE or PLACEHOLDER content.
 
-**CRITERIA**
-1. **FAIL (Vague/Placeholder):**
-   - "Section 1", "Untitled", "Page 2"
-   - "Data", "Input", "Field", "Value", "Text"
-   - "..." or symbols only.
-
-2. **PASS (Descriptive):**
-   - Any text that gives a specific clue about the content.
-   - Example: "Refund Policy Details" -> PASS (Specific subject).
-   - Example: "Pricing Plans" -> PASS (Specific subject).
+**CLASSIFICATION GUIDE**
+1. **FAIL (Vague):** "Section 1", "Untitled", "Page 2", "Input", "Field", "Data", "Value", "Text", "..."
+2. **PASS (Descriptive):** "Refund Policy", "Contact Us", "Email Address", "Zip Code", "Search Results", "User Profile".
+   - IF THE TEXT DESCRIBES A SPECIFIC TOPIC, IT PASSES.
 
 **INSTRUCTIONS**
-Review the 'items' list.
-- If an item is **PASS**, ignore it.
-- If an item is **FAIL**, add it to the report.
+- Review the user's list of text items.
+- Return a JSON object with a "verdict" and "reason".
+- **ONLY** list the items that FAIL.
+- If an item is PASS, do not mention it.
 
-**OUTPUT FORMAT**
-Return a JSON object:
-- If violations exist: {"verdict": "FAIL", "reason": "Meaningless/Placeholder text found:\\n- [Item]"}
-- If no violations: {"verdict": "PASS", "reason": "Headings and labels are descriptive."}
+**FEW-SHOT EXAMPLES**
+
+User:
+- "Chapter 1"
+- "Login"
+- "Untitled"
+- "Submit"
+
+Model:
+{"verdict": "FAIL", "reason": "Meaningless/Placeholder text found:\\n- Chapter 1\\n- Untitled"}
+
+User:
+- "Financial Report"
+- "Name"
+- "Search"
+
+Model:
+{"verdict": "PASS", "reason": "Headings and labels are descriptive."}
+
+*** USER SAFE LIST (These always PASS) ***
+(The user's safe terms will be injected here by the runner)
 `;
 
-// Extractor now accepts 'options' from sidepanel.js
 export function extractor(selectors = [], options = {}) {
-  // 1. DEFAULT SAFE LIST (Fallback)
-  const DEFAULT_SAFE_TERMS = [
-    "email",
-    "email address",
-    "name",
-    "first name",
-    "last name",
-    "password",
-    "search",
-    "contact",
-    "contact us",
-    "address",
-    "city",
-    "state",
-    "zip",
-    "phone",
-    "date",
-    "submit",
-    "login",
-    "sign up",
-    "menu",
-    "about",
-    "home",
-    "products",
-    "services",
-    "pricing",
-    "refund policy",
-    "privacy policy",
-    "terms",
-  ];
-
-  // 2. MERGE USER SETTINGS
-  // If user provided a list, we use that. Otherwise, we use defaults.
-  // We sanitize input to ensure it's an array of lowercase strings.
-  let activeSafeList = DEFAULT_SAFE_TERMS;
-
-  if (
-    options &&
-    Array.isArray(options.safeList) &&
-    options.safeList.length > 0
-  ) {
-    activeSafeList = options.safeList.map((s) => s.toLowerCase().trim());
-  }
-
   function isVisible(el) {
     if (!el) return false;
     if (el.offsetParent !== null) return true;
@@ -96,22 +66,6 @@ export function extractor(selectors = [], options = {}) {
 
   function cleanText(str) {
     return str.replace(/[:\-\.]/g, "").trim();
-  }
-
-  function isSafe(text) {
-    const lower = text.toLowerCase();
-    // 1. Exact match
-    if (activeSafeList.includes(lower)) return true;
-    // 2. Contains specific safe phrase
-    if (activeSafeList.some((term) => lower.includes(term))) return true;
-    // 3. Test content / Meta content (Hardcoded exceptions)
-    if (
-      lower.includes("sc ") ||
-      lower.includes("wcag") ||
-      lower.includes("test")
-    )
-      return true;
-    return false;
   }
 
   function getNextContentSnippet(el) {
@@ -129,35 +83,24 @@ export function extractor(selectors = [], options = {}) {
 
   const items = [];
 
-  // 1. HEADINGS
-  const headings = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
-  for (const h of headings) {
-    if (!isVisible(h)) continue;
-    const raw = h.innerText.trim();
+  const candidates = document.querySelectorAll(
+    "h1, h2, h3, h4, h5, h6, label, legend"
+  );
+  for (const el of candidates) {
+    if (!isVisible(el)) continue;
+    const raw = el.innerText.trim();
     if (raw.length === 0) continue;
 
-    if (isSafe(raw)) continue;
+    // Hard filter for technical test artifacts to save tokens
+    const lower = raw.toLowerCase();
+    if (
+      lower.includes("sc ") ||
+      lower.includes("wcag") ||
+      lower.includes("test")
+    )
+      continue;
 
-    items.push({
-      type: "Heading",
-      text: cleanText(raw),
-      context: getNextContentSnippet(h),
-    });
-  }
-
-  // 2. LABELS
-  const labels = document.querySelectorAll("label, legend");
-  for (const l of labels) {
-    if (!isVisible(l)) continue;
-    const raw = l.innerText.trim();
-    if (raw.length === 0) continue;
-
-    if (isSafe(raw)) continue;
-
-    items.push({
-      type: "Label",
-      text: cleanText(raw),
-    });
+    items.push(cleanText(raw));
   }
 
   if (items.length === 0) {
@@ -168,8 +111,10 @@ export function extractor(selectors = [], options = {}) {
     };
   }
 
+  // We send a simple array of strings now to match the Few-Shot format
+  // Limit to 40 items to keep context window manageable
   return {
     pageTitle: document.title,
-    items: items.slice(0, 20),
+    items: items.slice(0, 40),
   };
 }
