@@ -29,128 +29,6 @@ This architecture ensures comprehensive test coverage while maintaining **zero l
 
 ## Technical Architecture
 
-The tool uses a **modular, reactive architecture** built with **Preact** and **Vite**. It decouples the UI from the audit logic to ensure performance and maintainability.
-
-1.  **UI Layer (Preact):**
-
-    - **Components:** The interface is built with reusable, accessible components (`Button`, `Modal`, `LogConsole`) styled with CSS Modules and PicoCSS.
-    - **State Management:** `App.jsx` orchestrates the application state (progress, logs, results) and passes data down to specific views (`SetupView`, `AuditView`, `CompleteView`).
-    - **Reactive Updates:** The UI updates instantly in response to audit events without manual DOM manipulation.
-
-2.  **Service Layer:**
-
-    - **Audit Runner (`audit-runner.js`):** The core engine that executes tests on a specific tab. It intelligently splits rules into "Static" (text-based) and "Visual" (screenshot-based) categories.
-    - **Optimization Strategy:**
-      - **Parallel Execution:** Static rules run concurrently in batches to maximize speed.
-      - **Smart Throttling:** Visual rules use exponential backoff and smart retries instead of hard-coded waits, reducing idle time.
-    - **Storage Service:** Manages user configuration (Safe Lists) via Chrome's Storage API.
-
-3.  **Hybrid Execution Loop:**
-
-    - **Axe Core:** Runs first to establish a baseline.
-    - **Gemini Nano:** Consumes data extracted from the DOM. For visual rules, it captures, crops, and analyzes screenshots entirely on-device.
-
-4.  **Automated Reporting:**
-    - Generates a WCAG-EM compliant JSON-LD report.
-    - Automates the W3C Report Tool by injecting data directly into the DOM.
-
----
-
-## Prerequisites (Crucial)
-
-This extension relies on experimental browser features. It **will not work** in standard Chrome.
-
-1.  **Browser:** You must use **Google Chrome Canary** (Version 128+).
-2.  **Feature Flags:** Enable the following in `chrome://flags` and **restart the browser**:
-    - `#prompt-api-for-gemini-nano`: **Enabled**
-    - `#optimization-guide-on-device-model`: **Enabled BypassPrefRequirement**
-    - `#prompt-api-for-gemini-nano-multimodal-input`: **Enabled** (Required for visual checks)
-3.  **Model Download:**
-    - Go to `chrome://components`.
-    - Find **Optimization Guide On Device Model**.
-    - Click **Check for Update** to download the Gemini Nano model (~1.5GB).
-    - _Note: Ensure the version is listed (e.g., 2024.9.25.x) and not 0.0.0.0._
-
----
-
-## Installation
-
-1.  **Clone the repository:**
-
-    ```bash
-    git clone <repository-url>
-    cd nano-a11y-audit
-    ```
-
-2.  **Install dependencies:**
-
-    ```bash
-    npm install
-    ```
-
-3.  **Build the project:**
-
-    ```bash
-    npm run build
-    ```
-
-4.  **Load into Chrome:**
-    - Open Chrome Canary and navigate to `chrome://extensions`.
-    - Enable **Developer Mode** (top right toggle).
-    - Click **Load Unpacked**.
-    - Select the `dist` folder created by the build process.
-
----
-
-## How to Run an Audit
-
-### 1. Prepare your Data
-
-Create a CSV file. It **must** have a header row named `url`.
-
-```csv
-url
-[https://example.com](https://example.com)
-http://localhost:8000/my-test-page.html
-```
-
-###Nano WCAG Rules Script & Test Case
-Custom Gem
-Here is the fully updated README.md, integrating the new WCAG 2.4.6 rule, the configuration instructions, and the updated auditing scope table.
-
-Markdown
-
-# Gemini Nano A11y Auditor
-
-**Browser-Native Accessibility Testing Tool with On-Device Generative AI**
-_Powered by Axe-Core & Gemini Nano (Multimodal)_
-
-## Overview
-
-This project is a Chrome Extension that pioneers a **hybrid accessibility auditing** approach, combining the power of traditional static analysis with on-device generative AI. It performs automated accessibility auditing directly within the browser, offering a unique blend of broad-based and nuanced testing.
-
-The tool uses two engines:
-
-1.  **Axe Core:** The industry-standard static analysis engine for running a comprehensive baseline audit.
-2.  **Gemini Nano:** An on-device Small Language Model (SLM) embedded in Chrome. This is used for sophisticated checks that require contextual or **visual understanding**, which traditional tools often miss.
-
-This architecture ensures comprehensive test coverage while maintaining **zero latency, zero cost, and 100% data privacy** for the AI-powered checks.
-
-### Key Capabilities
-
-- **Batch Processing:** Accepts a CSV of URLs and automatically navigates the browser to test them sequentially.
-- **Hybrid Auditing Engine:**
-  - **Axe Core Integration:** Runs a full suite of established, automated accessibility checks on each page.
-  - **On-Device Multimodal AI:** Captures DOM context and **screenshots** of specific elements to pass to the local Gemini Nano model. This allows the tool to "see" and reason about visual criteria (e.g., Images of Text, Use of Color) without sending data to the cloud.
-- **Modular Rule System:** Features a clean, extensible registry for defining new AI-powered checks, each with its own data extractor and instruction prompt.
-- **Automated Reporting:**
-  - Consolidates findings from both Axe and Gemini Nano into a single **JSON-LD (EARL)** report.
-  - Automatically uploads this report to the [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/) for easy viewing and analysis.
-
----
-
-## Technical Architecture
-
 The tool is orchestrated by a **Side Panel Controller** that manages the entire audit workflow:
 
 1.  **URL Intake:** The user uploads a CSV file of URLs via the side panel UI (`sidepanel.html`).
@@ -174,6 +52,7 @@ This extension relies on experimental browser features. It **will not work** in 
     - `#prompt-api-for-gemini-nano`: **Enabled**
     - `#optimization-guide-on-device-model`: **Enabled BypassPrefRequirement**
     - `#prompt-api-for-gemini-nano-multimodal-input`: **Enabled** (Required for visual checks)
+    - `#language-detection-api`: **Enabled** (Required for Language checks)
 3.  **Model Download:**
     - Go to `chrome://components`.
     - Find **Optimization Guide On Device Model**.
@@ -249,10 +128,13 @@ You can customize specific rules to better fit your organization's context.
 
 1.  Click the **Nano Auditor** icon in the Chrome toolbar to open the Side Panel.
 2.  Click **Configure Settings**.
-3.  **Safe List Configuration:** Under "Rule Configuration", you can edit the **2.4.6 Safe Terms**.
+3.  **Enable Language Detection:** Toggle the experimental Chrome Language Detection API.
+    - **Why:** Uses the browser's built-in model to accurately detect page and paragraph languages.
+    - **Note:** This feature is experimental. If you experience crashes or do not have the model downloaded, uncheck this box.
+4.  **Safe List Configuration:** Under "Rule Configuration", you can edit the **2.4.6 Safe Terms**.
     - **Why:** The AI flags "vague" words (e.g., "Input", "Data") as violations.
     - **What to Add:** If your site uses specific acronyms or internal terms (e.g., `PID`, `CID`, `Org Code`) that act as descriptive labels, add them here (comma-separated).
-4.  Click **Save Changes**. These settings are persisted locally.
+5.  Click **Save Changes**. These settings are persisted locally.
 
 ### 3. Start the Tool
 
@@ -299,6 +181,8 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `2.4.6 Headings and Labels`     | **(Hybrid)** Detects vague text ("Section 1", "Data") using AI while passing standard terms via a JS Safe List. |
 | **Gemini Nano** | `2.4.7 Focus Visible`           | Checks if keyboard focus indicators are removed without a visible replacement.                                  |
 | **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                                     |
+| **Gemini Nano** | `3.1.1 Language of Page`        | **(Language API)** Compares the declared `<html lang>` against the detected language of the page text.          |
+| **Gemini Nano** | `3.1.2 Language of Parts`       | **(Language API)** Scans paragraphs and blocks to ensure foreign language content is correctly tagged.          |
 | **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events.                     |
 | **Gemini Nano** | `3.3.2 Labels or Instructions`  | Checks for missing format hints on strict fields (e.g. Date, Phone) and missing indicators on required fields.  |
 
