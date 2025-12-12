@@ -61,6 +61,7 @@ export function App() {
   const [settings, setSettings] = useState({
     safeList: [],
     enableMultimodal: true,
+    enableLanguageDetection: true, // Default to enabled
     includePassed: false,
     includeNotPresent: false,
   });
@@ -154,6 +155,7 @@ export function App() {
         const pageResults = await analyzePage(tab.id, url, {
           safeList: settings.safeList,
           enableMultimodal: settings.enableMultimodal,
+          enableLanguageDetection: settings.enableLanguageDetection, // Pass setting
           logger: addLog,
         });
 
