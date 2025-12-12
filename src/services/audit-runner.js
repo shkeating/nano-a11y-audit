@@ -5,16 +5,20 @@ import { runInBatches, delay } from "../utils/async-helpers.js";
 // Rules that require the tab to be visible/focused and cannot be parallelized easily
 const VISUAL_RULE_IDS = ["1.4.5", "1.4.1-images", "2.4.7"];
 
+// Rules that rely on the Chrome Language Detection API
+const LANGUAGE_RULE_IDS = ["3.1.1", "3.1.2"];
+
 /**
  * Runs the full suite of tests (Axe + Nano) on a specific tab.
  * Uses batching for static rules and sequential execution for visual rules.
  * @param {number} tabId
  * @param {string} url
- * @param {Object} config - { safeList, enableMultimodal, logger }
+ * @param {Object} config - { safeList, enableMultimodal, enableLanguageDetection, logger }
  * @returns {Promise<Array>} List of audit results.
  */
 export async function analyzePage(tabId, url, config) {
-  const { safeList, enableMultimodal, logger } = config;
+  const { safeList, enableMultimodal, enableLanguageDetection, logger } =
+    config;
   const pageResults = [];
 
   // --- PHASE 1: BASELINE (AXE) ---
@@ -36,6 +40,19 @@ export async function analyzePage(tabId, url, config) {
   for (const ruleId in RULES) {
     const rule = RULES[ruleId];
 
+    // --- CHECK: Should we skip this rule? ---
+    if (LANGUAGE_RULE_IDS.includes(ruleId) && !enableLanguageDetection) {
+      logger(`[Nano: ${ruleId}] Skipped (Language Detection Disabled)`);
+      pageResults.push({
+        url,
+        earlId: rule.earlId,
+        verdict: "INAPPLICABLE",
+        reason: "Language Detection checks disabled in user settings.",
+        pageTitle: "Skipped",
+      });
+      continue;
+    }
+
     // Filter selectors relevant to this rule (from Axe incomplete items)
     const relevantLeads = incompleteLeads.filter(
       (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
@@ -46,7 +63,7 @@ export async function analyzePage(tabId, url, config) {
       tabId,
       rule,
       targetSelectors,
-      options: { safeList, enableMultimodal },
+      options: { safeList, enableMultimodal, enableLanguageDetection },
     };
 
     if (VISUAL_RULE_IDS.includes(ruleId)) {
@@ -154,9 +171,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
   if (!injection?.[0]) throw new Error("Script injection failed");
   const domContext = injection[0].result;
 
-  // --- FIX START ---
-  // If the rule calculated its own verdict (PASS *OR* FAIL), return it immediately.
-  // This prevents Rule 3.1.1 from trying to call the AI with a null prompt.
+  // --- FIX: Use Computed Verdict if available ---
   if (domContext.computedVerdict) {
     return {
       verdict: domContext.computedVerdict,
@@ -164,7 +179,6 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
       pageTitle: domContext.pageTitle || "Audit Result",
     };
   }
-  // --- FIX END ---
 
   const aiOrigin = window.LanguageModel;
   const isVisualRule = ["1.4.5", "1.4.1-images", "2.4.7"].includes(rule.id);
@@ -358,7 +372,6 @@ function logResult(logger, ruleId, result) {
   if (result.verdict !== "INAPPLICABLE") {
     logger(`[Nano: ${ruleId}] ${icon} ${result.verdict}`);
   } else {
-    // Optional: Log inapplicable rules to console only to keep UI clean
     console.log(`[Nano: ${ruleId}] Skipped: ${result.reason}`);
   }
 }

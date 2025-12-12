@@ -10,8 +10,13 @@ export function SettingsModal({
   settings,
   onUpdateSetting,
 }) {
-  const { enableMultimodal, safeList, includePassed, includeNotPresent } =
-    settings;
+  const {
+    enableMultimodal,
+    enableLanguageDetection, // <--- NEW SETTING
+    safeList,
+    includePassed,
+    includeNotPresent,
+  } = settings;
 
   const footer = (
     <>
@@ -37,6 +42,17 @@ export function SettingsModal({
           }
           description="Uncheck for faster, text-only audits."
         />
+
+        {/* --- NEW CHECKBOX START --- */}
+        <Checkbox
+          label="Enable Language Detection (Experimental)"
+          checked={enableLanguageDetection}
+          onChange={(e) =>
+            onUpdateSetting("enableLanguageDetection", e.target.checked)
+          }
+          description="Requires Chrome Language Detection API. Uncheck if you experience crashes or are offline."
+        />
+        {/* --- NEW CHECKBOX END --- */}
 
         <hr />
 
