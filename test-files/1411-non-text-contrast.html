@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SC 1.4.11 | Accessibility Test Lab</title>
+    <style>
+        body {
+            padding: 50px;
+            font-family: sans-serif;
+            background-color: white;
+        }
+
+        /* GENERAL STYLES */
+        .section {
+            margin-bottom: 40px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        /* --- 1. UI COMPONENTS (Boundaries) --- */
+        /* PASS: Blue #0000FF on White is > 3:1 */
+        .btn-pass {
+            background-color: #0000FF;
+            color: white;
+        }
+
+        /* FAIL: Light Gray #f0f0f0 on White is ~1.2:1 */
+        .btn-fail {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        /* FAIL: Input border #e0e0e0 on White is ~1.2:1 */
+        .input-fail {
+            border: 1px solid #e0e0e0;
+            background: white;
+            padding: 5px;
+        }
+
+        /* --- 2. STATES (Focus/Active) --- */
+        /* FAIL: Focus ring is too low contrast (Cyan on White) */
+        .focus-fail:focus {
+            outline: 3px solid #E0FFFF;
+        }
+
+        /* PASS: Focus ring is high contrast (Dark Blue) */
+        .focus-pass:focus {
+            outline: 3px solid #00008B;
+        }
+
+        /* --- 3. GRAPHICAL OBJECTS (Icons) --- */
+        /* We use CSS shapes to simulate icons to avoid external assets */
+        .icon {
+            width: 24px;
+            height: 24px;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        /* PASS: Dark Green Square (3:1+) */
+        .icon-pass {
+            background-color: #006400;
+        }
+
+        /* FAIL: Pale Yellow Square (Hard to see against white) */
+        .icon-fail {
+            background-color: #FFFACD;
+        }
+
+        /* Chart Example (Simple Bars) */
+        .chart {
+            display: flex;
+            align-items: flex-end;
+            height: 100px;
+            gap: 10px;
+            border-left: 2px solid black;
+            border-bottom: 2px solid black;
+        }
+
+        .bar-pass {
+            width: 20px;
+            height: 80px;
+            background-color: #00008B;
+        }
+
+        /* Dark Blue */
+        .bar-fail {
+            width: 20px;
+            height: 60px;
+            background-color: #E6E6FA;
+        }
+
+        /* Lavender (Low Contrast) */
+    </style>
+</head>
+
+<body>
+    <h1>SC 1.4.11: Non-Text Contrast</h1>
+
+    <div class="section">
+        <h3>Category 1: UI Components (Default State)</h3>
+        <button class="btn btn-pass">High Contrast</button>
+        <button class="btn btn-fail">Low Contrast</button>
+        <label>Input: <input type="text" class="input-fail" value="Faint Border"></label>
+    </div>
+
+    <div class="section">
+        <h3>Category 2: UI States (Focus)</h3>
+        <p><em>Click or Tab to these buttons to see the focus ring.</em></p>
+        <button class="btn btn-pass focus-fail">Bad Focus</button>
+        <button class="btn btn-pass focus-pass">Good Focus</button>
+    </div>
+
+    <div class="section">
+        <h3>Category 3: Graphical Objects (Icons & Charts)</h3>
+        <p>Meaningful graphics must have 3:1 contrast.</p>
+
+        <div>
+            <span class="icon icon-pass" role="img" aria-label="Status: Online"></span>
+            <strong>Online</strong> (Icon is visible)
+        </div>
+        <br>
+        <div>
+            <span class="icon icon-fail" role="img" aria-label="Status: Offline"></span>
+            <strong>Offline</strong> (Icon is too pale)
+        </div>
+
+        <h4>Data Visualization</h4>
+        <div class="chart">
+            <div class="bar-pass" title="Data A"></div>
+            <div class="bar-fail" title="Data B"></div>
+        </div>
+    </div>
+</body>
+
+</html>
