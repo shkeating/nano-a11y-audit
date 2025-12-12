@@ -1,4 +1,3 @@
-// src/services/audit-runner.js
 import { RULES } from "../rules/index.js";
 import { runAxeAudit } from "../utils/axe-runner.js";
 import { runInBatches, delay } from "../utils/async-helpers.js";
@@ -9,7 +8,7 @@ const VISUAL_RULE_IDS = ["1.4.5", "1.4.1-images", "2.4.7"];
 /**
  * Runs the full suite of tests (Axe + Nano) on a specific tab.
  * Uses batching for static rules and sequential execution for visual rules.
- * * @param {number} tabId
+ * @param {number} tabId
  * @param {string} url
  * @param {Object} config - { safeList, enableMultimodal, logger }
  * @returns {Promise<Array>} List of audit results.
@@ -155,16 +154,20 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
   if (!injection?.[0]) throw new Error("Script injection failed");
   const domContext = injection[0].result;
 
-  if (domContext.computedVerdict === "PASS") {
+  // --- FIX START ---
+  // If the rule calculated its own verdict (PASS *OR* FAIL), return it immediately.
+  // This prevents Rule 3.1.1 from trying to call the AI with a null prompt.
+  if (domContext.computedVerdict) {
     return {
-      verdict: "PASS",
-      reason: domContext.reason || "Passed internal check.",
-      pageTitle: domContext.pageTitle,
+      verdict: domContext.computedVerdict,
+      reason: domContext.reason || "Verdict computed by rule logic.",
+      pageTitle: domContext.pageTitle || "Audit Result",
     };
   }
+  // --- FIX END ---
 
   const aiOrigin = window.LanguageModel;
-  const isVisualRule = VISUAL_RULE_IDS.includes(rule.id);
+  const isVisualRule = ["1.4.5", "1.4.1-images", "2.4.7"].includes(rule.id);
 
   // C. Visual AI Analysis
   if (isVisualRule) {
@@ -188,7 +191,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
   }
 
   try {
-    // Single-shot Prompt (Faster than creating full sessions for text)
+    // Single-shot Prompt
     const session = await aiOrigin.create({
       initialPrompts: [{ role: "system", content: rule.systemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
