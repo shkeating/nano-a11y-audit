@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SC 2.4.4 | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            line-height: 1.6;
+        }
+
+        .test-case {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        .fail {
+            border-left: 5px solid #dc3545;
+        }
+
+        .pass {
+            border-left: 5px solid #28a745;
+        }
+
+        h2,
+        h3 {
+            margin-top: 0;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            background: white;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>SC 2.4.4 Failures: Link Purpose (In Context)</h1>
+    <p>This page tests if generic links ("Read more", "Click here") have sufficient context from their surrounding text.
+    </p>
+
+    <section>
+        <h2>Failures</h2>
+
+        <div class="test-case fail" data-rule="2.4.4" data-failure="F63">
+            <h3>F63: Context does not explain the link</h3>
+            <p>We have updated our privacy policy.</p>
+            <p>
+                <a href="#">Click here</a>
+            </p>
+        </div>
+
+        <div class="test-case fail" data-rule="2.4.4" data-failure="Ambiguous List">
+            <h3>Ambiguous List Items</h3>
+            <ul>
+                <li><a href="#">Read more</a></li>
+                <li><a href="#">Read more</a></li>
+                <li><a href="#">Read more</a></li>
+            </ul>
+        </div>
+
+        <div class="test-case fail" data-rule="2.4.4" data-failure="Orphaned Link">
+            <h3>Orphaned Generic Link</h3>
+            <div>
+                <a href="#">More Info</a>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <h2>Passing Examples</h2>
+
+        <div class="test-case pass" data-rule="2.4.4" data-failure="None">
+            <h3>Pass: Sentence Context</h3>
+            <p>
+                To learn more about our sustainability initiatives, <a href="#">read our 2024 Report</a>.
+            </p>
+        </div>
+
+        <div class="test-case pass" data-rule="2.4.4" data-failure="None">
+            <h3>Pass: Preceding Heading Context</h3>
+            <div class="card">
+                <h4>Q3 Financial Results</h4>
+                <p>The quarterly earnings exceeded expectations.</p>
+                <a href="#">Read full report</a>
+            </div>
+
+            <div class="card">
+                <h4>New Product Launch</h4>
+                <p>We are releasing the Nano Widget next week.</p>
+                <a href="#">Read full report</a>
+            </div>
+        </div>
+
+        <div class="test-case pass" data-rule="2.4.4" data-failure="None">
+            <h3>Pass: Paragraph Context</h3>
+            <p>
+                The <strong>History of the Internet</strong> is a fascinating subject covering ARPANET to modern fiber
+                optics.
+                <a href="#">Learn more</a>.
+            </p>
+        </div>
+
+        <div class="test-case pass" data-rule="2.4.4" data-failure="None">
+            <h3>Pass: Self-Descriptive</h3>
+            <p>
+                <a href="#">Contact Customer Support</a>
+            </p>
+        </div>
+    </section>
+
+</body>
+
+</html>
