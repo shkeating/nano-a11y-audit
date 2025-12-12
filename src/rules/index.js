@@ -15,6 +15,7 @@ import * as Rule245 from "./2.4.5.js";
 import * as Rule246 from "./2.4.6.js";
 import * as Rule247 from "./2.4.7.js";
 import * as Rule311 from "./3.1.1.js";
+import * as Rule312 from "./3.1.2.js";
 
 export const RULES = {
   [Rule132.id]: Rule132,
@@ -32,6 +33,7 @@ export const RULES = {
   [Rule247.id]: Rule247,
   [Rule253.id]: Rule253,
   [Rule311.id]: Rule311,
+  [Rule312.id]: Rule312,
   [Rule322.id]: Rule322,
   [Rule332.id]: Rule332,
 };

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SC 3.1.2 | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            line-height: 1.6;
+        }
+
+        .test-case {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        h3 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>SC 3.1.2 Failures: Language of Parts</h1>
+    <p>The document language is set to English (<code>lang="en"</code>).</p>
+
+    <div class="test-case" data-rule="3.1.2" data-failure="Missing Lang Attribute">
+        <h3>Failure: French Paragraph (No lang attribute)</h3>
+        <p>
+            Bonjour tout le monde. Ceci est un paragraphe écrit en français, mais il n'a pas d'attribut de langue.
+            Le détecteur devrait identifier que c'est du français alors que la page est déclarée en anglais.
+        </p>
+    </div>
+
+    <div class="test-case" data-rule="3.1.2" data-failure="Missing Lang Attribute">
+        <h3>Failure: Spanish Blockquote</h3>
+        <blockquote>
+            Todos los seres humanos nacen libres e iguales en dignidad y derechos y, dotados como están de razón y
+            conciencia, deben comportarse fraternalmente los unos con los otros.
+        </blockquote>
+    </div>
+
+    <div class="test-case" data-rule="3.1.2" data-failure="Mixed List">
+        <h3>Failure: Mixed Language List</h3>
+        <ul>
+            <li>This item is in English.</li>
+            <li>This item is also in English.</li>
+            <li>Das ist ein Listenpunkt auf Deutsch, aber er hat keine Sprachauszeichnung.</li>
+        </ul>
+    </div>
+
+    <div class="test-case" data-rule="3.1.2" data-failure="None">
+        <h3>Passing: Correctly Tagged French</h3>
+        <p lang="fr">
+            Ceci est un paragraphe correctement balisé avec l'attribut lang="fr". L'outil ne devrait pas signaler
+            d'erreur ici.
+        </p>
+    </div>
+
+    <div class="test-case" data-rule="3.1.2" data-failure="None">
+        <h3>Passing: English Content</h3>
+        <p>
+            This is standard English content that matches the document's declared language. It should pass easily.
+        </p>
+    </div>
+
+</body>
+
+</html>
