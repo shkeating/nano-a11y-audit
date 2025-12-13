@@ -20,20 +20,17 @@ Task: Evaluate if a Form Label is descriptive enough, considering its Section He
 2. **PASS (Descriptive):** The label itself is specific (e.g., "Date of Birth", "Credit Card Number").
 3. **PASS (Contextual):** The label is generic, BUT the Section Heading provides the necessary context (e.g., Heading: "Spouse", Label: "Name").
 
-**INPUT FORMAT**
-"Heading: [text] | Label: [text]"
-
 **OUTPUT FORMAT**
-Return a JSON object:
-- If violation: {"verdict": "FAIL", "reason": "Label '[label]' is ambiguous under heading '[heading]'."}
-- If pass: {"verdict": "PASS", "reason": "Label is descriptive in context."}
+Return a **SINGLE** JSON object. Do not output multiple objects.
+- If violations found: {"verdict": "FAIL", "reason": "Ambiguous labels found:\\n- Label 'Name' under 'Untitled'\\n- Label 'Date' under 'Page 1'"}
+- If all pass: {"verdict": "PASS", "reason": "Labels are descriptive in context."}
 
 **FEW-SHOT EXAMPLES**
-User: "Heading: Untitled Section | Label: Name"
-Model: {"verdict": "FAIL", "reason": "Label 'Name' is ambiguous under heading 'Untitled Section'."}
+User: ["Heading: Untitled | Label: Name", "Heading: Spouse | Label: Age"]
+Model: {"verdict": "FAIL", "reason": "Ambiguous labels found:\\n- Label 'Name' under 'Untitled'"}
 
-User: "Heading: Spouse Information | Label: Name"
-Model: {"verdict": "PASS", "reason": "Label is descriptive in context."}
+User: ["Heading: Personal Info | Label: Name"]
+Model: {"verdict": "PASS", "reason": "Labels are descriptive in context."}
 `;
 
 export function extractor() {
@@ -49,14 +46,12 @@ export function extractor() {
   }
 
   const items = [];
-  // Get document order of relevant nodes to determine context
   const nodes = document.querySelectorAll(
     "h1, h2, h3, h4, h5, h6, label, legend"
   );
 
   let currentHeading = "No Heading Found";
 
-  // Heuristic: Labels that are risky without context
   const GENERIC_LABELS = [
     "name",
     "date",
@@ -84,11 +79,8 @@ export function extractor() {
     if (el.tagName.startsWith("H")) {
       currentHeading = text;
     } else {
-      // It's a label or legend
       const lower = text.toLowerCase();
-
-      // Optimization: Only check "Risky" labels to save AI tokens
-      // We check if it's in the list OR very short (less than 3 words)
+      // Optimization: Only check "Risky" labels
       const isGeneric =
         GENERIC_LABELS.includes(lower) || text.split(" ").length < 3;
 
@@ -108,6 +100,6 @@ export function extractor() {
 
   return {
     pageTitle: document.title,
-    items: items.slice(0, 30), // Limit payload
+    items: items.slice(0, 30),
   };
 }
