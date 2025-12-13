@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SC 1.1.1 | Accessibility Test Lab</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 900px;
+        }
+
+        .test-case {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+
+        h3 {
+            margin-top: 0;
+        }
+
+        .example-box {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border: 1px dashed #aaa;
+            display: inline-block;
+        }
+
+        /* Failure F3: Information via CSS image only */
+        .css-warning-icon::before {
+            content: "";
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background-image: url('https://placehold.co/24x24/orange/white/png?text=!');
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>SC 1.1.1 Non-text Content</h1>
+    <p>
+        <strong>Success Criterion:</strong> All non-text content that is presented to the user has a text alternative
+        that serves the equivalent purpose.
+    </p>
+
+    <section>
+        <h2>Failures (Common Techniques)</h2>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="F30">
+            <h3>F30: Text Alternative is not an Alternative (Filename)</h3>
+            <p>The alt text provides no information about the image content, only the filename.</p>
+            <div class="example-box">
+                <img src="https://placehold.co/100x100/png?text=Chart" alt="chart_v2_final.png">
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="F30">
+            <h3>F30: Text Alternative is Placeholder Text</h3>
+            <p>The alt text uses generic placeholder words like "image" or "photo".</p>
+            <div class="example-box">
+                <img src="https://placehold.co/100x100/png?text=Team" alt="image">
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="F65">
+            <h3>F65: Missing Alt Attribute</h3>
+            <p>The image tag completely lacks an <code>alt</code> attribute. Screen readers may read the filename.</p>
+            <div class="example-box">
+                <img src="https://placehold.co/100x100/png?text=Cat">
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="F39">
+            <h3>F39: Non-Null Alt for Decorative Image</h3>
+            <p>This image is purely decorative (a spacer) but has alt text, forcing screen readers to announce it.</p>
+            <div class="example-box">
+                <img src="https://placehold.co/10x50/ccc/ccc/png" alt="spacer">
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="F3">
+            <h3>F3: Information Conveyed by CSS Image Only</h3>
+            <p>The warning icon is inserted via CSS. It has no text alternative in the DOM.</p>
+            <div class="example-box">
+                <span class="css-warning-icon"></span> Your account is overdue.
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <h2>Passing Examples (Sufficient Techniques)</h2>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="None">
+            <h3>H37: Descriptive Alt Text</h3>
+            <p>The image has a concise description of its content.</p>
+            <div class="example-box">
+                <img src="https://placehold.co/100x100/green/green/png" alt="A solid green square.">
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="None">
+            <h3>H67: Null Alt for Decorative Image</h3>
+            <p>The image is decorative and uses <code>alt=""</code>. To pass the AI check, the image must NOT contain
+                text.</p>
+            <div class="example-box">
+                <img src="https://placehold.co/100x100/555/555/png" alt="">
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="None">
+            <h3>ARIA6: Using aria-label</h3>
+            <p>The image uses <code>aria-label</code> to provide the text alternative.</p>
+            <div class="example-box">
+                <div role="img" aria-label="A bar chart showing 20% growth in Q3"
+                    style="width: 100px; height: 100px; background: #eee; display: flex; align-items: flex-end; justify-content: center; gap: 5px;">
+                    <div style="width: 20px; height: 40px; background: blue;"></div>
+                    <div style="width: 20px; height: 60px; background: blue;"></div>
+                    <div style="width: 20px; height: 80px; background: blue;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-case" data-rule="1.1.1" data-failure="None">
+            <h3>ARIA10: Using aria-labelledby</h3>
+            <p>The image gets its accessible name from visible text elsewhere on the page.</p>
+            <div class="example-box">
+                <h4 id="chart-title">Quarterly Sales Data</h4>
+                <img src="https://placehold.co/200x100/png?text=Sales+Data" aria-labelledby="chart-title">
+            </div>
+        </div>
+    </section>
+
+</body>
+
+</html>

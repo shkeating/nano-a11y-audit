@@ -5,6 +5,7 @@ import { runInBatches, delay } from "../utils/async-helpers.js";
 // Rules that require the tab to be visible/focused and cannot be parallelized easily
 // Added "1.4.11" and "1.4.11-graphics" to the list
 const VISUAL_RULE_IDS = [
+  "1.1.1",
   "1.4.5",
   "1.4.1-images",
   "2.4.7",
