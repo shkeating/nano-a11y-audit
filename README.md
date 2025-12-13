@@ -166,26 +166,27 @@ The project includes a local test suite in `test-files/` covering common failure
 
 The hybrid engine provides broad coverage. The current scope includes:
 
-| Engine          | Rule ID/Criterion               | Implementation Strategy                                                                                        |
-| --------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Axe Core**    | ~40+ Rules                      | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels).                    |
-| **Gemini Nano** | `1.3.2 Meaningful Sequence`     | Checks for CSS properties (order, float, position) that disrupt logical reading order.                         |
-| **Gemini Nano** | `1.3.3 Sensory Characteristics` | Checks for instructions that rely solely on shape, size, color, location, or sound.                            |
-| **Gemini Nano** | `1.3.4 Orientation`             | Checks if content is restricted to portrait or landscape orientations (using Debugger API).                    |
-| **Gemini Nano** | `1.4.1 Use of Color`            | Checks if links or form fields rely only on color as a distinguishing visual cue.                              |
-| **Gemini Nano** | `1.4.5 Images of Text`          | **(Multimodal)** Analyzes images to detect if they contain text that should be HTML.                           |
-| **Gemini Nano** | `1.4.10 Reflow`                 | Simulates a 320px viewport (Debugger API) to detect horizontal scrollbars.                                     |
-| **Gemini Nano** | `1.4.12 Text Spacing`           | Injects WCAG-specified spacing styles to detect content clipping or overlap.                                   |
-| **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.                          |
-| **Gemini Nano** | `2.4.4 Link Purpose`            | **(Prompt API)** Analyzes generic links ("Click here") to see if the surrounding text provides clear context.  |
-| **Gemini Nano** | `2.4.5 Multiple Ways`           | Checks if the page offers at least two navigation methods (Search, Menus, Sitemap, etc.).                      |
-| **Gemini Nano** | `2.4.6 Headings and Labels`     | **(Hybrid)** Uses Few-Shot AI prompting to classify vague text while respecting user-defined "Safe Terms".     |
-| **Gemini Nano** | `2.4.7 Focus Visible`           | Checks if keyboard focus indicators are removed without a visible replacement.                                 |
-| **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                                    |
-| **Gemini Nano** | `3.1.1 Language of Page`        | **(Language API)** Compares the declared `<html lang>` against the detected language of the page text.         |
-| **Gemini Nano** | `3.1.2 Language of Parts`       | **(Language API)** Scans paragraphs and blocks to ensure foreign language content is correctly tagged.         |
-| **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events.                    |
-| **Gemini Nano** | `3.3.2 Labels or Instructions`  | Checks for missing format hints on strict fields (e.g. Date, Phone) and missing indicators on required fields. |
+| Engine          | Rule ID/Criterion               | Implementation Strategy                                                                                                                                                   |
+| --------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Axe Core**    | ~40+ Rules                      | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels).                                                                               |
+| **Gemini Nano** | `1.3.2 Meaningful Sequence`     | Checks for CSS properties (order, float, position) that disrupt logical reading order.                                                                                    |
+| **Gemini Nano** | `1.3.3 Sensory Characteristics` | Checks for instructions that rely solely on shape, size, color, location, or sound.                                                                                       |
+| **Gemini Nano** | `1.3.4 Orientation`             | Checks if content is restricted to portrait or landscape orientations (using Debugger API).                                                                               |
+| **Gemini Nano** | `1.4.1 Use of Color`            | Checks if links or form fields rely only on color as a distinguishing visual cue.                                                                                         |
+| **Gemini Nano** | `1.4.5 Images of Text`          | **(Multimodal)** Analyzes images to detect if they contain text that should be HTML.                                                                                      |
+| **Gemini Nano** | `1.4.10 Reflow`                 | Simulates a 320px viewport (Debugger API) to detect horizontal scrollbars.                                                                                                |
+| **Gemini Nano** | `1.4.11 Non-Text Contrast`      | **(Multimodal)** Visually inspects buttons and inputs. Tests both **Default State** (boundaries) and **Focus State** (rings) by programmatically triggering interactions. |
+| **Gemini Nano** | `1.4.12 Text Spacing`           | Injects WCAG-specified spacing styles to detect content clipping or overlap.                                                                                              |
+| **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.                                                                                     |
+| **Gemini Nano** | `2.4.4 Link Purpose`            | **(Prompt API)** Analyzes generic links ("Click here") to see if the surrounding text provides clear context.                                                             |
+| **Gemini Nano** | `2.4.5 Multiple Ways`           | Checks if the page offers at least two navigation methods (Search, Menus, Sitemap, etc.).                                                                                 |
+| **Gemini Nano** | `2.4.6 Headings and Labels`     | **(Hybrid)** Uses Few-Shot AI prompting to classify vague text while respecting user-defined "Safe Terms".                                                                |
+| **Gemini Nano** | `2.4.7 Focus Visible`           | Checks if keyboard focus indicators are removed without a visible replacement.                                                                                            |
+| **Gemini Nano** | `2.5.3 Label in Name`           | Checks if the accessible name of a control contains its visible text label.                                                                                               |
+| **Gemini Nano** | `3.1.1 Language of Page`        | **(Language API)** Compares the declared `<html lang>` against the detected language of the page text.                                                                    |
+| **Gemini Nano** | `3.1.2 Language of Parts`       | **(Language API)** Scans paragraphs and blocks to ensure foreign language content is correctly tagged.                                                                    |
+| **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events.                                                                               |
+| **Gemini Nano** | `3.3.2 Labels or Instructions`  | Checks for missing format hints on strict fields (e.g. Date, Phone) and missing indicators on required fields.                                                            |
 
 ---
 

@@ -3,7 +3,8 @@ import { runAxeAudit } from "../utils/axe-runner.js";
 import { runInBatches, delay } from "../utils/async-helpers.js";
 
 // Rules that require the tab to be visible/focused and cannot be parallelized easily
-const VISUAL_RULE_IDS = ["1.4.5", "1.4.1-images", "2.4.7"];
+// Added "1.4.11" for Non-Text Contrast (UI Components)
+const VISUAL_RULE_IDS = ["1.4.5", "1.4.1-images", "2.4.7", "1.4.11"];
 
 // Rules that rely on the Chrome Language Detection API
 const LANGUAGE_RULE_IDS = ["3.1.1", "3.1.2"];
@@ -181,7 +182,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
   }
 
   const aiOrigin = window.LanguageModel;
-  const isVisualRule = ["1.4.5", "1.4.1-images", "2.4.7"].includes(rule.id);
+  const isVisualRule = VISUAL_RULE_IDS.includes(rule.id);
 
   // C. Visual AI Analysis
   if (isVisualRule) {
@@ -205,18 +206,19 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
   }
 
   try {
-    // --- NEW: INJECT SAFE LIST INTO PROMPT ---
+    // --- SAFE LIST INJECTION ---
+    // Rule 2.4.6 (Headings/Labels) needs the user's safe list injected into the prompt
     let finalSystemPrompt = rule.systemPrompt;
 
     if (
-      rule.id === "2.4.6" && // Only apply to Headings/Labels rule
+      rule.id === "2.4.6" &&
       options.safeList &&
       options.safeList.length > 0
     ) {
       const safeTerms = options.safeList.join("\n- ");
       finalSystemPrompt += `\n\n*** USER CONFIGURATION: SAFE LIST ***\nThe user has explicitly marked the following terms as Descriptive (PASS). Allow variations (case/plural):\n- ${safeTerms}`;
     }
-    // ----------------------------------------
+    // ----------------------------
 
     // Single-shot Prompt
     const session = await aiOrigin.create({
@@ -237,7 +239,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
 }
 
 /**
- * Visual Analysis with Scrolling and Smart Retries
+ * Visual Analysis with Scrolling, Interaction Triggers, and Smart Retries
  */
 async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
   if (!domContext.images || domContext.images.length === 0) {
@@ -263,6 +265,14 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
       pageTitle: domContext.pageTitle,
     };
   }
+
+  // --- GET PIXEL RATIO ONCE ---
+  // Needed for correct cropping on Retina/High-DPI displays
+  const dprInjection = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => window.devicePixelRatio || 1,
+  });
+  const dpr = dprInjection[0]?.result || 1;
 
   for (const imgMeta of domContext.images) {
     // Throttle: Short wait between images to let GPU catch up
@@ -301,8 +311,21 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
       }
     }
 
+    // --- 2. HANDLE INTERACTION TRIGGERS (e.g., FORCE FOCUS) ---
+    if (imgMeta.trigger === "focus" && imgMeta.selector) {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (sel) => {
+          const el = document.querySelector(sel);
+          if (el) el.focus();
+        },
+        args: [imgMeta.selector],
+      });
+      await delay(500);
+    }
+
     try {
-      // 2. CAPTURE & CROP
+      // 3. CAPTURE & CROP
       const winId = await getWindowId(tabId);
       // Force focus for screenshots
       await chrome.windows.update(winId, { focused: true });
@@ -310,14 +333,25 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
       await delay(100);
 
       const screenshot = await getTabScreenshot();
+
+      // --- 4. CLEANUP INTERACTION (BLUR) ---
+      if (imgMeta.trigger === "focus") {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          func: () => {
+            if (document.activeElement) document.activeElement.blur();
+          },
+        });
+      }
+
       if (!screenshot || screenshot.width === 0) continue;
 
-      const imageBlob = await cropImage(screenshot, captureRect);
+      const imageBlob = await cropImage(screenshot, captureRect, dpr);
       if (!imageBlob) continue;
 
       const imageBitmap = await createImageBitmap(imageBlob);
 
-      // 3. PROMPT WITH RETRY
+      // 5. PROMPT WITH RETRY
       const promptText = `\nSYSTEM INSTRUCTIONS:\n${rule.systemPrompt}\n\nUSER REQUEST:\nAnalyze this image. Alt text provided: "${imgMeta.alt}"\n`;
 
       let attempts = 0;
@@ -335,6 +369,15 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
               ],
             },
           ]);
+
+          // --- DEBUG LOGGING ---
+          console.log("---------------------------------------------------");
+          console.log(`[Nano Debug] Element: ${imgMeta.alt || "Unknown"}`);
+          console.log(`[Nano Debug] Prompt:`, promptText);
+          console.log(`[Nano Debug] RAW AI RESPONSE:`, responseString);
+          console.log("---------------------------------------------------");
+          // ---------------------
+
           success = true;
         } catch (promptErr) {
           attempts++;
@@ -345,21 +388,35 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
       }
 
       if (!success) {
-        results.push(`- Image (${imgMeta.alt}): AI Busy/Timeout.`);
+        results.push(`- Element (${imgMeta.alt}): AI Busy/Timeout.`);
         continue;
       }
 
       const result = parseAIResponse(responseString);
       if (result.verdict === "FAIL" || result.verdict === "CANNOT_TELL") {
-        results.push(
-          `- Image (${
-            imgMeta.src ? imgMeta.src.substring(0, 30) : "Graphic"
-          }...): ${result.reason}`
-        );
+        // --- IMPROVED IDENTIFIER LOGIC ---
+        let identifier = "";
+
+        if (imgMeta.name && imgMeta.name.length > 0) {
+          identifier = `"${imgMeta.name}"`;
+        } else if (imgMeta.html) {
+          identifier = `\`${imgMeta.html}\``;
+        } else if (imgMeta.src && !imgMeta.src.startsWith("[")) {
+          identifier = imgMeta.src.substring(0, 30) + "...";
+        } else {
+          identifier = imgMeta.alt || "Unknown Element";
+        }
+
+        // Append State info to identifier if applicable
+        if (imgMeta.trigger === "focus") {
+          identifier += " (Focus State)";
+        }
+
+        results.push(`- Element ${identifier}: ${result.reason}`);
       }
     } catch (e) {
       console.error("Visual Analysis Error", e);
-      results.push(`- Image (${imgMeta.alt}): Capture Error.`);
+      results.push(`- Element (${imgMeta.alt}): Capture Error.`);
     }
   }
   session.destroy();
@@ -430,27 +487,32 @@ async function getTabScreenshot() {
   }
 }
 
-async function cropImage(sourceImage, rect) {
-  if (rect.width <= 0 || rect.height <= 0) return null;
+async function cropImage(sourceImage, rect, dpr = 1) {
+  if (!rect || rect.width <= 0 || rect.height <= 0) return null;
   const canvas = document.createElement("canvas");
-  canvas.width = rect.width;
-  canvas.height = rect.height;
+
+  // Scale dimensions by Device Pixel Ratio
+  const scaledWidth = rect.width * dpr;
+  const scaledHeight = rect.height * dpr;
+  const scaledX = rect.x * dpr;
+  const scaledY = rect.y * dpr;
+
+  canvas.width = scaledWidth;
+  canvas.height = scaledHeight;
   const ctx = canvas.getContext("2d");
 
   // Ensure we don't crop outside the image bounds
-  const sx = Math.max(0, rect.x);
-  const sy = Math.max(0, rect.y);
-
+  // (drawImage handles out-of-bounds automatically, but explicit control is better)
   ctx.drawImage(
     sourceImage,
-    sx,
-    sy,
-    rect.width,
-    rect.height,
+    scaledX,
+    scaledY,
+    scaledWidth,
+    scaledHeight,
     0,
     0,
-    rect.width,
-    rect.height
+    scaledWidth,
+    scaledHeight
   );
   return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }

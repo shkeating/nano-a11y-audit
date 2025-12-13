@@ -1,6 +1,7 @@
 import * as Rule141 from "./1.4.1.js";
 import * as Rule141Images from "./1.4.1-images.js";
 import * as Rule145 from "./1.4.5.js";
+import * as Rule1411 from "./1.4.11.js";
 import * as Rule132 from "./1.3.2.js";
 import * as Rule133 from "./1.3.3.js";
 import * as Rule253 from "./2.5.3.js";
@@ -27,6 +28,7 @@ export const RULES = {
   [Rule141Images.id]: Rule141Images,
   [Rule145.id]: Rule145,
   [Rule1410.id]: Rule1410,
+  [Rule1411.id]: Rule1411,
   [Rule1412.id]: Rule1412,
   [Rule222.id]: Rule222,
   [Rule245.id]: Rule245,

@@ -1,5 +1,5 @@
 # Workflow name
-name: 'Chromatic Publish'
+name: "Chromatic Publish"
 
 # Event for the workflow
 on: push
@@ -17,12 +17,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: "npm"
       - run: npm
-      #👇 Adds Chromatic as a step in the workflow
-      - uses: chromaui/action@latest
-        # Options required for Chromatic's GitHub Action
-        with:
-          #👇 Chromatic projectToken,
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-          token: ${{ secrets.GITHUB_TOKEN }}
