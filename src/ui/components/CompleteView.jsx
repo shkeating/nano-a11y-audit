@@ -1,7 +1,15 @@
+// src/ui/components/CompleteView.jsx
+import { useMemo } from "preact/hooks";
 import { Button } from "./base/Button";
 import styles from "./CompleteView.module.css";
 
-export function CompleteView({ summary, onImport, onDownload, onStartNew }) {
+export function CompleteView({
+  summary,
+  results = [],
+  onImport,
+  onDownload,
+  onStartNew,
+}) {
   const stats = [
     { label: "Passed", value: summary.passed, color: "#28a745" },
     { label: "Failed", value: summary.failed, color: "#dc3545" },
@@ -9,6 +17,22 @@ export function CompleteView({ summary, onImport, onDownload, onStartNew }) {
     { label: "Not present", value: summary.inapplicable, color: "#6c757d" },
     { label: "Not checked", value: summary.untested, color: "#6c757d" },
   ];
+
+  // Group failures by Criteria ID
+  const failureGroups = useMemo(() => {
+    const groups = {};
+    results.forEach((r) => {
+      if (r.verdict === "FAIL") {
+        if (!groups[r.earlId]) {
+          groups[r.earlId] = [];
+        }
+        groups[r.earlId].push(r);
+      }
+    });
+    return groups;
+  }, [results]);
+
+  const hasFailures = Object.keys(failureGroups).length > 0;
 
   return (
     <div className={styles.container}>
@@ -27,6 +51,30 @@ export function CompleteView({ summary, onImport, onDownload, onStartNew }) {
           </div>
         ))}
       </div>
+
+      {hasFailures && (
+        <div className={styles.failureSection}>
+          <h4>Failure Breakdown</h4>
+          {Object.entries(failureGroups).map(([id, items]) => (
+            <details key={id} className={styles.failureGroup}>
+              <summary className={styles.summaryHeader}>
+                <strong>{id}</strong>
+                <span className={styles.badge}>{items.length}</span>
+              </summary>
+              <div className={styles.failureList}>
+                {items.map((item, idx) => (
+                  <div key={idx} className={styles.failureItem}>
+                    <div className={styles.url}>
+                      <strong>Page:</strong> {item.url}
+                    </div>
+                    <pre className={styles.reason}>{item.reason}</pre>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
 
       <div className={styles.actions}>
         <Button onClick={onImport} className={styles.importButton}>

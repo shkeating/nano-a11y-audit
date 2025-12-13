@@ -316,6 +316,7 @@ export function App() {
       {view === "complete" && (
         <CompleteView
           summary={summaryStats}
+          results={auditResults}
           onImport={handleImportToW3C}
           onDownload={handleDownloadJson}
           onStartNew={() => setView("setup")}
