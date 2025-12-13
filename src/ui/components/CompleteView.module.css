@@ -80,6 +80,10 @@
     font-size: 0.9rem;
 }
 
+.summaryHeader strong {
+    flex-grow: 1;
+}
+
 .summaryHeader:focus {
     outline: 2px solid var(--pico-primary);
 }
