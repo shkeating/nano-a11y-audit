@@ -2,26 +2,38 @@ export const id = "1.1.1";
 export const earlId = "WCAG22:non-text-content";
 export const relevantElements = ["img", "svg", "[role='img']"];
 
+// FEW-SHOT PROMPTING: We give examples to force strict adherence to the rules.
 export const systemPrompt = `
-You are an accessibility auditor specializing in WCAG 1.1.1.
-Task: Evaluate the image based on its "Provided Attribute".
+You are a strict accessibility auditor checking Image Alternatives.
 
-**SCENARIO A: Image has Alt Text**
-If the user provides Alt Text string:
-- **FAIL** if the text is generic (e.g., "image", "photo", "graphic", "icon", "placeholder", "spacer").
-- **FAIL** if the text is a file name (e.g., "chart.png", "img_001.jpg").
-- **FAIL** if the text does not describe the visual content.
-- **PASS** if the text is descriptive.
+**RULES**
+1. **FAIL (Generic):** If Alt Text is "image", "photo", "picture", "icon", "spacer", "placeholder", or "graphic".
+2. **FAIL (Filename):** If Alt Text looks like a file name (e.g., "my-pic.jpg", "img_001.png").
+3. **FAIL (Mismatch):** If Alt Text describes something completely different from the image.
+4. **FAIL (False Decorative):** If image is "Hidden/Decorative" but contains text or data that *should* be read.
+5. **PASS:** If the text describes the image content OR if the image is correctly hidden.
 
-**SCENARIO B: Image is Marked Decorative**
-If the user says "Marked as Decorative (Hidden)":
-- **FAIL** if the image contains legible text, data charts, or meaningful icons (e.g., a warning sign) that should NOT be hidden.
-- **PASS** if the image is purely visual decoration, photography without specific meaning, or background art.
+**EXAMPLES**
 
-**OUTPUT FORMAT**
-Return a JSON object:
-- Fail: {"verdict": "FAIL", "reason": "[Explain why quality is poor OR why it should not be hidden]"}
-- Pass: {"verdict": "PASS", "reason": "Alt text is sufficient OR image is correctly hidden."}
+User: Context: Alt Text: "image"
+Image: [A photo of a team]
+Response: {"verdict": "FAIL", "reason": "Generic text 'image' is not a valid text alternative."}
+
+User: Context: Alt Text: "footer-bg.png"
+Image: [A pattern]
+Response: {"verdict": "FAIL", "reason": "Filename 'footer-bg.png' is not a valid text alternative."}
+
+User: Context: Alt Text: "spacer"
+Image: [A transparent box]
+Response: {"verdict": "FAIL", "reason": "Decorative images should be hidden (alt=\"\"), not labeled 'spacer'."}
+
+User: Context: Marked as Decorative (Hidden)
+Image: [A chart showing sales data]
+Response: {"verdict": "FAIL", "reason": "Meaningful image (Chart) is incorrectly hidden from screen readers."}
+
+User: Context: Alt Text: "A golden retriever"
+Image: [A dog]
+Response: {"verdict": "PASS", "reason": "Descriptive."}
 `;
 
 export function extractor() {
@@ -47,7 +59,6 @@ export function extractor() {
     const ariaLabel = el.getAttribute("aria-label");
     const title = el.getAttribute("title");
 
-    let status = "unknown";
     let promptContext = "";
 
     // CASE: Explicitly Decorative
@@ -56,14 +67,11 @@ export function extractor() {
       role === "presentation" ||
       role === "none"
     ) {
-      status = "decorative";
-      promptContext = "Marked as Decorative (Hidden from screen readers)";
+      promptContext = "Marked as Decorative (Hidden)";
     }
     // CASE: Has Accessible Name
     else if (altValue || ariaLabel || title) {
-      status = "named";
       const name = altValue || ariaLabel || title;
-      // Skip if filename detection is handled by Axe, but we want to check quality
       promptContext = `Alt Text: "${name.trim()}"`;
     }
     // CASE: Missing Attribute (Axe catches this, ignore)
@@ -72,18 +80,28 @@ export function extractor() {
     }
 
     const uniqueId =
-      "nano-img-check-" + Math.random().toString(36).substr(2, 9);
-    el.setAttribute("data-nano-id", uniqueId);
+      "nano-img-quality-" + Math.random().toString(36).substr(2, 9);
+    el.setAttribute("data-nano-quality-id", uniqueId);
 
     let src = "";
     if (el.tagName === "IMG") src = el.src;
     else src = "[SVG/Graphic]";
 
+    // Generate a clean identifier for the logs
+    let identifier = "";
+    if (el.tagName === "IMG") {
+      const file = src.split("/").pop();
+      identifier = `<img src=".../${file}">`;
+    } else {
+      identifier = `<${el.tagName.toLowerCase()}>`;
+    }
+
     images.push({
       src: src,
-      alt: promptContext, // This is passed to the User Prompt for the AI
+      name: identifier, // Identifying string for the UI logs
+      alt: promptContext, // The text passed to the AI
       rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-      selector: `[data-nano-id="${uniqueId}"]`,
+      selector: `[data-nano-quality-id="${uniqueId}"]`,
       trigger: "default",
     });
   }
@@ -91,13 +109,13 @@ export function extractor() {
   if (images.length === 0) {
     return {
       computedVerdict: "PASS",
-      reason: "No evaluate-able images found (all missing alt caught by Axe).",
+      reason: "No evaluate-able images found.",
       pageTitle: document.title,
     };
   }
 
   return {
     pageTitle: document.title,
-    images: images.slice(0, 10), // Increased limit to ensure test suite coverage
+    images: images.slice(0, 10),
   };
 }
