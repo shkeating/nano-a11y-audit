@@ -1,3 +1,4 @@
+/* src/ui/components/CompleteView.module.css */
 .container {
     text-align: center;
     padding: 1rem 0;
@@ -52,4 +53,77 @@
 .importButton {
     width: 100%;
     font-weight: bold;
+}
+
+/* NEW STYLES FOR FAILURE BREAKDOWN */
+
+.failureSection {
+    text-align: left;
+    margin-bottom: 2rem;
+    border-top: 1px solid var(--pico-card-border-color);
+    padding-top: 1rem;
+}
+
+.failureGroup {
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--pico-card-border-color);
+    border-radius: 4px;
+    background: var(--pico-card-background-color);
+}
+
+.summaryHeader {
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.summaryHeader:focus {
+    outline: 2px solid var(--pico-primary);
+}
+
+.badge {
+    background-color: #dc3545;
+    color: white;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: bold;
+}
+
+.failureList {
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-top: 1px solid var(--pico-card-border-color);
+}
+
+.failureItem {
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5rem;
+}
+
+.failureItem:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.url {
+    word-break: break-all;
+    color: var(--pico-primary);
+    margin-bottom: 4px;
+}
+
+.reason {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-family: var(--pico-font-family-monospace);
+    white-space: pre-wrap;
+    color: var(--pico-color);
+    font-size: 0.8rem;
 }
