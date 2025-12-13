@@ -16,15 +16,15 @@ Review "suspectFields".
 - **PASS** if the label is generic (e.g. "Name", "Message", "Search").
 
 **STEP 2: GENERATE REPORT**
-Combine "confirmedFailures" AND any failures identified in Step 1 into a single list.
+Combine "confirmedFailures" AND any failures identified in Step 1 into a single comma-separated list.
 
 **CRITICAL: DO NOT HALLUCINATE**
 - **Only report fields that are actually listed in the input data.**
-- Do NOT copy examples from this prompt (like "SSN" or "Tax ID") unless they truly appear in the input list.
+- Do NOT copy examples from this prompt.
 
 **OUTPUT (JSON)**
 Return a SINGLE JSON object.
-- If failures exist: {"verdict": "FAIL", "reason": "Missing instructions/indicators for: [List ONLY the failed fields from input]."}
+- If failures exist: {"verdict": "FAIL", "reason": "The following fields are missing instructions or required indicators: <Insert Comma Separated List Here>."}
 - If no failures: {"verdict": "PASS", "reason": "All fields have sufficient instructions."}
 `;
 
@@ -99,9 +99,11 @@ export function extractor() {
   }
 
   // --- PATTERNS ---
+  // Matches text that looks like a hint: (MM/DD), e.g., Format:, or * / required
   const HINT_PATTERN =
     /\(.*\)|e\.g\.|example|format:|\d{2}\/\d{2}|\d{3}-\d{2}/i;
   const REQ_INDICATOR_PATTERN = /\*|required|mandatory/i;
+  // Matches generic fields that rarely need format hints
   const FREE_TEXT_PATTERN =
     /name|address|city|comment|search|email|appointment|subject/i;
 
@@ -117,6 +119,7 @@ export function extractor() {
     const rawType = el.getAttribute("type");
     const type = (rawType || el.type || "text").toLowerCase().trim();
 
+    // 1. FILTER: Ignore Hidden/Buttons/Native UI
     if (
       [
         "hidden",
@@ -164,7 +167,7 @@ export function extractor() {
       label: label.substring(0, 150),
     });
 
-    if (relevantInputs.length >= 15) break;
+    if (relevantInputs.length >= 10) break;
   }
 
   return {
