@@ -321,7 +321,7 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
         },
         args: [imgMeta.selector],
       });
-      await delay(300); // Wait for CSS transition/paint
+      await delay(500);
     }
 
     try {

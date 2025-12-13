@@ -9,33 +9,23 @@ export const relevantElements = [
 ];
 
 export const systemPrompt = `
-You are a strict WCAG Contrast Validator.
-Task: Classify the UI component based on the requested **MODE**.
+You are an Accessibility Judge.
+You will receive an image and a specific **TASK**. You must only perform that exact task.
 
-**INPUT ANALYSIS**
-- If input says **"(Focus State)"** -> **MODE: FOCUS_CHECK**
-- If input says **"(Default State)"** -> **MODE: BOUNDARY_CHECK**
+**DEFINITIONS**
+- **Boundary:** The background color or border of the button/input.
+- **Focus Ring:** An extra outline (halo/glow) around the element.
 
----
+**CRITERIA**
+- **Low Contrast Boundary:** Light Gray, Beige, Pale Blue, or White-on-White. (< 3:1).
+- **High Contrast Boundary:** Black, Dark Blue, Green, Red, or thick Dark Border. (> 3:1).
+- **Weak Focus Ring:** Missing, or very faint (Cyan/Pale Gray).
+- **Strong Focus Ring:** Clear, solid outline (White/Black/Blue) distinct from the button.
 
-**MODE: BOUNDARY_CHECK (Default State)**
-*Goal: Ensure the button/input shape is visible against the page.*
-- **FAIL:** Light Gray, Beige, Pastel background/border (< 3:1).
-- **PASS:** Dark/Solid background (Blue, Black, Green) or thick Dark border.
-- **IGNORE:** Do not look for focus rings or glow. Only judge the component itself.
-
-**MODE: FOCUS_CHECK (Active State)**
-*Goal: Ensure the Focus Indicator (Ring/Outline) is visible.*
-- **FAIL:** No visible change, or a very faint/thin outline (Light Blue/Gray) that blends in.
-- **PASS:** Clear, high-contrast Focus Ring (Solid Outline) or drastic background change (Invert).
-- **IGNORE:** Do not judge the button color unless it prevents seeing the ring.
-
----
-
-**OUTPUT FORMAT (JSON)**
-- Boundary Fail: {"verdict": "FAIL", "reason": "Component boundary is too faint (Light/Pastel)."}
-- Focus Fail:    {"verdict": "FAIL", "reason": "Focus indicator (Ring) is missing or too faint."}
-- Pass:          {"verdict": "PASS", "reason": "Contrast is sufficient."}
+**OUTPUT FORMAT**
+Return JSON only.
+{"verdict": "FAIL", "reason": "..."}
+{"verdict": "PASS", "reason": "..."}
 `;
 
 export function extractor() {
@@ -73,35 +63,28 @@ export function extractor() {
     let snippet = el.outerHTML.substring(0, 80).replace(/[\n\r]+/g, " ");
     if (el.outerHTML.length > 80) snippet += "...";
 
-    // 1. DEFAULT STATE CHECK (Boundary)
+    // 1. DEFAULT STATE CHECK
+    // We inject the strict instruction into the 'alt' property, which the Runner passes to the AI as the User Prompt.
     images.push({
       src: "[UI Component Screenshot]",
       name: accName,
       html: snippet,
-      alt: "UI Component (Default State)", // Triggers BOUNDARY_CHECK
+      // INSTRUCTION INJECTION:
+      alt: "Task: Check BOUNDARY contrast only. Ignore focus rings. Fail if Light/Pastel.",
       trigger: "default",
-      rect: {
-        x: rect.x,
-        y: rect.y,
-        width: rect.width,
-        height: rect.height,
-      },
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       selector: `[data-nano-contrast-id="${uniqueId}"]`,
     });
 
-    // 2. FOCUS STATE CHECK (Ring)
+    // 2. FOCUS STATE CHECK
     images.push({
       src: "[UI Component Screenshot]",
       name: accName,
       html: snippet,
-      alt: "UI Component (Focus State)", // Triggers FOCUS_CHECK
+      // INSTRUCTION INJECTION:
+      alt: "Task: Check FOCUS RING visibility only. Ignore button color. Fail if ring is missing/faint.",
       trigger: "focus",
-      rect: {
-        x: rect.x,
-        y: rect.y,
-        width: rect.width,
-        height: rect.height,
-      },
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       selector: `[data-nano-contrast-id="${uniqueId}"]`,
     });
   }
