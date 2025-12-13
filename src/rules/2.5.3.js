@@ -13,8 +13,6 @@ export const relevantElements = [
   "[role='menuitem']",
 ];
 
-// We keep the system prompt as a backup for the report generation,
-// though the verdict is computed programmatically.
 export const systemPrompt = `
 You are a precise accessibility auditor.
 Task: Report WCAG 2.5.3 Label in Name violations.
@@ -38,7 +36,9 @@ Review the input data.
 - If items exist: {"verdict": "FAIL", "reason": "[Combine your summaries here]"}
 `;
 
-export async function extractor() {
+export function extractor() {
+  // --- HELPER FUNCTIONS (Must be inside to survive injection) ---
+
   function isVisible(el) {
     if (!el) return false;
     if (el.offsetParent !== null) return true;
@@ -58,47 +58,81 @@ export async function extractor() {
       .trim();
   }
 
-  function getVisibleLabel(el) {
-    // 1. Inputs/Textareas
-    if (
-      el.tagName === "INPUT" ||
-      el.tagName === "TEXTAREA" ||
-      el.tagName === "SELECT"
-    ) {
-      const type = el.type ? el.type.toLowerCase() : "text";
-      if (["submit", "reset", "button"].includes(type)) {
-        return el.value;
-      }
-      // Explicit Label
+  // --- 1. Compute Accessible Name (AccName Spec Approximation) ---
+  function getAccessibleName(el) {
+    // Priority 1: aria-labelledby
+    if (el.hasAttribute("aria-labelledby")) {
+      const ids = el.getAttribute("aria-labelledby").split(" ");
+      const labels = ids
+        .map((id) => {
+          const labelEl = document.getElementById(id);
+          return labelEl && isVisible(labelEl) ? labelEl.innerText : "";
+        })
+        .filter((s) => s);
+      if (labels.length > 0) return labels.join(" ");
+    }
+
+    // Priority 2: aria-label
+    if (el.hasAttribute("aria-label")) {
+      const label = el.getAttribute("aria-label").trim();
+      if (label) return label;
+    }
+
+    // Priority 3: Native Labeling (Input/Image)
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) {
+      // Associated Label Element
       if (el.labels && el.labels.length > 0) {
         return Array.from(el.labels)
           .map((l) => l.innerText)
           .join(" ");
       }
-      // Implicit/Wrapped Label (Fallback if .labels not supported)
-      let parent = el.parentElement;
-      if (parent.tagName === "LABEL") return parent.innerText;
+      if (el.id) {
+        try {
+          const label = document.querySelector(
+            `label[for="${CSS.escape(el.id)}"]`
+          );
+          if (label) return label.innerText;
+        } catch (e) {}
+      }
+      // Alt (Input Image)
+      if (el.type === "image" && el.hasAttribute("alt")) {
+        return el.getAttribute("alt");
+      }
+      // Value (Submit/Reset)
+      if (["submit", "reset", "button"].includes(el.type)) {
+        return el.value;
+      }
+    }
 
-      // Placeholder is strictly NOT a label for 2.5.3, but often perceived as one.
-      // We skip it here because 2.5.3 applies to *Visible Labels*.
-      // If placeholder is the only thing, it's covered by other rules.
+    if (el.tagName === "IMG" || el.getAttribute("role") === "img") {
+      return el.getAttribute("alt") || "";
+    }
+
+    // Priority 4: Text Content (Recursive)
+    return el.innerText || "";
+  }
+
+  // --- 2. Compute Visible Label (Visual Reality) ---
+  function getVisibleLabel(el) {
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) {
+      const type = el.type ? el.type.toLowerCase() : "text";
+      if (["submit", "reset", "button"].includes(type)) {
+        return el.value;
+      }
+      if (el.labels && el.labels.length > 0) {
+        return Array.from(el.labels)
+          .map((l) => l.innerText)
+          .join(" ");
+      }
+      if (el.getAttribute("placeholder")) {
+        return el.getAttribute("placeholder");
+      }
       return "";
     }
-    // 2. Buttons/Links (Inner Text)
     return el.innerText;
   }
 
-  // --- AOM FEATURE CHECK ---
-  // We check if the AOM API is available on a standard element
-  const dummy = document.createElement("div");
-  if (!dummy.computedAccessibleNode) {
-    return {
-      computedVerdict: "INAPPLICABLE",
-      reason:
-        "The Accessibility Object Model (AOM) is not enabled. Please enable chrome://flags/#enable-accessibility-object-model to run this test.",
-      pageTitle: document.title,
-    };
-  }
+  // --- MAIN AUDIT LOGIC ---
 
   const elements = Array.from(
     document.querySelectorAll(
@@ -110,27 +144,16 @@ export async function extractor() {
   for (const el of elements) {
     if (!isVisible(el)) continue;
 
-    // 1. Get Visible Label (Visual Reality)
     const visibleRaw = getVisibleLabel(el);
+    const accessibleRaw = getAccessibleName(el);
+
     if (!visibleRaw || !visibleRaw.trim()) continue;
+    if (!accessibleRaw || !accessibleRaw.trim()) continue;
 
-    // 2. Get Accessible Name (Browser Reality via AOM)
-    let accessibleRaw = "";
-    try {
-      const axNode = await el.computedAccessibleNode();
-      accessibleRaw = axNode.name || "";
-    } catch (e) {
-      // Fallback or skip if AOM fails for this specific node
-      continue;
-    }
-
-    if (!accessibleRaw) continue; // If no acc name, it fails 4.1.2, not 2.5.3
-
-    // 3. Compare
     const visible = cleanText(visibleRaw);
     const accessible = cleanText(accessibleRaw);
 
-    // WCAG 2.5.3: The accessible name must *contain* the text of the visible label.
+    // CHECK: Does the Accessible Name contain the Visible Label?
     if (visible.length > 0 && !accessible.includes(visible)) {
       mismatchedElements.push({
         visible: visibleRaw.trim().substring(0, 50),
@@ -147,7 +170,6 @@ export async function extractor() {
   if (mismatchedElements.length > 0) {
     result.mismatchedElements = mismatchedElements;
     result.computedVerdict = "FAIL";
-    // We construct the failure reason manually to be robust
     result.reason =
       "Accessible names missing visible text were found:\n" +
       mismatchedElements
