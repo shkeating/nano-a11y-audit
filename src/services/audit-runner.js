@@ -3,8 +3,14 @@ import { runAxeAudit } from "../utils/axe-runner.js";
 import { runInBatches, delay } from "../utils/async-helpers.js";
 
 // Rules that require the tab to be visible/focused and cannot be parallelized easily
-// Added "1.4.11" for Non-Text Contrast (UI Components)
-const VISUAL_RULE_IDS = ["1.4.5", "1.4.1-images", "2.4.7", "1.4.11"];
+// Added "1.4.11" and "1.4.11-graphics" to the list
+const VISUAL_RULE_IDS = [
+  "1.4.5",
+  "1.4.1-images",
+  "2.4.7",
+  "1.4.11",
+  "1.4.11-graphics",
+];
 
 // Rules that rely on the Chrome Language Detection API
 const LANGUAGE_RULE_IDS = ["3.1.1", "3.1.2"];
@@ -239,7 +245,7 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
 }
 
 /**
- * Visual Analysis with Scrolling, Interaction Triggers, and Smart Retries
+ * Visual Analysis with Scrolling, Interaction Triggers, Smart Retries, and Grouped Reporting
  */
 async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
   if (!domContext.images || domContext.images.length === 0) {
@@ -250,7 +256,10 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
     };
   }
 
-  const results = [];
+  // Grouped Results
+  const generalFailures = [];
+  const focusFailures = [];
+
   let session;
 
   try {
@@ -267,7 +276,6 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
   }
 
   // --- GET PIXEL RATIO ONCE ---
-  // Needed for correct cropping on Retina/High-DPI displays
   const dprInjection = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => window.devicePixelRatio || 1,
@@ -321,6 +329,7 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
         },
         args: [imgMeta.selector],
       });
+      // Increased delay to allow for focus ring transition/paint
       await delay(500);
     }
 
@@ -370,14 +379,6 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
             },
           ]);
 
-          // --- DEBUG LOGGING ---
-          console.log("---------------------------------------------------");
-          console.log(`[Nano Debug] Element: ${imgMeta.alt || "Unknown"}`);
-          console.log(`[Nano Debug] Prompt:`, promptText);
-          console.log(`[Nano Debug] RAW AI RESPONSE:`, responseString);
-          console.log("---------------------------------------------------");
-          // ---------------------
-
           success = true;
         } catch (promptErr) {
           attempts++;
@@ -388,7 +389,8 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
       }
 
       if (!success) {
-        results.push(`- Element (${imgMeta.alt}): AI Busy/Timeout.`);
+        // If AI is busy, we technically don't know the verdict, so we skip adding it to failures
+        // or add a warning. For now, we skip.
         continue;
       }
 
@@ -407,27 +409,45 @@ async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
           identifier = imgMeta.alt || "Unknown Element";
         }
 
-        // Append State info to identifier if applicable
-        if (imgMeta.trigger === "focus") {
-          identifier += " (Focus State)";
-        }
+        // --- SORT INTO BUCKETS BASED ON TRIGGER ---
+        const message = `- Element ${identifier}: ${result.reason}`;
 
-        results.push(`- Element ${identifier}: ${result.reason}`);
+        if (imgMeta.trigger === "focus") {
+          focusFailures.push(message);
+        } else {
+          // "default" or undefined -> General Visual Failure
+          generalFailures.push(message);
+        }
       }
     } catch (e) {
       console.error("Visual Analysis Error", e);
-      results.push(`- Element (${imgMeta.alt}): Capture Error.`);
+      generalFailures.push(`- Element (${imgMeta.alt}): Capture Error.`);
     }
   }
   session.destroy();
 
-  if (results.length > 0) {
+  // --- BUILD FINAL REPORT STRING ---
+  if (generalFailures.length > 0 || focusFailures.length > 0) {
+    let finalReason = "";
+
+    if (generalFailures.length > 0) {
+      finalReason +=
+        "Visual violations detected:\n" + generalFailures.join("\n");
+    }
+
+    if (focusFailures.length > 0) {
+      if (finalReason) finalReason += "\n\n"; // Spacer between sections
+      finalReason +=
+        "Focus ring contrast violations detected:\n" + focusFailures.join("\n");
+    }
+
     return {
       verdict: "FAIL",
-      reason: "Visual violations detected:\n" + results.join("\n"),
+      reason: finalReason,
       pageTitle: domContext.pageTitle,
     };
   }
+
   return {
     verdict: "PASS",
     reason: "No visual violations found.",
@@ -502,7 +522,6 @@ async function cropImage(sourceImage, rect, dpr = 1) {
   const ctx = canvas.getContext("2d");
 
   // Ensure we don't crop outside the image bounds
-  // (drawImage handles out-of-bounds automatically, but explicit control is better)
   ctx.drawImage(
     sourceImage,
     scaledX,

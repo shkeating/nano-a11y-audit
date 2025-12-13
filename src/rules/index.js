@@ -11,6 +11,7 @@ import * as Rule332 from "./3.3.2.js";
 import * as Rule134L from "./1.3.4-landscape.js";
 import * as Rule134P from "./1.3.4-portrait.js";
 import * as Rule1410 from "./1.4.10.js";
+import * as Rule1411Graphics from "./1.4.11-graphics.js";
 import * as Rule1412 from "./1.4.12.js";
 import * as Rule244 from "./2.4.4.js";
 import * as Rule245 from "./2.4.5.js";
@@ -29,6 +30,7 @@ export const RULES = {
   [Rule145.id]: Rule145,
   [Rule1410.id]: Rule1410,
   [Rule1411.id]: Rule1411,
+  [Rule1411Graphics.id]: Rule1411Graphics,
   [Rule1412.id]: Rule1412,
   [Rule222.id]: Rule222,
   [Rule245.id]: Rule245,
