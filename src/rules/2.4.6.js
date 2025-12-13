@@ -16,7 +16,7 @@ You are an accessibility auditor specializing in WCAG 2.4.6 Headings and Labels.
 Task: Evaluate if a Form Label is descriptive enough, considering its Section Heading context.
 
 **CRITERIA**
-1. **FAIL (Ambiguous):** The label is generic (e.g., "Name", "Date", "Yes", "No") AND the Section Heading is missing, generic ("Section 1"), or unrelated.
+1. **FAIL (Ambiguous):** The label is generic (e.g., "Name", "Date", "Yes", "No") AND the Section Heading is missing, generic (e.g. "Section 1", "Untitled", "Page 2"), or unrelated.
 2. **PASS (Descriptive):** The label itself is specific (e.g., "Date of Birth", "Credit Card Number").
 3. **PASS (Contextual):** The label is generic, BUT the Section Heading provides the necessary context (e.g., Heading: "Spouse", Label: "Name").
 
@@ -27,6 +27,13 @@ Task: Evaluate if a Form Label is descriptive enough, considering its Section He
 Return a JSON object:
 - If violation: {"verdict": "FAIL", "reason": "Label '[label]' is ambiguous under heading '[heading]'."}
 - If pass: {"verdict": "PASS", "reason": "Label is descriptive in context."}
+
+**FEW-SHOT EXAMPLES**
+User: "Heading: Untitled Section | Label: Name"
+Model: {"verdict": "FAIL", "reason": "Label 'Name' is ambiguous under heading 'Untitled Section'."}
+
+User: "Heading: Spouse Information | Label: Name"
+Model: {"verdict": "PASS", "reason": "Label is descriptive in context."}
 `;
 
 export function extractor() {
