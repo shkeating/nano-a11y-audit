@@ -84,6 +84,10 @@
     flex-grow: 1;
 }
 
+details[open]>.summaryHeader {
+    margin-bottom: 0;
+}
+
 .summaryHeader:focus {
     outline: 2px solid var(--pico-primary);
 }
