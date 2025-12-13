@@ -20,17 +20,23 @@
         }
 
         .fail {
-            border-color: #d32f2f;
-            background-color: #ffebee;
+            border-left: 5px solid #d32f2f;
+            background-color: #fff5f5;
         }
 
         .pass {
-            border-color: #388e3c;
-            background-color: #e8f5e9;
+            border-left: 5px solid #388e3c;
+            background-color: #f0fff4;
         }
 
         h2 {
             margin-top: 0;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -38,37 +44,43 @@
 <body>
     <h1>SC 2.4.6 Failures: Headings and Labels</h1>
 
-    <div class="section fail">
-        <h2>Section 1</h2>
-        <p>This content is about our refund policy.</p>
+    <div class="section fail" data-rule="2.4.6" data-failure="Ambiguous Context">
+        <h2>Untitled Section</h2>
+        <p>The heading provides no context, so the labels below are ambiguous.</p>
 
-        <h2>Untitled</h2>
-        <p>This content is about our pricing tiers.</p>
+        <label>Name</label>
+        <input type="text">
 
-
-        <form>
-            <label for="input1">Input:</label>
-            <input type="text" id="input1">
-
-            <label for="input2">Field:</label>
-            <input type="text" id="input2">
-        </form>
+        <label>Date</label>
+        <input type="date">
     </div>
 
-    <div class="section pass">
-        <h2>Refund Policy Details</h2>
-        <p>This content is about our refund policy.</p>
+    <div class="section fail" data-rule="2.4.6" data-failure="Orphaned Label">
+        <p>This section has no heading at all, making the generic label below confusing.</p>
+        <label>Yes / No</label>
+        <input type="checkbox">
+    </div>
 
-        <h2>Contact Us</h2>
-        <p>Reach out to our support team.</p>
+    <div class="section pass" data-rule="2.4.6" data-failure="None">
+        <h2>Traveler Information</h2>
+        <p>The heading provides clear context for "Name" and "Date".</p>
 
-        <form>
-            <label for="email">Email Address</label>
-            <input type="email" id="email">
+        <label>Name</label>
+        <input type="text">
 
-            <label for="zip">Zip Code</label>
-            <input type="text" id="zip">
-        </form>
+        <label>Departure Date</label>
+        <input type="date">
+    </div>
+
+    <div class="section pass" data-rule="2.4.6" data-failure="None">
+        <h2>Payment Details</h2>
+        <p>Even though the heading is generic, the labels are specific enough.</p>
+
+        <label>Credit Card Number</label>
+        <input type="text">
+
+        <label>CVV</label>
+        <input type="text" style="width: 50px;">
     </div>
 
 </body>

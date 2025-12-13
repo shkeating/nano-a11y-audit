@@ -16,13 +16,16 @@ Review "suspectFields".
 - **PASS** if the label is generic (e.g. "Name", "Message", "Search").
 
 **STEP 2: GENERATE REPORT**
-You MUST combine "confirmedFailures" AND your new failures from Step 1 into a single list.
+Combine "confirmedFailures" AND any failures identified in Step 1 into a single comma-separated list.
+
+**CRITICAL: DO NOT HALLUCINATE**
+- **Only report fields that are actually listed in the input data.**
+- Do NOT copy examples from this prompt.
 
 **OUTPUT (JSON)**
-- If failures exist (in EITHER list):
-  {"verdict": "FAIL", "reason": "Missing instructions/indicators for: [Combined Comma-Separated List]."}
-- If BOTH lists are empty:
-  {"verdict": "PASS", "reason": "All fields have sufficient instructions."}
+Return a SINGLE JSON object.
+- If failures exist: {"verdict": "FAIL", "reason": "The following fields are missing instructions or required indicators: <Insert Comma Separated List Here>."}
+- If no failures: {"verdict": "PASS", "reason": "All fields have sufficient instructions."}
 `;
 
 export function extractor() {
