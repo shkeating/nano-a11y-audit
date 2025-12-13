@@ -8,6 +8,9 @@ export const relevantElements = [
   "textarea",
   "[role='button']",
   "[role='link']",
+  "[role='checkbox']",
+  "[role='radio']",
+  "[role='menuitem']",
 ];
 
 export const systemPrompt = `
@@ -34,6 +37,8 @@ Review the input data.
 `;
 
 export function extractor() {
+  // --- HELPER FUNCTIONS (Must be inside to survive injection) ---
+
   function isVisible(el) {
     if (!el) return false;
     if (el.offsetParent !== null) return true;
@@ -53,30 +58,63 @@ export function extractor() {
       .trim();
   }
 
-  function getOverrideName(el) {
+  // --- 1. Compute Accessible Name (AccName Spec Approximation) ---
+  function getAccessibleName(el) {
+    // Priority 1: aria-labelledby
     if (el.hasAttribute("aria-labelledby")) {
       const ids = el.getAttribute("aria-labelledby").split(" ");
-      const parts = ids.map((id) => {
-        const labelEl = document.getElementById(id);
-        return labelEl ? labelEl.innerText : "";
-      });
-      return parts.join(" ").trim();
+      const labels = ids
+        .map((id) => {
+          const labelEl = document.getElementById(id);
+          return labelEl && isVisible(labelEl) ? labelEl.innerText : "";
+        })
+        .filter((s) => s);
+      if (labels.length > 0) return labels.join(" ");
     }
+
+    // Priority 2: aria-label
     if (el.hasAttribute("aria-label")) {
-      return el.getAttribute("aria-label").trim();
+      const label = el.getAttribute("aria-label").trim();
+      if (label) return label;
     }
-    if (el.hasAttribute("alt")) {
-      return el.getAttribute("alt").trim();
+
+    // Priority 3: Native Labeling (Input/Image)
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) {
+      // Associated Label Element
+      if (el.labels && el.labels.length > 0) {
+        return Array.from(el.labels)
+          .map((l) => l.innerText)
+          .join(" ");
+      }
+      if (el.id) {
+        try {
+          const label = document.querySelector(
+            `label[for="${CSS.escape(el.id)}"]`
+          );
+          if (label) return label.innerText;
+        } catch (e) {}
+      }
+      // Alt (Input Image)
+      if (el.type === "image" && el.hasAttribute("alt")) {
+        return el.getAttribute("alt");
+      }
+      // Value (Submit/Reset)
+      if (["submit", "reset", "button"].includes(el.type)) {
+        return el.value;
+      }
     }
-    return null;
+
+    if (el.tagName === "IMG" || el.getAttribute("role") === "img") {
+      return el.getAttribute("alt") || "";
+    }
+
+    // Priority 4: Text Content (Recursive)
+    return el.innerText || "";
   }
 
+  // --- 2. Compute Visible Label (Visual Reality) ---
   function getVisibleLabel(el) {
-    if (
-      el.tagName === "INPUT" ||
-      el.tagName === "TEXTAREA" ||
-      el.tagName === "SELECT"
-    ) {
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) {
       const type = el.type ? el.type.toLowerCase() : "text";
       if (["submit", "reset", "button"].includes(type)) {
         return el.value;
@@ -86,18 +124,7 @@ export function extractor() {
           .map((l) => l.innerText)
           .join(" ");
       }
-      let prev = el.previousElementSibling;
-      while (
-        prev &&
-        (prev.tagName === "BR" ||
-          (prev.tagName === "SPAN" && prev.innerText.length < 2))
-      ) {
-        prev = prev.previousElementSibling;
-      }
-      if (prev && prev.tagName === "LABEL") {
-        return prev.innerText;
-      }
-      if (el.hasAttribute("placeholder")) {
+      if (el.getAttribute("placeholder")) {
         return el.getAttribute("placeholder");
       }
       return "";
@@ -105,9 +132,11 @@ export function extractor() {
     return el.innerText;
   }
 
+  // --- MAIN AUDIT LOGIC ---
+
   const elements = Array.from(
     document.querySelectorAll(
-      "button, a, input, select, textarea, [role='button'], [role='link']"
+      "button, a, input, select, textarea, [role='button'], [role='link'], [role='checkbox'], [role='radio'], [role='menuitem']"
     )
   );
   const mismatchedElements = [];
@@ -116,22 +145,24 @@ export function extractor() {
     if (!isVisible(el)) continue;
 
     const visibleRaw = getVisibleLabel(el);
-    if (!visibleRaw || !visibleRaw.trim()) continue;
+    const accessibleRaw = getAccessibleName(el);
 
-    const accessibleRaw = getOverrideName(el);
-    if (!accessibleRaw) continue;
+    if (!visibleRaw || !visibleRaw.trim()) continue;
+    if (!accessibleRaw || !accessibleRaw.trim()) continue;
 
     const visible = cleanText(visibleRaw);
     const accessible = cleanText(accessibleRaw);
 
+    // CHECK: Does the Accessible Name contain the Visible Label?
     if (visible.length > 0 && !accessible.includes(visible)) {
       mismatchedElements.push({
         visible: visibleRaw.trim().substring(0, 50),
         accessible: accessibleRaw.trim().substring(0, 50),
+        element: `<${el.tagName.toLowerCase()}>`,
       });
     }
 
-    if (mismatchedElements.length >= 5) break;
+    if (mismatchedElements.length >= 10) break;
   }
 
   const result = { pageTitle: document.title };
@@ -139,8 +170,18 @@ export function extractor() {
   if (mismatchedElements.length > 0) {
     result.mismatchedElements = mismatchedElements;
     result.computedVerdict = "FAIL";
+    result.reason =
+      "Accessible names missing visible text were found:\n" +
+      mismatchedElements
+        .map(
+          (m) =>
+            `- Visible: "${m.visible}", Accessible: "${m.accessible}" ${m.element}`
+        )
+        .join("\n");
   } else {
     result.computedVerdict = "PASS";
+    result.reason =
+      "All interactive elements include their visible text labels.";
   }
 
   return result;
