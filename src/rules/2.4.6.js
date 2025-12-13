@@ -11,48 +11,25 @@ export const relevantElements = [
   "legend",
 ];
 
-// We use "Few-Shot Prompting" here.
-// By providing a concrete Q&A example, we force the model to mimic the logic
-// rather than interpreting abstract rules about "vagueness".
 export const systemPrompt = `
-You are a WCAG accessibility classifier.
-Task: Identify text that is VAGUE or PLACEHOLDER content.
+You are an accessibility auditor specializing in WCAG 2.4.6 Headings and Labels.
+Task: Evaluate if a Form Label is descriptive enough, considering its Section Heading context.
 
-**CLASSIFICATION GUIDE**
-1. **FAIL (Vague):** "Section 1", "Untitled", "Page 2", "Input", "Field", "Data", "Value", "Text", "..."
-2. **PASS (Descriptive):** "Refund Policy", "Contact Us", "Email Address", "Zip Code", "Search Results", "User Profile".
-   - IF THE TEXT DESCRIBES A SPECIFIC TOPIC, IT PASSES.
+**CRITERIA**
+1. **FAIL (Ambiguous):** The label is generic (e.g., "Name", "Date", "Yes", "No") AND the Section Heading is missing, generic ("Section 1"), or unrelated.
+2. **PASS (Descriptive):** The label itself is specific (e.g., "Date of Birth", "Credit Card Number").
+3. **PASS (Contextual):** The label is generic, BUT the Section Heading provides the necessary context (e.g., Heading: "Spouse", Label: "Name").
 
-**INSTRUCTIONS**
-- Review the user's list of text items.
-- Return a JSON object with a "verdict" and "reason".
-- **ONLY** list the items that FAIL.
-- If an item is PASS, do not mention it.
+**INPUT FORMAT**
+"Heading: [text] | Label: [text]"
 
-**FEW-SHOT EXAMPLES**
-
-User:
-- "Chapter 1"
-- "Login"
-- "Untitled"
-- "Submit"
-
-Model:
-{"verdict": "FAIL", "reason": "Meaningless/Placeholder text found:\\n- Chapter 1\\n- Untitled"}
-
-User:
-- "Financial Report"
-- "Name"
-- "Search"
-
-Model:
-{"verdict": "PASS", "reason": "Headings and labels are descriptive."}
-
-*** USER SAFE LIST (These always PASS) ***
-(The user's safe terms will be injected here by the runner)
+**OUTPUT FORMAT**
+Return a JSON object:
+- If violation: {"verdict": "FAIL", "reason": "Label '[label]' is ambiguous under heading '[heading]'."}
+- If pass: {"verdict": "PASS", "reason": "Label is descriptive in context."}
 `;
 
-export function extractor(selectors = [], options = {}) {
+export function extractor() {
   function isVisible(el) {
     if (!el) return false;
     if (el.offsetParent !== null) return true;
@@ -64,57 +41,66 @@ export function extractor(selectors = [], options = {}) {
     );
   }
 
-  function cleanText(str) {
-    return str.replace(/[:\-\.]/g, "").trim();
-  }
-
-  function getNextContentSnippet(el) {
-    let sibling = el.nextElementSibling;
-    let attempts = 0;
-    while (sibling && attempts < 3) {
-      if (sibling.innerText && sibling.innerText.trim().length > 0) {
-        return sibling.innerText.trim().substring(0, 100) + "...";
-      }
-      sibling = sibling.nextElementSibling;
-      attempts++;
-    }
-    return "No immediate text content found.";
-  }
-
   const items = [];
-
-  const candidates = document.querySelectorAll(
+  // Get document order of relevant nodes to determine context
+  const nodes = document.querySelectorAll(
     "h1, h2, h3, h4, h5, h6, label, legend"
   );
-  for (const el of candidates) {
+
+  let currentHeading = "No Heading Found";
+
+  // Heuristic: Labels that are risky without context
+  const GENERIC_LABELS = [
+    "name",
+    "date",
+    "email",
+    "address",
+    "phone",
+    "yes",
+    "no",
+    "other",
+    "input",
+    "field",
+    "value",
+    "quantity",
+    "search",
+    "title",
+    "details",
+  ];
+
+  for (const el of nodes) {
     if (!isVisible(el)) continue;
-    const raw = el.innerText.trim();
-    if (raw.length === 0) continue;
 
-    // Hard filter for technical test artifacts to save tokens
-    const lower = raw.toLowerCase();
-    if (
-      lower.includes("sc ") ||
-      lower.includes("wcag") ||
-      lower.includes("test")
-    )
-      continue;
+    const text = el.innerText.replace(/[:\-\.]/g, "").trim();
+    if (!text) continue;
 
-    items.push(cleanText(raw));
+    if (el.tagName.startsWith("H")) {
+      currentHeading = text;
+    } else {
+      // It's a label or legend
+      const lower = text.toLowerCase();
+
+      // Optimization: Only check "Risky" labels to save AI tokens
+      // We check if it's in the list OR very short (less than 3 words)
+      const isGeneric =
+        GENERIC_LABELS.includes(lower) || text.split(" ").length < 3;
+
+      if (isGeneric) {
+        items.push(`Heading: "${currentHeading}" | Label: "${text}"`);
+      }
+    }
   }
 
   if (items.length === 0) {
     return {
       computedVerdict: "PASS",
-      reason: "No headings or labels found to evaluate.",
+      reason: "No ambiguous labels found.",
       pageTitle: document.title,
     };
   }
 
-  // We send a simple array of strings now to match the Few-Shot format
-  // Limit to 40 items to keep context window manageable
   return {
     pageTitle: document.title,
-    items: items.slice(0, 40),
+    items: items.slice(0, 30), // Limit payload
   };
 }
