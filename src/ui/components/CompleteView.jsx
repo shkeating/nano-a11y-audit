@@ -1,6 +1,7 @@
 // src/ui/components/CompleteView.jsx
 import { useMemo } from "preact/hooks";
 import { Button } from "./base/Button";
+import { generateCSV, downloadCSV } from "../../utils/csv-exporter"; // <--- 1. IMPORT
 import styles from "./CompleteView.module.css";
 
 export function CompleteView({
@@ -33,6 +34,13 @@ export function CompleteView({
   }, [results]);
 
   const hasFailures = Object.keys(failureGroups).length > 0;
+
+  // --- 2. ADD HANDLER ---
+  const handleExportCSV = () => {
+    const csvData = generateCSV(results);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    downloadCSV(csvData, `nano-audit-data-${timestamp}.csv`);
+  };
 
   return (
     <div className={styles.container}>
@@ -84,6 +92,10 @@ export function CompleteView({
         <div className="grid">
           <Button variant="secondary" outline onClick={onDownload}>
             Download JSON
+          </Button>
+          {/* --- 3. ADD BUTTON --- */}
+          <Button variant="secondary" outline onClick={handleExportCSV}>
+            Export CSV
           </Button>
           <Button variant="contrast" outline onClick={onStartNew}>
             Start New
