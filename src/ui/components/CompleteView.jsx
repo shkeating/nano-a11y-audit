@@ -1,12 +1,12 @@
-// src/ui/components/CompleteView.jsx
 import { useMemo } from "preact/hooks";
 import { Button } from "./base/Button";
-import { generateCSV, downloadCSV } from "../../utils/csv-exporter"; // <--- 1. IMPORT
+import { generateCSV, downloadCSV } from "../../utils/csv-exporter";
 import styles from "./CompleteView.module.css";
 
 export function CompleteView({
   summary,
   results = [],
+  pageTimings = [],
   onImport,
   onDownload,
   onStartNew,
@@ -19,7 +19,6 @@ export function CompleteView({
     { label: "Not checked", value: summary.untested, color: "#6c757d" },
   ];
 
-  // Group failures by Criteria ID
   const failureGroups = useMemo(() => {
     const groups = {};
     results.forEach((r) => {
@@ -35,7 +34,6 @@ export function CompleteView({
 
   const hasFailures = Object.keys(failureGroups).length > 0;
 
-  // --- 2. ADD HANDLER ---
   const handleExportCSV = () => {
     const csvData = generateCSV(results);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -64,8 +62,8 @@ export function CompleteView({
         <div className={styles.failureSection}>
           <h4>Failure Breakdown</h4>
           {Object.entries(failureGroups).map(([id, items]) => (
-            <details key={id} className={styles.failureGroup}>
-              <summary className={styles.summaryHeader}>
+            <details key={id} className={styles.groupDetails}>
+              <summary className={styles.groupSummary}>
                 <strong>{id}</strong>
                 <span className={styles.badge}>{items.length}</span>
               </summary>
@@ -93,13 +91,53 @@ export function CompleteView({
           <Button variant="secondary" outline onClick={onDownload}>
             Download JSON
           </Button>
-          {/* --- 3. ADD BUTTON --- */}
           <Button variant="secondary" outline onClick={handleExportCSV}>
             Export CSV
           </Button>
           <Button variant="contrast" outline onClick={onStartNew}>
             Start New
           </Button>
+        </div>
+      </div>
+
+      {/* --- Performance Metrics --- */}
+
+      {/* --- Timing Breakdown Details --- */}
+      {pageTimings.length > 0 && (
+        <details className={styles.groupDetails}>
+          <summary className={styles.groupSummary}>
+            <strong>Performance Breakdown</strong>
+            <span className={styles.badge} style={{ backgroundColor: "#555" }}>
+              {pageTimings.length} Pages
+            </span>
+          </summary>
+          <div className={styles.failureList}>
+            <table className={styles.timingTable}>
+              <thead>
+                <tr>
+                  <th>URL</th>
+                  <th style={{ textAlign: "right" }}>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageTimings.map((t, idx) => (
+                  <tr key={idx}>
+                    <td className={styles.urlCell}>{t.url}</td>
+                    <td className={styles.timeCell}>{t.duration}ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
+      <div className={styles.perfContainer}>
+        <div className={styles.perfStat}>
+          <span className={styles.perfLabel}>Avg. Time per Page:</span>
+          <span className={styles.perfValue}>
+            {summary.averageDuration || 0}ms
+          </span>
         </div>
       </div>
     </div>

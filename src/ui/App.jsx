@@ -1,4 +1,3 @@
-// src/ui/App.jsx
 import { useState, useEffect, useRef } from "preact/hooks";
 import Papa from "papaparse";
 import { loadSafeList, saveSafeList } from "../services/storage";
@@ -6,7 +5,6 @@ import { analyzePage } from "../services/audit-runner";
 import { generateEarlReport } from "../utils/earl-reporter";
 import { injectReportFunction } from "../utils/report-injector";
 import { usePerformanceTracker } from "../hooks/usePerformanceTracker";
-[cite_start]; // [cite: 145]
 
 // Import Components
 import { SetupView } from "./components/SetupView";
@@ -14,7 +12,7 @@ import { AuditView } from "./components/AuditView";
 import { CompleteView } from "./components/CompleteView";
 import { SettingsModal } from "./components/SettingsModal";
 
-[cite_start]; // Level AAA Criteria IDs to exclude from the AA summary count [cite: 145]
+// Level AAA Criteria IDs to exclude from the AA summary count
 const AAA_IDS = [
   "WCAG22:contrast-enhanced",
   "WCAG22:images-of-text-no-exception",
@@ -337,7 +335,7 @@ export function App() {
         <CompleteView
           summary={summaryStats}
           results={auditResults}
-          pageTimings={tracker.pageTimings} // Pass timings to UI
+          pageTimings={tracker.pageTimings}
           onImport={handleImportToW3C}
           onDownload={handleDownloadJson}
           onStartNew={() => setView("setup")}

@@ -1,7 +1,6 @@
-/* src/ui/components/CompleteView.module.css */
 .container {
+    padding: 1rem;
     text-align: center;
-    padding: 1rem 0;
 }
 
 .heading {
@@ -9,129 +8,179 @@
 }
 
 .metaText {
+    color: #6c757d;
     font-size: 0.9rem;
-    color: var(--pico-muted-color);
+    margin-bottom: 1.5rem;
 }
 
 .summaryGrid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
     margin-bottom: 2rem;
-    margin-top: 1rem;
 }
 
 .statCard {
-    background: var(--pico-card-background-color);
-    padding: 10px;
+    background: #f8f9fa;
+    padding: 1rem;
     border-radius: 8px;
-    border: 1px solid var(--pico-card-border-color);
+    border: 1px solid #e9ecef;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
 }
 
 .number {
-    font-size: 2rem;
+    font-size: 1.5rem;
     font-weight: bold;
-    line-height: 1;
-    margin-bottom: 5px;
+    margin-bottom: 0.25rem;
 }
 
 .label {
     font-size: 0.8rem;
-    color: var(--pico-muted-color);
+    color: #495057;
 }
-
-.actions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.importButton {
-    width: 100%;
-    font-weight: bold;
-}
-
-/* NEW STYLES FOR FAILURE BREAKDOWN */
 
 .failureSection {
+    margin-top: 2rem;
     text-align: left;
-    margin-bottom: 2rem;
-    border-top: 1px solid var(--pico-card-border-color);
-    padding-top: 1rem;
-}
-
-.failureGroup {
-    margin-bottom: 0.5rem;
-    border: 1px solid var(--pico-card-border-color);
-    border-radius: 4px;
-    background: var(--pico-card-background-color);
-}
-
-.summaryHeader {
-    padding: 10px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9rem;
-}
-
-.summaryHeader strong {
-    flex-grow: 1;
-}
-
-details[open]>.summaryHeader {
-    margin-bottom: 0;
-}
-
-.summaryHeader:focus {
-    outline: 2px solid var(--pico-primary);
-}
-
-.badge {
-    background-color: #dc3545;
-    color: white;
-    font-size: 0.75rem;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-weight: bold;
 }
 
 .failureList {
-    padding: 10px;
-    background-color: rgba(0, 0, 0, 0.02);
-    border-top: 1px solid var(--pico-card-border-color);
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+    padding: 1rem;
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .failureItem {
     margin-bottom: 1rem;
-    font-size: 0.85rem;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 0.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #f1f3f5;
 }
 
 .failureItem:last-child {
     border-bottom: none;
     margin-bottom: 0;
+    padding-bottom: 0;
 }
 
 .url {
+    font-size: 0.85rem;
+    color: #0066cc;
+    margin-bottom: 0.5rem;
     word-break: break-all;
-    color: var(--pico-primary);
-    margin-bottom: 4px;
 }
 
 .reason {
-    background: none;
-    border: none;
-    padding: 0;
-    margin: 0;
-    font-family: var(--pico-font-family-monospace);
-    white-space: pre-wrap;
-    color: var(--pico-color);
+    background: #f8f9fa;
+    padding: 0.5rem;
+    border-radius: 4px;
     font-size: 0.8rem;
+    white-space: pre-wrap;
+    margin: 0;
+    color: #333;
+}
+
+.actions {
+    margin: 2rem auto;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.importButton {
+    width: 100%;
+}
+
+.badge {
+    background-color: #dc3545;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+/* --- PERFORMANCE STYLES --- */
+
+.perfContainer {
+    margin-bottom: 1.5rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    display: inline-block;
+    border: 1px solid #e9ecef;
+}
+
+.perfStat {
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+.perfValue {
+    font-weight: bold;
+    margin-left: 0.5rem;
+    color: #212529;
+}
+
+.groupDetails {
+    margin-bottom: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden;
+    text-align: left;
+}
+
+.groupSummary {
+    background-color: #f8f9fa;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 500;
+    list-style: none;
+}
+
+.groupSummary::-webkit-details-marker {
+    display: none;
+}
+
+.groupSummary:hover {
+    background-color: #e9ecef;
+}
+
+.timingTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.timingTable th {
+    text-align: left;
+    padding: 8px 12px;
+    background-color: #fff;
+    border-bottom: 2px solid #dee2e6;
+    color: #495057;
+}
+
+.timingTable td {
+    padding: 6px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.urlCell {
+    word-break: break-all;
+    color: #0066cc;
+}
+
+.timeCell {
+    text-align: right;
+    white-space: nowrap;
+    font-family: monospace;
+    color: #333;
 }
