@@ -27,6 +27,48 @@ This architecture ensures comprehensive test coverage while maintaining **zero l
 
 ---
 
+## AI-Powered & Multimodal Features
+
+Unlike standard accessibility linters that only check code syntax, Nano A11y Auditor uses **Gemini Nano (on-device AI)** and **Computer Vision** to verify what users actually _see_.
+
+### High Contrast (Forced Colors) Support
+
+**The Problem:** Standard tools cannot tell if an icon vanishes when Windows High Contrast Mode is active.
+**Our Solution:**
+
+- Simulates `forced-colors: active` by injecting a CSS polyfill that strips background images and shadows.
+- Uses **Visual AI** to analyze screenshots before and after.
+- **Verifies:** That icons and buttons remain visible and have distinct boundaries.
+
+### Semantic Page Title Validation (Rule 2.4.2)
+
+**The Problem:** Linters only check if `<title>` exists. They pass generic titles like "Home" or "Untitled Document."
+**Our Solution:**
+
+- Uses the **Chrome Summarizer API** to read the page content.
+- Compares the actual content against the `<title>` tag.
+- **Verifies:** That the title accurately describes the specific topic of the page.
+
+### Visual Resize Text Verification (Rule 1.4.4)
+
+**The Problem:** Checking for `user-scalable=no` is not enough. It does not detect text overlapping or getting cut off.
+**Our Solution:**
+
+- Simulates a **200% Browser Zoom** (using CSS transforms).
+- Uses **Visual AI** to scan the zoomed layout.
+- **Verifies:** That text is not clipped, truncated, or spilling over other elements.
+
+### Optimized "Images of Text" Detection (Rule 1.4.5)
+
+**The Problem:** Sending every image to an LLM is slow and expensive.
+**Our Solution:**
+
+- Uses Chrome's native **Shape Detection API** as a "Pre-Flight Check."
+- **Step 1:** Instantly filters out images with no text (photos, gradients) locally.
+- **Step 2:** Only sends images _with_ text to the AI to determine if they are essential (e.g., logos) or violations.
+
+---
+
 ## Technical Architecture
 
 The tool is orchestrated by a **Side Panel Controller** that manages the entire audit workflow:
@@ -41,6 +83,14 @@ The tool is orchestrated by a **Side Panel Controller** that manages the entire 
 4.  **Report Aggregation:** Results from both Axe and all Nano-powered checks are collected.
 5.  **Automated Submission:** Upon completion, the tool automates the submission of the generated JSON-LD report to the W3C Report Tool.
 
+### 3-Phase Execution
+
+To ensure test stability, the runner executes rules in three distinct phases:
+
+1.  **Static Analysis:** Code-based checks (Axe).
+2.  **Visual Analysis:** Non-destructive screenshot analysis (Color Contrast, Images of Text).
+3.  **Destructive Analysis:** Simulation tests (High Contrast, Zoom) that modify the DOM are batched last to ensure they do not affect other tests.
+
 ---
 
 ## Prerequisites (Crucial)
@@ -53,6 +103,7 @@ This extension relies on experimental browser features. It **will not work** in 
     - `#optimization-guide-on-device-model`: **Enabled BypassPrefRequirement**
     - `#prompt-api-for-gemini-nano-multimodal-input`: **Enabled** (Required for visual checks)
     - `#language-detection-api`: **Enabled** (Required for Language checks)
+    - `#enable-experimental-web-platform-features`: **Enabled** (Required for Shape Detection API)
 3.  **Model Download:**
     - Go to `chrome://components`.
     - Find **Optimization Guide On Device Model**.
@@ -173,11 +224,13 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `1.3.3 Sensory Characteristics` | Checks for instructions that rely solely on shape, size, color, location, or sound.                                                                                       |
 | **Gemini Nano** | `1.3.4 Orientation`             | Checks if content is restricted to portrait or landscape orientations (using Debugger API).                                                                               |
 | **Gemini Nano** | `1.4.1 Use of Color`            | Checks if links or form fields rely only on color as a distinguishing visual cue.                                                                                         |
-| **Gemini Nano** | `1.4.5 Images of Text`          | **(Multimodal)** Analyzes images to detect if they contain text that should be HTML.                                                                                      |
+| **Gemini Nano** | `1.4.4 Resize Text`             | **(Visual Simulation)** Forces 200% zoom and uses AI to detect if text is clipped, truncated, or overlapping.                                                             |
+| **Gemini Nano** | `1.4.5 Images of Text`          | **(Multimodal + Shape Detection)** Uses local Shape Detection API to pre-filter images, then AI to detect if text should be HTML.                                         |
 | **Gemini Nano** | `1.4.10 Reflow`                 | Simulates a 320px viewport (Debugger API) to detect horizontal scrollbars.                                                                                                |
 | **Gemini Nano** | `1.4.11 Non-Text Contrast`      | **(Multimodal)** Visually inspects buttons and inputs. Tests both **Default State** (boundaries) and **Focus State** (rings) by programmatically triggering interactions. |
 | **Gemini Nano** | `1.4.12 Text Spacing`           | Injects WCAG-specified spacing styles to detect content clipping or overlap.                                                                                              |
 | **Gemini Nano** | `2.2.2 Pause, Stop, Hide`       | Checks for animations > 5s (CSS/SVG) and flags suspicious scripted motion for review.                                                                                     |
+| **Gemini Nano** | `2.4.2 Page Titled`             | **(Semantic AI)** Uses Summarizer API to read page content and verify the title is descriptive and accurate.                                                              |
 | **Gemini Nano** | `2.4.4 Link Purpose`            | **(Prompt API)** Analyzes generic links ("Click here") to see if the surrounding text provides clear context.                                                             |
 | **Gemini Nano** | `2.4.5 Multiple Ways`           | Checks if the page offers at least two navigation methods (Search, Menus, Sitemap, etc.).                                                                                 |
 | **Gemini Nano** | `2.4.6 Headings and Labels`     | **(Hybrid)** Uses Few-Shot AI prompting to classify vague text while respecting user-defined "Safe Terms".                                                                |
@@ -187,6 +240,7 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `3.1.2 Language of Parts`       | **(Language API)** Scans paragraphs and blocks to ensure foreign language content is correctly tagged.                                                                    |
 | **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events.                                                                               |
 | **Gemini Nano** | `3.3.2 Labels or Instructions`  | Checks for missing format hints on strict fields (e.g. Date, Phone) and missing indicators on required fields.                                                            |
+| **Gemini Nano** | `HC High Contrast Mode`         | **(Visual Simulation)** Injects a CSS polyfill to simulate Forced Colors Mode and uses AI to detect if icons or borders vanish.                                           |
 
 ---
 
@@ -243,6 +297,6 @@ To add a new AI-powered accessibility check:
 
 ### UI Components
 
-This project uses Storybook to track UI components for development
-The storybook can be run locally with the command `npm run storybook`
-The main branch storybook is deployed to Netlify and updates are deloyed on build at [https://nano-a11y-audit-ui.netlify.app/](https://nano-a11y-audit-ui.netlify.app/?path=/story/welcome--overview)
+This project uses Storybook to track UI components for development.
+The storybook can be run locally with the command `npm run storybook`.
+The main branch storybook is deployed to Netlify and updates are deployed on build at [https://nano-a11y-audit-ui.netlify.app/](https://nano-a11y-audit-ui.netlify.app/?path=/story/welcome--overview).
