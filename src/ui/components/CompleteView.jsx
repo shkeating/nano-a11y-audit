@@ -40,6 +40,11 @@ export function CompleteView({
     downloadCSV(csvData, `nano-audit-data-${timestamp}.csv`);
   };
 
+  // Logic to handle single vs multiple pages display
+  const isSinglePage = pageTimings.length === 1;
+  const timingLabel = isSinglePage ? "Duration:" : "Avg. Time per Page:";
+  const timingValue = ((summary.averageDuration || 0) / 1000).toFixed(2);
+
   return (
     <div className={styles.container}>
       <h3 className={styles.heading}>Audit Summary</h3>
@@ -47,6 +52,7 @@ export function CompleteView({
         Reported on {summary.totalCriteria} WCAG 2.2 AA Success Criteria.
       </p>
 
+      {/* 2. Stats Grid */}
       <div className={styles.summaryGrid}>
         {stats.map((stat) => (
           <div key={stat.label} className={styles.statCard}>
@@ -58,6 +64,7 @@ export function CompleteView({
         ))}
       </div>
 
+      {/* 3. Accessibility Failures */}
       {hasFailures && (
         <div className={styles.failureSection}>
           <h4>Failure Breakdown</h4>
@@ -82,6 +89,7 @@ export function CompleteView({
         </div>
       )}
 
+      {/* 4. Actions */}
       <div className={styles.actions}>
         <Button onClick={onImport} className={styles.importButton}>
           Import to WCAG EM Tool
@@ -100,46 +108,44 @@ export function CompleteView({
         </div>
       </div>
 
-      {/* --- Performance Metrics --- */}
-
-      {/* --- Timing Breakdown Details --- */}
+      {/* 5. Performance Details (Moved to Bottom) */}
       {pageTimings.length > 0 && (
-        <details className={styles.groupDetails}>
-          <summary className={styles.groupSummary}>
-            <strong>Performance Breakdown</strong>
-            <span className={styles.badge} style={{ backgroundColor: "#555" }}>
-              {pageTimings.length} Pages
-            </span>
-          </summary>
-          <div className={styles.failureList}>
-            <table className={styles.timingTable}>
-              <thead>
-                <tr>
-                  <th>URL</th>
-                  <th style={{ textAlign: "right" }}>Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageTimings.map((t, idx) => (
-                  <tr key={idx}>
-                    <td className={styles.urlCell}>{t.url}</td>
-                    <td className={styles.timeCell}>{t.duration}ms</td>
+        <div className={styles.perfSection}>
+          <details className={styles.groupDetails}>
+            <summary className={styles.groupSummary}>
+              <strong>
+                {timingLabel} {timingValue}s
+              </strong>
+              <span
+                className={styles.badge}
+                style={{ backgroundColor: "var(--pico-secondary-background)" }}
+              >
+                {pageTimings.length} {isSinglePage ? "Page" : "Pages"}
+              </span>
+            </summary>
+            <div className={styles.failureList}>
+              <table className={styles.timingTable}>
+                <thead>
+                  <tr>
+                    <th>URL</th>
+                    <th style={{ textAlign: "right" }}>Duration</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      )}
-
-      <div className={styles.perfContainer}>
-        <div className={styles.perfStat}>
-          <span className={styles.perfLabel}>Avg. Time per Page:</span>
-          <span className={styles.perfValue}>
-            {summary.averageDuration || 0}ms
-          </span>
+                </thead>
+                <tbody>
+                  {pageTimings.map((t, idx) => (
+                    <tr key={idx}>
+                      <td className={styles.urlCell}>{t.url}</td>
+                      <td className={styles.timeCell}>
+                        {(t.duration / 1000).toFixed(2)}s
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
         </div>
-      </div>
+      )}
     </div>
   );
 }

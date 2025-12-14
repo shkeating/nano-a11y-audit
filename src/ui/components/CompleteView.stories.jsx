@@ -10,7 +10,7 @@ export default {
     onStartNew: { action: "startNewClicked" },
     summary: { control: "object" },
     results: { control: "object" },
-    pageTimings: { control: "object" }, // New control for timings
+    pageTimings: { control: "object" },
   },
 };
 

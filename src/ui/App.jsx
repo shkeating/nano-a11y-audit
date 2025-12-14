@@ -169,7 +169,7 @@ export function App() {
         });
 
         const duration = tracker.stopTimer(url);
-        addLog(`✅ Page Complete (${duration}ms).`);
+        addLog(`✅ Page Complete (${(duration / 1000).toFixed(2)}s).`);
 
         // Inject latency into results for CSV
         const resultsWithLatency = pageResults.map((r) => ({

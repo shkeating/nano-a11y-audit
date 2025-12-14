@@ -1,7 +1,11 @@
 import { useState, useRef } from "preact/hooks";
 
 export function usePerformanceTracker() {
+  // UI State (for rendering)
   const [pageTimings, setPageTimings] = useState([]);
+
+  // Logic State (for synchronous calculations)
+  const pageTimingsRef = useRef([]);
   const startTimeRef = useRef(null);
 
   /**
@@ -12,9 +16,7 @@ export function usePerformanceTracker() {
   };
 
   /**
-   * Stops the timer, records the duration for the given URL, and returns the duration.
-   * @param {string} url - The URL processed.
-   * @returns {number} The duration in milliseconds.
+   * Stops the timer, records the duration, and updates both Ref and State.
    */
   const stopTimer = (url) => {
     if (startTimeRef.current === null) return 0;
@@ -22,31 +24,38 @@ export function usePerformanceTracker() {
     const endTime = performance.now();
     const duration = Math.round(endTime - startTimeRef.current);
 
-    setPageTimings((prev) => [...prev, { url, duration }]);
-    startTimeRef.current = null; // Reset
+    // 1. Update Ref (Immediate Source of Truth)
+    pageTimingsRef.current.push({ url, duration });
 
+    // 2. Update State (Triggers UI Re-render)
+    setPageTimings([...pageTimingsRef.current]);
+
+    startTimeRef.current = null; // Reset
     return duration;
   };
 
   /**
-   * Resets all recorded timings (e.g., for a new audit run).
+   * Resets all recorded timings.
    */
   const resetTimings = () => {
-    setPageTimings([]);
+    pageTimingsRef.current = []; // Clear Ref
+    setPageTimings([]); // Clear State
     startTimeRef.current = null;
   };
 
   /**
-   * Calculates the average duration of all recorded pages.
+   * Calculates the average duration using the REF (latest data).
    */
   const getAverageDuration = () => {
-    if (pageTimings.length === 0) return 0;
-    const total = pageTimings.reduce((acc, t) => acc + t.duration, 0);
-    return Math.round(total / pageTimings.length);
+    const currentTimings = pageTimingsRef.current;
+    if (currentTimings.length === 0) return 0;
+
+    const total = currentTimings.reduce((acc, t) => acc + t.duration, 0);
+    return Math.round(total / currentTimings.length);
   };
 
   return {
-    pageTimings,
+    pageTimings, // Return state for UI rendering
     startTimer,
     stopTimer,
     resetTimings,
