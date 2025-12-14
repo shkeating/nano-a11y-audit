@@ -1,61 +1,94 @@
 export const id = "1.4.5";
 export const earlId = "WCAG22:images-of-text";
-export const relevantElements = ["img"];
+export const relevantElements = ["img", "svg", "[role='img']"];
 
 export const systemPrompt = `
-You are an accessibility auditor specializing in WCAG 1.4.5 Images of Text.
-Task: Analyze the image to see if it displays text that should be HTML.
+You are an accessibility auditor checking WCAG 1.4.5 (Images of Text).
+Determine if the text inside the image is essential or if it should be converted to real text.
 
 **CRITERIA**
-- **FAIL:** The image is a picture of text (e.g., a button, a warning message, a scanned document).
-- **PASS:** The image is a photo, a logo, or contains NO text.
+1. **FAIL:** The image contains text that is NOT a logo, brand name, or essential diagram.
+2. **PASS:** The image contains no text, OR the text is part of a logo/brand, OR the text is essential (e.g., a map, chart, or screenshot).
 
-**INSTRUCTIONS**
-1. Read any text visible in the image.
-2. If text is found, the verdict is FAIL. 
-3. Your "reason" must explicitly quote the text found.
-
-**OUTPUT FORMAT (JSON ONLY)**
-If text is found:
-{"verdict": "FAIL", "reason": "The image displays the text: [transcribed text]"}
-
-If no text or is a logo:
-{"verdict": "PASS", "reason": "Image is decorative or a logo."}
+**OUTPUT**
+Return a JSON object:
+- {"verdict": "FAIL", "reason": "Image contains non-essential text '[text]'. Use CSS text instead."}
+- {"verdict": "PASS", "reason": "Image is a logo/diagram."}
 `;
 
-export function extractor() {
-  const images = [];
-  const candidates = document.querySelectorAll("img");
+export async function extractor() {
+  const elements = Array.from(
+    document.querySelectorAll("img, svg, [role='img']")
+  );
+  const candidates = [];
 
-  for (const img of candidates) {
-    const rect = img.getBoundingClientRect();
-    if (
-      rect.width < 20 ||
-      rect.height < 20 ||
-      rect.bottom < 0 ||
-      rect.top > window.innerHeight
-    )
-      continue;
-    if (img.src.includes(".svg")) continue;
+  // Feature Detect: Check if the Shape Detection API is available
+  const hasTextDetector = "TextDetector" in window;
+  let detector = null;
 
-    images.push({
-      src: img.src,
-      alt: img.alt || "No alt text",
-      rect: {
-        x: rect.x,
-        y: rect.y,
-        width: rect.width,
-        height: rect.height,
-      },
-    });
+  if (hasTextDetector) {
+    try {
+      // @ts-ignore - TextDetector is experimental
+      detector = new window.TextDetector();
+    } catch (e) {
+      console.warn("TextDetector initialization failed:", e);
+    }
   }
 
-  if (images.length === 0) {
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    const style = window.getComputedStyle(el);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0"
+    );
+  }
+
+  for (const el of elements) {
+    if (!isVisible(el)) continue;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 20 || rect.height < 20) continue; // Skip tiny icons
+
+    // --- OPTIMIZATION: NATIVE SHAPE DETECTION ---
+    if (detector && el.tagName === "IMG") {
+      // TextDetector primarily supports <img>, <canvas>, <video>
+      try {
+        // Run the fast local check
+        const detectedText = await detector.detect(el);
+
+        // If the browser is 100% sure there is no text, SKIP the AI check.
+        if (detectedText.length === 0) {
+          continue;
+        }
+        // If text IS found, we still need AI to tell us if it's a "Logo" (Pass) or "Bad Image Text" (Fail)
+      } catch (err) {
+        // If detection crashes (e.g. tainted canvas/security), ignore and fall back to AI
+      }
+    }
+    // --------------------------------------------
+
+    candidates.push({
+      name: `<${el.tagName.toLowerCase()}>`,
+      alt: el.getAttribute("alt") || "",
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    });
+
+    if (candidates.length >= 10) break; // Cap at 10 to save tokens
+  }
+
+  if (candidates.length === 0) {
     return {
       computedVerdict: "PASS",
-      reason: "No relevant images found in viewport.",
+      reason: "No images of text detected (filtered by Shape Detection API).",
+      pageTitle: document.title,
     };
   }
 
-  return { images: images.slice(0, 3) };
+  return {
+    pageTitle: document.title,
+    images: candidates,
+  };
 }
