@@ -20,6 +20,7 @@ import * as Rule246 from "./2.4.6.js";
 import * as Rule247 from "./2.4.7.js";
 import * as Rule311 from "./3.1.1.js";
 import * as Rule312 from "./3.1.2.js";
+import * as RuleHC from "./high-contrast.js";
 
 export const RULES = {
   [Rule111.id]: Rule111,
@@ -44,6 +45,7 @@ export const RULES = {
   [Rule312.id]: Rule312,
   [Rule322.id]: Rule322,
   [Rule332.id]: Rule332,
+  [RuleHC.id]: RuleHC,
 };
 
 export const RULE_LIST = Object.values(RULES);

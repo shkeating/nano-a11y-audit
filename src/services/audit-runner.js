@@ -3,7 +3,6 @@ import { runAxeAudit } from "../utils/axe-runner.js";
 import { runInBatches, delay } from "../utils/async-helpers.js";
 
 // Rules that require the tab to be visible/focused and cannot be parallelized easily
-// Added "1.4.11" and "1.4.11-graphics" to the list
 const VISUAL_RULE_IDS = [
   "1.1.1",
   "1.4.5",
@@ -11,6 +10,7 @@ const VISUAL_RULE_IDS = [
   "2.4.7",
   "1.4.11",
   "1.4.11-graphics",
+  "high-contrast", // Added to list, but handled specially in logic
 ];
 
 // Rules that rely on the Chrome Language Detection API
@@ -19,10 +19,6 @@ const LANGUAGE_RULE_IDS = ["3.1.1", "3.1.2"];
 /**
  * Runs the full suite of tests (Axe + Nano) on a specific tab.
  * Uses batching for static rules and sequential execution for visual rules.
- * @param {number} tabId
- * @param {string} url
- * @param {Object} config - { safeList, enableMultimodal, enableLanguageDetection, logger }
- * @returns {Promise<Array>} List of audit results.
  */
 export async function analyzePage(tabId, url, config) {
   const { safeList, enableMultimodal, enableLanguageDetection, logger } =
@@ -38,30 +34,21 @@ export async function analyzePage(tabId, url, config) {
     pageResults.push({ url, ...r });
   });
 
-  // Identify "Incomplete" Axe results that need AI verification
   const incompleteLeads = axeResults.filter((r) => r.verdict === "INCOMPLETE");
 
   // --- PHASE 2: SORT & PREPARE RULES ---
   const staticTasks = [];
-  const visualTasks = [];
+  const standardVisualTasks = [];
+  const destructiveVisualTasks = []; // New bucket for High Contrast
 
   for (const ruleId in RULES) {
     const rule = RULES[ruleId];
 
-    // --- CHECK: Should we skip this rule? ---
     if (LANGUAGE_RULE_IDS.includes(ruleId) && !enableLanguageDetection) {
       logger(`[Nano: ${ruleId}] Skipped (Language Detection Disabled)`);
-      pageResults.push({
-        url,
-        earlId: rule.earlId,
-        verdict: "INAPPLICABLE",
-        reason: "Language Detection checks disabled in user settings.",
-        pageTitle: "Skipped",
-      });
       continue;
     }
 
-    // Filter selectors relevant to this rule (from Axe incomplete items)
     const relevantLeads = incompleteLeads.filter(
       (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
     );
@@ -75,9 +62,13 @@ export async function analyzePage(tabId, url, config) {
     };
 
     if (VISUAL_RULE_IDS.includes(ruleId)) {
-      visualTasks.push(taskPayload);
+      // Isolate Destructive Tests to run LAST
+      if (ruleId === "high-contrast") {
+        destructiveVisualTasks.push(taskPayload);
+      } else {
+        standardVisualTasks.push(taskPayload);
+      }
     } else {
-      // Create a task function for batch execution
       staticTasks.push(async () => {
         const res = await runAuditOnTab(
           tabId,
@@ -85,20 +76,17 @@ export async function analyzePage(tabId, url, config) {
           targetSelectors,
           taskPayload.options
         );
-        return { ruleId, res }; // Return ID so we can log it correctly later
+        return { ruleId, res };
       });
     }
   }
 
   // --- PHASE 3: EXECUTE STATIC RULES (PARALLEL) ---
   logger(`Running Static Checks (${staticTasks.length})...`);
-
-  // Run 5 checks concurrently. This makes text-based auditing nearly instant.
   const staticOutcomes = await runInBatches(staticTasks, 5);
 
   staticOutcomes.forEach((outcome) => {
     if (outcome.error) {
-      // Handle crashes in individual rules
       logger(`⚠️ Error in static rule: ${outcome.error.message}`);
     } else {
       const { ruleId, res } = outcome;
@@ -107,45 +95,56 @@ export async function analyzePage(tabId, url, config) {
     }
   });
 
-  // --- PHASE 4: EXECUTE VISUAL RULES (SEQUENTIAL) ---
-  if (visualTasks.length > 0 && enableMultimodal) {
-    logger(`Running Visual Checks (${visualTasks.length})...`);
+  // --- PHASE 4: EXECUTE STANDARD VISUAL RULES (SEQUENTIAL) ---
+  // Run these first while the DOM is "Clean" (no injected High Contrast CSS)
+  if (standardVisualTasks.length > 0 && enableMultimodal) {
+    logger(`Running Visual Checks (${standardVisualTasks.length})...`);
 
-    // These MUST be sequential because they manipulate window focus and scroll
-    for (const task of visualTasks) {
-      try {
-        // Run Setup (e.g., inject styles or debugger)
-        if (task.rule.setup) {
-          await task.rule.setup(tabId);
-          await delay(200); // Small buffer for layout shift
-        }
-
-        const res = await runAuditOnTab(
-          tabId,
-          task.rule,
-          task.targetSelectors,
-          task.options
-        );
-        logResult(logger, task.rule.id, res);
-        pageResults.push({ url, earlId: task.rule.earlId, ...res });
-      } catch (ruleErr) {
-        logger(`⚠️ Error [${task.rule.id}]: ${ruleErr.message}`);
-        pageResults.push({
-          url,
-          earlId: task.rule.earlId,
-          verdict: "ERROR",
-          reason: ruleErr.message,
-        });
-      } finally {
-        // Run Teardown (remove styles/debugger)
-        if (task.rule.teardown) await task.rule.teardown(tabId);
-      }
+    for (const task of standardVisualTasks) {
+      const res = await runSafeVisualTask(task, logger);
+      pageResults.push({ url, earlId: task.rule.earlId, ...res });
     }
-  } else if (visualTasks.length > 0) {
-    logger("Skipping Visual Checks (Multimodal Disabled)");
+  }
+
+  // --- PHASE 5: EXECUTE DESTRUCTIVE RULES (SEQUENTIAL) ---
+  // Run High Contrast last because it vandalizes the page style
+  if (destructiveVisualTasks.length > 0 && enableMultimodal) {
+    logger(`Running Destructive Checks (${destructiveVisualTasks.length})...`);
+
+    for (const task of destructiveVisualTasks) {
+      const res = await runSafeVisualTask(task, logger);
+      pageResults.push({ url, earlId: task.rule.earlId, ...res });
+    }
   }
 
   return pageResults;
+}
+
+// --- HELPER: WRAP VISUAL TASKS WITH SETUP/TEARDOWN ---
+async function runSafeVisualTask(task, logger) {
+  try {
+    if (task.rule.setup) {
+      await task.rule.setup(task.tabId);
+      await delay(200);
+    }
+
+    const res = await runAuditOnTab(
+      task.tabId,
+      task.rule,
+      task.targetSelectors,
+      task.options
+    );
+    logResult(logger, task.rule.id, res);
+    return res;
+  } catch (ruleErr) {
+    logger(`⚠️ Error [${task.rule.id}]: ${ruleErr.message}`);
+    return {
+      verdict: "ERROR",
+      reason: ruleErr.message,
+    };
+  } finally {
+    if (task.rule.teardown) await task.rule.teardown(task.tabId);
+  }
 }
 
 /**

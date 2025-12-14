@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High Contrast Mode Test</title>
+    <style>
+        body {
+            padding: 50px;
+            font-family: sans-serif;
+        }
+
+        .box {
+            padding: 20px;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+
+        h3 {
+            margin-top: 0;
+        }
+
+        /* FAIL 1: Icon via CSS Background (Strips in HCM) */
+        .btn-bg-icon {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #333;
+            /* 1x1 Transparent Pixel or simple icon encoded in Base64 */
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMyI+PC9jaXJjbGU+PHBhdGggZD0iTTE5LjQgMTVhMS42NSAxLjY1IDAgMCAwIC4zMyAxLjgybC4wNi4wNmEyIDEgMCAwIDEgMCAyLjgzIDIgMSAwIDAgMS0yLjgzIDBsLS4wNi0uMDZhMS42NSAxLjY1IDAgMCAwLTEuODItLjMzIDEuNjUgMS42NSAwIDAgMC0xIDEuNTFWMjFhMiAxIDAgMCAxLTIgMiAyIDEgMCAwIDEtMi0ydi0uMDlhMS42NSAxLjY1IDAgMCAwLTEtMS41MSAxLjY1IDEuNjUgMCAwIDAtMS44Mi4zM2wtLjA2LjA2YTIgMSAwIDAgMS0yLjgzIDAgMiAxIDAgMCAxIDAtMi44M2wuMDYtLjA2YTEuNjUgMS42NSAwIDAgMCAuMzMtMS44MiAxLjY1IDEuNjUgMCAwIDAtMS41MS0xSDNhMiAxIDAgMCAxLTItMiAyIDEgMCAwIDEgMi0yaC4wOWExLjY1IDEuNjUgMCAwIDAgMS41MS0xIDEuNjUgMS42NSAwIDAgMCAuMzMtMS44MmwtLjA2LS4wNmEyIDEgMCAwIDEgMC0yLjgzIDIgMSAwIDAgMSAyLjgzIDBsLjA2LjA2YTEuNjUgMS42NSAwIDAgMCAxLjgyLjMzIDEuNjUgMS42NSAwIDAgMCAxLTEuNTFWM2EyIDEgMCAwIDEgMi0yIDIgMSAwIDAgMSAyIDJ2LjA5YTEuNjUgMS42NSAwIDAgMCAxIDEuNTEgMS42NSAxLjY1IDAgMCAwIDEuODItLjMzbC4wNi0uMDZhMiAxIDAgMCAxIDIuODMgMCAyIDEgMCAwIDEgMCAyLjgzbC0uMDYuMDZhMS42NSAxLjY1IDAgMCAwLS4zMyAxLjgyIDEuNjUgMS42NSAwIDAgMCAxLjUxIDFoLjA5YTIgMSAwIDAgMSAyIDIgMiAxIDAgMCAxLTIgMnoiPjwvcGF0aD48L3N2Zz4=');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent;
+            cursor: pointer;
+        }
+
+        /* FAIL 2: Border via Box Shadow (Strips in HCM) */
+        .btn-shadow-border {
+            background: #007bff;
+            color: white;
+            border: none;
+            /* The problem: No real border */
+            box-shadow: 0 0 0 2px #0056b3;
+            /* Faux border */
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        /* PASS: Real Border & Img Tag */
+        .btn-good {
+            background: transparent;
+            border: 2px solid currentColor;
+            /* Adapts to HCM */
+            padding: 5px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>High Contrast (Forced Colors) Failures</h1>
+
+    <div class="box">
+        <h3>Fail: CSS Background Icon</h3>
+        <p>This button uses `background-image` for its icon. In High Contrast Mode, the image is stripped, leaving an
+            empty box.</p>
+        <button class="btn-bg-icon" aria-label="Settings"></button>
+    </div>
+
+    <div class="box">
+        <h3>Fail: Shadow Border</h3>
+        <p>This button relies on `box-shadow` for its border. In High Contrast Mode, the shadow is stripped, and the
+            blue background turns black, making the button look like plain text or invisible.</p>
+        <button class="btn-shadow-border">Submit</button>
+    </div>
+
+    <div class="box">
+        <h3>Pass: Real Elements</h3>
+        <p>This button uses a real border and an `img` tag. Both survive High Contrast Mode.</p>
+        <button class="btn-good">
+            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImdyZWVuIiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBvbHlsaW5lIHBvaW50cz0iMjAgNiA5IDE3IDQgMTIiPjwvcG9seWxpbmU+PC9zdmc+"
+                alt="OK">
+            Confirm
+        </button>
+    </div>
+</body>
+
+</html>
