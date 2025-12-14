@@ -207,8 +207,8 @@ The browser will automatically navigate to each page. The logs in the side panel
 
 The project includes a local test suite in `test-files/` covering common failures for every active rule, sourced from the WCAG understanding docs.
 
-1.  Serve the `test-files/` directory (e.g., using VS Code Live Server or `python -m http.server`).
-2.  Create a CSV with the local URLs (e.g., `http://localhost:5500/test-files/246-headings-and-labels.html`).
+1.  Serve the `test-files/` directory (e.g., `npx http-server`).
+2.  Create a CSV with the local URLs (e.g., `http://localhost:8080/test-files/246-headings-and-labels.html`).
 3.  Run the auditor on these pages to verify detection logic.
 
 ---
@@ -219,7 +219,9 @@ The hybrid engine provides broad coverage. The current scope includes:
 
 | Engine          | Rule ID/Criterion               | Implementation Strategy                                                                                                                                                   |
 | --------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Axe Core**    | ~40+ Rules                      | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels).                                                                               |
+| **Axe Core** | ~40+ Rules                      | Runs the default Axe ruleset for baseline automated checks (e.g., image alts, form labels).                                                                               |
+| **Gemini Nano** | `1.1.1 Non-text Content`        | **(Semantic AI)** Checks for generic ("image", "photo") or filename-based alt text that fails to describe content.                                                        |
+| **Gemini Nano** | `1.3.1 Info and Relationships`  | Checks for visual labels near inputs that are not programmatically associated (orphaned labels).                                                                          |
 | **Gemini Nano** | `1.3.2 Meaningful Sequence`     | Checks for CSS properties (order, float, position) that disrupt logical reading order.                                                                                    |
 | **Gemini Nano** | `1.3.3 Sensory Characteristics` | Checks for instructions that rely solely on shape, size, color, location, or sound.                                                                                       |
 | **Gemini Nano** | `1.3.4 Orientation`             | Checks if content is restricted to portrait or landscape orientations (using Debugger API).                                                                               |
@@ -240,6 +242,7 @@ The hybrid engine provides broad coverage. The current scope includes:
 | **Gemini Nano** | `3.1.2 Language of Parts`       | **(Language API)** Scans paragraphs and blocks to ensure foreign language content is correctly tagged.                                                                    |
 | **Gemini Nano** | `3.2.2 On Input`                | Checks for unexpected context changes (auto-submit, new windows) triggered by input events.                                                                               |
 | **Gemini Nano** | `3.3.2 Labels or Instructions`  | Checks for missing format hints on strict fields (e.g. Date, Phone) and missing indicators on required fields.                                                            |
+| **Gemini Nano** | `4.1.2 Name, Role, Value`       | Checks for interactive elements with meaningless or placeholder names (e.g., "button", "click here", filenames).                                                          |
 | **Gemini Nano** | `HC High Contrast Mode`         | **(Visual Simulation)** Injects a CSS polyfill to simulate Forced Colors Mode and uses AI to detect if icons or borders vanish.                                           |
 
 ---
