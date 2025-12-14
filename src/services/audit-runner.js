@@ -10,16 +10,12 @@ const VISUAL_RULE_IDS = [
   "2.4.7",
   "1.4.11",
   "1.4.11-graphics",
-  "high-contrast", // Added to list, but handled specially in logic
+  "high-contrast",
 ];
 
 // Rules that rely on the Chrome Language Detection API
 const LANGUAGE_RULE_IDS = ["3.1.1", "3.1.2"];
 
-/**
- * Runs the full suite of tests (Axe + Nano) on a specific tab.
- * Uses batching for static rules and sequential execution for visual rules.
- */
 export async function analyzePage(tabId, url, config) {
   const { safeList, enableMultimodal, enableLanguageDetection, logger } =
     config;
@@ -27,100 +23,122 @@ export async function analyzePage(tabId, url, config) {
 
   // --- PHASE 1: BASELINE (AXE) ---
   logger(`Running Axe Core...`);
-  const axeResults = await runAxeAudit(tabId);
+  try {
+    const axeResults = await runAxeAudit(tabId);
 
-  axeResults.forEach((r) => {
-    if (r.verdict === "FAIL") logger(`[Axe: ${r.ruleId}] ❌ FAIL`);
-    pageResults.push({ url, ...r });
-  });
+    // DEBUG: Log how many results Axe found
+    logger(`Axe Core found ${axeResults.length} issues.`);
 
-  const incompleteLeads = axeResults.filter((r) => r.verdict === "INCOMPLETE");
-
-  // --- PHASE 2: SORT & PREPARE RULES ---
-  const staticTasks = [];
-  const standardVisualTasks = [];
-  const destructiveVisualTasks = []; // New bucket for High Contrast
-
-  for (const ruleId in RULES) {
-    const rule = RULES[ruleId];
-
-    if (LANGUAGE_RULE_IDS.includes(ruleId) && !enableLanguageDetection) {
-      logger(`[Nano: ${ruleId}] Skipped (Language Detection Disabled)`);
-      continue;
-    }
-
-    const relevantLeads = incompleteLeads.filter(
-      (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
-    );
-    const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
-
-    const taskPayload = {
-      tabId,
-      rule,
-      targetSelectors,
-      options: { safeList, enableMultimodal, enableLanguageDetection },
-    };
-
-    if (VISUAL_RULE_IDS.includes(ruleId)) {
-      if (ruleId === "high-contrast" || rule.isDestructive) {
-        destructiveVisualTasks.push(taskPayload);
-      } else {
-        standardVisualTasks.push(taskPayload);
+    axeResults.forEach((r) => {
+      // FIX: Handle Iframe "INCOMPLETE" results gracefully
+      if (r.verdict === "INCOMPLETE" && r.reason.includes("iframe")) {
+        r.verdict = "UNSUPPORTED"; // Mark explicitly so CSV is clear
+        r.reason = "Iframes are not currently supported by this auditor.";
       }
-    } else {
-      staticTasks.push(async () => {
-        const res = await runAuditOnTab(
-          tabId,
-          rule,
-          targetSelectors,
-          taskPayload.options
-        );
-        return { ruleId, res };
+
+      if (r.verdict === "FAIL") logger(`[Axe: ${r.ruleId}] ❌ FAIL`);
+
+      // Ensure specific properties exist for CSV export
+      pageResults.push({
+        url,
+        engine: "Axe Core", // Explicitly set engine
+        ...r,
       });
+    });
+
+    // Helper for Nano rules that depend on Axe findings
+    const incompleteLeads = axeResults.filter(
+      (r) => r.verdict === "INCOMPLETE"
+    );
+
+    // --- PHASE 2: SORT & PREPARE RULES ---
+    const staticTasks = [];
+    const standardVisualTasks = [];
+    const destructiveVisualTasks = [];
+
+    for (const ruleId in RULES) {
+      const rule = RULES[ruleId];
+
+      if (LANGUAGE_RULE_IDS.includes(ruleId) && !enableLanguageDetection) {
+        logger(`[Nano: ${ruleId}] Skipped (Language Detection Disabled)`);
+        continue;
+      }
+
+      const relevantLeads = incompleteLeads.filter(
+        (l) => ruleId === "1.4.1" && l.ruleId === "link-in-text-block"
+      );
+      const targetSelectors = relevantLeads.flatMap((l) => l.selectors);
+
+      const taskPayload = {
+        tabId,
+        rule,
+        targetSelectors,
+        options: { safeList, enableMultimodal, enableLanguageDetection },
+      };
+
+      if (VISUAL_RULE_IDS.includes(ruleId)) {
+        if (ruleId === "high-contrast" || rule.isDestructive) {
+          destructiveVisualTasks.push(taskPayload);
+        } else {
+          standardVisualTasks.push(taskPayload);
+        }
+      } else {
+        staticTasks.push(async () => {
+          // FIX: Latency tracking happens inside runAuditOnTab now
+          const res = await runAuditOnTab(
+            tabId,
+            rule,
+            targetSelectors,
+            taskPayload.options
+          );
+          return { ruleId, res };
+        });
+      }
     }
-  }
 
-  // --- PHASE 3: EXECUTE STATIC RULES (PARALLEL) ---
-  logger(`Running Static Checks (${staticTasks.length})...`);
-  const staticOutcomes = await runInBatches(staticTasks, 5);
+    // --- PHASE 3: EXECUTE STATIC RULES (PARALLEL) ---
+    logger(`Running Static Checks (${staticTasks.length})...`);
+    const staticOutcomes = await runInBatches(staticTasks, 5);
 
-  staticOutcomes.forEach((outcome) => {
-    if (outcome.error) {
-      logger(`⚠️ Error in static rule: ${outcome.error.message}`);
-    } else {
-      const { ruleId, res } = outcome;
-      logResult(logger, ruleId, res);
-      pageResults.push({ url, earlId: RULES[ruleId].earlId, ...res });
+    staticOutcomes.forEach((outcome) => {
+      if (outcome.error) {
+        logger(`⚠️ Error in static rule: ${outcome.error.message}`);
+      } else {
+        const { ruleId, res } = outcome;
+        logResult(logger, ruleId, res);
+        pageResults.push({ url, earlId: RULES[ruleId].earlId, ...res });
+      }
+    });
+
+    // --- PHASE 4: EXECUTE STANDARD VISUAL RULES (SEQUENTIAL) ---
+    if (standardVisualTasks.length > 0 && enableMultimodal) {
+      logger(`Running Visual Checks (${standardVisualTasks.length})...`);
+      for (const task of standardVisualTasks) {
+        const res = await runSafeVisualTask(task, logger);
+        pageResults.push({ url, earlId: task.rule.earlId, ...res });
+      }
     }
-  });
 
-  // --- PHASE 4: EXECUTE STANDARD VISUAL RULES (SEQUENTIAL) ---
-  // Run these first while the DOM is "Clean" (no injected High Contrast CSS)
-  if (standardVisualTasks.length > 0 && enableMultimodal) {
-    logger(`Running Visual Checks (${standardVisualTasks.length})...`);
-
-    for (const task of standardVisualTasks) {
-      const res = await runSafeVisualTask(task, logger);
-      pageResults.push({ url, earlId: task.rule.earlId, ...res });
+    // --- PHASE 5: EXECUTE DESTRUCTIVE RULES (SEQUENTIAL) ---
+    if (destructiveVisualTasks.length > 0 && enableMultimodal) {
+      logger(
+        `Running Destructive Checks (${destructiveVisualTasks.length})...`
+      );
+      for (const task of destructiveVisualTasks) {
+        const res = await runSafeVisualTask(task, logger);
+        pageResults.push({ url, earlId: task.rule.earlId, ...res });
+      }
     }
-  }
-
-  // --- PHASE 5: EXECUTE DESTRUCTIVE RULES (SEQUENTIAL) ---
-  // Run High Contrast last because it vandalizes the page style
-  if (destructiveVisualTasks.length > 0 && enableMultimodal) {
-    logger(`Running Destructive Checks (${destructiveVisualTasks.length})...`);
-
-    for (const task of destructiveVisualTasks) {
-      const res = await runSafeVisualTask(task, logger);
-      pageResults.push({ url, earlId: task.rule.earlId, ...res });
-    }
+  } catch (err) {
+    logger(`CRITICAL ERROR: ${err.message}`);
   }
 
   return pageResults;
 }
 
-// --- HELPER: WRAP VISUAL TASKS WITH SETUP/TEARDOWN ---
+//Wrapper to ensure latency is tracked for visual tasks too
 async function runSafeVisualTask(task, logger) {
+  const startTime = performance.now(); // START TIMER
   try {
     if (task.rule.setup) {
       await task.rule.setup(task.tabId);
@@ -133,6 +151,11 @@ async function runSafeVisualTask(task, logger) {
       task.targetSelectors,
       task.options
     );
+
+    // Add latency to result
+    const endTime = performance.now();
+    res.latency = Math.round(endTime - startTime);
+
     logResult(logger, task.rule.id, res);
     return res;
   } catch (ruleErr) {
@@ -140,17 +163,23 @@ async function runSafeVisualTask(task, logger) {
     return {
       verdict: "ERROR",
       reason: ruleErr.message,
+      latency: Math.round(performance.now() - startTime),
     };
   } finally {
     if (task.rule.teardown) await task.rule.teardown(task.tabId);
   }
 }
 
-/**
- * Internal helper to run a single rule logic
- */
 async function runAuditOnTab(tabId, rule, targetSelectors, options) {
-  // A. Check Applicability (Fast Check)
+  const startTime = performance.now(); // START TIMER (Static Rules)
+
+  // Helper to attach latency before returning
+  const withLatency = (result) => {
+    const endTime = performance.now();
+    return { ...result, latency: Math.round(endTime - startTime) };
+  };
+
+  // A. Check Applicability
   if (rule.relevantElements && rule.relevantElements.length > 0) {
     const checkResult = await chrome.scripting.executeScript({
       target: { tabId },
@@ -159,15 +188,15 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
       args: [rule.relevantElements],
     });
     if (!checkResult?.[0]?.result) {
-      return {
+      return withLatency({
         verdict: "INAPPLICABLE",
         reason: `No relevant elements found.`,
         pageTitle: "N/A",
-      };
+      });
     }
   }
 
-  // B. Extract Data (Script Injection)
+  // B. Extract Data
   const injection = await chrome.scripting.executeScript({
     target: { tabId },
     func: rule.extractor,
@@ -177,13 +206,12 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
   if (!injection?.[0]) throw new Error("Script injection failed");
   const domContext = injection[0].result;
 
-  // --- FIX: Use Computed Verdict if available ---
   if (domContext.computedVerdict) {
-    return {
+    return withLatency({
       verdict: domContext.computedVerdict,
       reason: domContext.reason || "Verdict computed by rule logic.",
       pageTitle: domContext.pageTitle || "Audit Result",
-    };
+    });
   }
 
   const aiOrigin = window.LanguageModel;
@@ -192,61 +220,57 @@ async function runAuditOnTab(tabId, rule, targetSelectors, options) {
   // C. Visual AI Analysis
   if (isVisualRule) {
     if (!options.enableMultimodal || !aiOrigin) {
-      return {
+      return withLatency({
         verdict: "CANNOT_TELL",
         reason: "Multimodal AI disabled.",
         pageTitle: domContext.pageTitle,
-      };
+      });
     }
-    return await runVisualAnalysis(tabId, rule, domContext, aiOrigin);
+    // Note: Visual analysis takes longer; latency tracked in runSafeVisualTask
+    // But we wrap here just in case logic changes
+    const result = await runVisualAnalysis(tabId, rule, domContext, aiOrigin);
+    return withLatency(result);
   }
 
   // D. Text AI Analysis
   if (!aiOrigin) {
-    return {
+    return withLatency({
       verdict: "INAPPLICABLE",
       reason: "AI API missing.",
       pageTitle: domContext.pageTitle,
-    };
+    });
   }
 
   try {
-    // --- SAFE LIST INJECTION ---
-    // Rule 2.4.6 (Headings/Labels) needs the user's safe list injected into the prompt
     let finalSystemPrompt = rule.systemPrompt;
-
-    if (
-      rule.id === "2.4.6" &&
-      options.safeList &&
-      options.safeList.length > 0
-    ) {
+    if (rule.id === "2.4.6" && options.safeList?.length > 0) {
       const safeTerms = options.safeList.join("\n- ");
       finalSystemPrompt += `\n\n*** USER CONFIGURATION: SAFE LIST ***\nThe user has explicitly marked the following terms as Descriptive (PASS). Allow variations (case/plural):\n- ${safeTerms}`;
     }
-    // ----------------------------
 
-    // Single-shot Prompt
     const session = await aiOrigin.create({
       initialPrompts: [{ role: "system", content: finalSystemPrompt }],
       expectedOutputs: [{ type: "text", languages: ["en"] }],
     });
     const resultString = await session.prompt(JSON.stringify(domContext));
-    const result = parseAIResponse(resultString);
+    const result = parseAIResponse(resultString); // Use fixed parser
     session.destroy();
-    return { ...result, pageTitle: domContext.pageTitle };
+    return withLatency({ ...result, pageTitle: domContext.pageTitle });
   } catch (e) {
-    return {
+    return withLatency({
       verdict: "ERROR",
       reason: `AI Error: ${e.message}`,
       pageTitle: domContext.pageTitle,
-    };
+    });
   }
 }
 
-/**
- * Visual Analysis with Scrolling, Interaction Triggers, Smart Retries, and Grouped Reporting
- */
+// ... runVisualAnalysis function stays mostly the same ...
+// You just need to ensure 'session.destroy()' is called and it returns standard result objects.
+// (Omitted for brevity, assume existing implementation is fine unless specific logic changes needed)
 async function runVisualAnalysis(tabId, rule, domContext, aiOrigin) {
+  // ... [Use existing implementation from your file] ...
+  // Just ensure you copy the existing function body here.
   if (!domContext.images || domContext.images.length === 0) {
     return {
       verdict: "PASS",
@@ -473,14 +497,24 @@ function getStatusIcon(verdict) {
   return "⚠️";
 }
 
+// FIX: Improved AI Parser
 function parseAIResponse(responseString) {
   try {
-    let clean = responseString.replace(/```json|```/g, "").trim();
-    const startIndex = clean.indexOf("{");
-    const endIndex = clean.lastIndexOf("}");
-    if (startIndex === -1 || endIndex === -1) throw new Error("No JSON found");
-    return JSON.parse(clean.substring(startIndex, endIndex + 1));
+    // 1. Attempt to find the first '{' and last '}'
+    const startIndex = responseString.indexOf("{");
+    const endIndex = responseString.lastIndexOf("}");
+
+    if (startIndex === -1 || endIndex === -1) {
+      throw new Error("No JSON object found in response");
+    }
+
+    // 2. Extract strictly the JSON part
+    const jsonCandidate = responseString.substring(startIndex, endIndex + 1);
+
+    // 3. Parse
+    return JSON.parse(jsonCandidate);
   } catch (e) {
+    console.error("AI Parse Error:", e, "Raw:", responseString);
     return { verdict: "ERROR", reason: "Invalid AI Response format" };
   }
 }
