@@ -497,25 +497,66 @@ function getStatusIcon(verdict) {
   return "⚠️";
 }
 
-// FIX: Improved AI Parser
 function parseAIResponse(responseString) {
+  // 1. Remove Markdown Code Blocks
+  let clean = responseString.replace(/```json|```/g, "").trim();
+
+  // 2. Extract the JSON Object (Find first { and last })
+  const startIndex = clean.indexOf("{");
+  const endIndex = clean.lastIndexOf("}");
+
+  if (startIndex === -1 || endIndex === -1) {
+    return { verdict: "ERROR", reason: "Invalid AI Response format" };
+  }
+
+  const jsonCandidate = clean.substring(startIndex, endIndex + 1);
+
   try {
-    // 1. Attempt to find the first '{' and last '}'
-    const startIndex = responseString.indexOf("{");
-    const endIndex = responseString.lastIndexOf("}");
-
-    if (startIndex === -1 || endIndex === -1) {
-      throw new Error("No JSON object found in response");
-    }
-
-    // 2. Extract strictly the JSON part
-    const jsonCandidate = responseString.substring(startIndex, endIndex + 1);
-
-    // 3. Parse
+    // 3. Try Standard Parsing
     return JSON.parse(jsonCandidate);
   } catch (e) {
-    console.error("AI Parse Error:", e, "Raw:", responseString);
-    return { verdict: "ERROR", reason: "Invalid AI Response format" };
+    // 4. Fallback: Sanitize unescaped quotes inside the 'reason' value
+    // This fixes cases where the AI writes: "reason": "element has alt="text""
+    try {
+      // Locate the "reason" key (it's usually the last key in your prompt structure)
+      const reasonLabel = '"reason"';
+      const reasonKeyIndex = jsonCandidate.lastIndexOf(reasonLabel);
+
+      if (reasonKeyIndex !== -1) {
+        // Find the colon and the opening quote of the value
+        const colonIndex = jsonCandidate.indexOf(":", reasonKeyIndex);
+        const valueStart = jsonCandidate.indexOf('"', colonIndex);
+        // Find the closing quote (last quote in the entire string)
+        const valueEnd = jsonCandidate.lastIndexOf('"');
+
+        // Ensure indices are valid and we have content between quotes
+        if (valueStart !== -1 && valueEnd !== -1 && valueEnd > valueStart) {
+          const problematicText = jsonCandidate.substring(
+            valueStart + 1,
+            valueEnd
+          );
+
+          // SANITIZE: Replace all internal double quotes with single quotes
+          const sanitizedText = problematicText.replace(/"/g, "'");
+
+          // Reconstruct the JSON string with the fixed text
+          const fixedJson =
+            jsonCandidate.substring(0, valueStart + 1) +
+            sanitizedText +
+            jsonCandidate.substring(valueEnd);
+
+          return JSON.parse(fixedJson);
+        }
+      }
+    } catch (retryErr) {
+      console.warn("AI Parse Retry Failed:", retryErr);
+    }
+
+    // Return Error if both attempts fail
+    return {
+      verdict: "ERROR",
+      reason: "Invalid AI Response format (SyntaxError)",
+    };
   }
 }
 
