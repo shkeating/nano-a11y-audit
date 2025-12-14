@@ -5,6 +5,8 @@ import { loadSafeList, saveSafeList } from "../services/storage";
 import { analyzePage } from "../services/audit-runner";
 import { generateEarlReport } from "../utils/earl-reporter";
 import { injectReportFunction } from "../utils/report-injector";
+import { usePerformanceTracker } from "../hooks/usePerformanceTracker";
+[cite_start]; // [cite: 145]
 
 // Import Components
 import { SetupView } from "./components/SetupView";
@@ -12,7 +14,7 @@ import { AuditView } from "./components/AuditView";
 import { CompleteView } from "./components/CompleteView";
 import { SettingsModal } from "./components/SettingsModal";
 
-// Level AAA Criteria IDs to exclude from the AA summary count
+[cite_start]; // Level AAA Criteria IDs to exclude from the AA summary count [cite: 145]
 const AAA_IDS = [
   "WCAG22:contrast-enhanced",
   "WCAG22:images-of-text-no-exception",
@@ -46,7 +48,10 @@ export function App() {
     currentUrl: "Waiting...",
   });
 
-  // New State for Report Data & Summary
+  // Performance Hook
+  const tracker = usePerformanceTracker();
+
+  // Report Data & Summary
   const [finalReport, setFinalReport] = useState(null);
   const [summaryStats, setSummaryStats] = useState({
     passed: 0,
@@ -55,13 +60,14 @@ export function App() {
     inapplicable: 0,
     untested: 0,
     totalCriteria: 55, // Fixed to WCAG 2.2 AA count
+    averageDuration: 0,
   });
 
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState({
     safeList: [],
     enableMultimodal: true,
-    enableLanguageDetection: true, // Default to enabled
+    enableLanguageDetection: true,
     includePassed: false,
     includeNotPresent: false,
   });
@@ -126,6 +132,7 @@ export function App() {
     setView("auditing");
     setAuditResults([]);
     setLogs([]);
+    tracker.resetTimings();
 
     const resultsAccumulator = [];
 
@@ -134,17 +141,21 @@ export function App() {
       setProgress({ current: i + 1, total: urlQueue.length, currentUrl: url });
       addLog(`Navigating to: ${url}`);
 
+      tracker.startTimer();
+
       try {
         const tab = await getActiveTab();
 
         try {
           await navigateTab(tab.id, url);
         } catch (navErr) {
+          tracker.stopTimer(url); // Ensure timer is cleared
           addLog(`❌ Navigation Failed: ${navErr.message}`);
           const errorResult = {
             url,
             verdict: "ERROR",
             reason: "Page failed to load.",
+            latency: 0,
           };
           resultsAccumulator.push(errorResult);
           setAuditResults((prev) => [...prev, errorResult]);
@@ -155,14 +166,23 @@ export function App() {
         const pageResults = await analyzePage(tab.id, url, {
           safeList: settings.safeList,
           enableMultimodal: settings.enableMultimodal,
-          enableLanguageDetection: settings.enableLanguageDetection, // Pass setting
+          enableLanguageDetection: settings.enableLanguageDetection,
           logger: addLog,
         });
 
-        resultsAccumulator.push(...pageResults);
-        setAuditResults((prev) => [...prev, ...pageResults]);
-        addLog(`✅ Page Complete.`);
+        const duration = tracker.stopTimer(url);
+        addLog(`✅ Page Complete (${duration}ms).`);
+
+        // Inject latency into results for CSV
+        const resultsWithLatency = pageResults.map((r) => ({
+          ...r,
+          latency: duration,
+        }));
+
+        resultsAccumulator.push(...resultsWithLatency);
+        setAuditResults((prev) => [...prev, ...resultsWithLatency]);
       } catch (err) {
+        tracker.stopTimer(url); // Ensure timer is cleared
         addLog(`⛔ Critical Error: ${err.message}`);
       }
     }
@@ -187,6 +207,7 @@ export function App() {
       inapplicable: 0,
       untested: 0,
       totalCriteria: TOTAL_AA_CRITERIA,
+      averageDuration: tracker.getAverageDuration(),
     };
 
     if (earlReport.auditSample) {
@@ -205,7 +226,6 @@ export function App() {
         else if (outcomeId === "earl:failed") stats.failed++;
         else if (outcomeId === "earl:cantTell") stats.cantTell++;
         else if (outcomeId === "earl:inapplicable") stats.inapplicable++;
-        // We do NOT count 'untested' from the report loop directly to avoid double counting or AAA noise
       });
     }
 
@@ -317,6 +337,7 @@ export function App() {
         <CompleteView
           summary={summaryStats}
           results={auditResults}
+          pageTimings={tracker.pageTimings} // Pass timings to UI
           onImport={handleImportToW3C}
           onDownload={handleDownloadJson}
           onStartNew={() => setView("setup")}
