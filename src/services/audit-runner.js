@@ -62,8 +62,7 @@ export async function analyzePage(tabId, url, config) {
     };
 
     if (VISUAL_RULE_IDS.includes(ruleId)) {
-      // Isolate Destructive Tests to run LAST
-      if (ruleId === "high-contrast") {
+      if (ruleId === "high-contrast" || rule.isDestructive) {
         destructiveVisualTasks.push(taskPayload);
       } else {
         standardVisualTasks.push(taskPayload);
