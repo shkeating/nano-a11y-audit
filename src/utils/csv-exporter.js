@@ -26,8 +26,10 @@ export function generateCSV(results) {
     const ruleId = r.earlId || r.id || "Unknown";
 
     // --- A. Engine Detection ---
-    // Nano rules use "WCAG22:..." IDs, Axe uses "image-alt" style
-    const engine = ruleId.startsWith("WCAG") ? "Gemini Nano" : "Axe Core";
+    // Nano rules use "WCAG22:..." IDs, Axe uses "image-alt" style.
+    // Fallback: If 'engine' is manually set (e.g. for Axe results), use that.
+    const engine =
+      r.engine || (ruleId.startsWith("WCAG") ? "Gemini Nano" : "Axe Core");
 
     // --- B. Verdict Normalization ---
     // Map EARL URIs to simple analysis terms
@@ -66,7 +68,8 @@ export function generateCSV(results) {
 
     // Default Metrics
     const confidence = "HIGH";
-    const latency = "0";
+    // FIX: Use actual latency if available
+    const latency = r.latency !== undefined ? r.latency : "0";
 
     return [
       `"${url}"`,
