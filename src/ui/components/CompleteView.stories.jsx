@@ -10,6 +10,7 @@ export default {
     onStartNew: { action: "startNewClicked" },
     summary: { control: "object" },
     results: { control: "object" },
+    pageTimings: { control: "object" },
   },
 };
 
@@ -26,6 +27,14 @@ const createFailures = (count, earlId) => {
   }));
 };
 
+// New Helper to generate mock timings
+const createTimings = (count) => {
+  return Array.from({ length: count }, (_, i) => ({
+    url: `https://example.com/page-${i + 1}`,
+    duration: Math.floor(Math.random() * 800) + 200, // Random duration between 200-1000ms
+  }));
+};
+
 const mockSummary = {
   passed: 20,
   failed: 5,
@@ -33,6 +42,7 @@ const mockSummary = {
   inapplicable: 10,
   untested: 18,
   totalCriteria: 55,
+  averageDuration: 450, // Added average metric
 };
 
 export const Default = {
@@ -42,6 +52,7 @@ export const Default = {
       ...createFailures(3, "WCAG22:non-text-content"),
       ...createFailures(2, "WCAG22:contrast-minimum"),
     ],
+    pageTimings: createTimings(5), // Added timings
   },
 };
 
@@ -54,6 +65,7 @@ export const ManyFailures = {
       inapplicable: 5,
       untested: 13,
       totalCriteria: 55,
+      averageDuration: 850,
     },
     results: [
       ...createFailures(10, "WCAG22:info-and-relationships"),
@@ -61,6 +73,7 @@ export const ManyFailures = {
       ...createFailures(5, "WCAG22:headings-and-labels"),
       ...createFailures(2, "WCAG22:focus-visible"),
     ],
+    pageTimings: createTimings(20),
   },
 };
 
@@ -73,7 +86,9 @@ export const PerfectScore = {
       inapplicable: 15,
       untested: 0,
       totalCriteria: 55,
+      averageDuration: 125,
     },
     results: [],
+    pageTimings: createTimings(10),
   },
 };

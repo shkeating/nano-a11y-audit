@@ -1,42 +1,42 @@
-/* src/ui/components/CompleteView.module.css */
 .container {
+    padding: 1rem;
     text-align: center;
-    padding: 1rem 0;
 }
 
 .heading {
     margin-bottom: 0.5rem;
+    color: var(--pico-h3-color);
 }
 
 .metaText {
-    font-size: 0.9rem;
     color: var(--pico-muted-color);
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
 }
 
 .summaryGrid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
     margin-bottom: 2rem;
-    margin-top: 1rem;
 }
 
 .statCard {
     background: var(--pico-card-background-color);
-    padding: 10px;
-    border-radius: 8px;
+    padding: 1rem;
+    border-radius: var(--pico-border-radius);
     border: 1px solid var(--pico-card-border-color);
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    box-shadow: var(--pico-card-box-shadow);
 }
 
 .number {
-    font-size: 2rem;
+    font-size: 1.5rem;
     font-weight: bold;
-    line-height: 1;
-    margin-bottom: 5px;
+    margin-bottom: 0.25rem;
+    /* Color is set inline by the component based on status */
 }
 
 .label {
@@ -44,94 +44,167 @@
     color: var(--pico-muted-color);
 }
 
-.actions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.importButton {
-    width: 100%;
-    font-weight: bold;
-}
-
-/* NEW STYLES FOR FAILURE BREAKDOWN */
-
 .failureSection {
+    margin-top: 2rem;
     text-align: left;
-    margin-bottom: 2rem;
-    border-top: 1px solid var(--pico-card-border-color);
-    padding-top: 1rem;
-}
-
-.failureGroup {
-    margin-bottom: 0.5rem;
-    border: 1px solid var(--pico-card-border-color);
-    border-radius: 4px;
-    background: var(--pico-card-background-color);
-}
-
-.summaryHeader {
-    padding: 10px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9rem;
-}
-
-.summaryHeader strong {
-    flex-grow: 1;
-}
-
-details[open]>.summaryHeader {
-    margin-bottom: 0;
-}
-
-.summaryHeader:focus {
-    outline: 2px solid var(--pico-primary);
-}
-
-.badge {
-    background-color: #dc3545;
-    color: white;
-    font-size: 0.75rem;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-weight: bold;
 }
 
 .failureList {
-    padding: 10px;
-    background-color: rgba(0, 0, 0, 0.02);
-    border-top: 1px solid var(--pico-card-border-color);
+    background: var(--pico-card-background-color);
+    border-top: 1px solid var(--pico-muted-border-color);
+    padding: 1rem;
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .failureItem {
     margin-bottom: 1rem;
-    font-size: 0.85rem;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 0.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--pico-muted-border-color);
 }
 
 .failureItem:last-child {
     border-bottom: none;
     margin-bottom: 0;
+    padding-bottom: 0;
 }
 
 .url {
-    word-break: break-all;
+    font-size: 0.85rem;
     color: var(--pico-primary);
-    margin-bottom: 4px;
+    margin-bottom: 0.5rem;
+    word-break: break-all;
 }
 
 .reason {
-    background: none;
-    border: none;
-    padding: 0;
-    margin: 0;
-    font-family: var(--pico-font-family-monospace);
-    white-space: pre-wrap;
-    color: var(--pico-color);
+    background: var(--pico-card-sectionning-background-color);
+    padding: 0.5rem;
+    border-radius: 4px;
     font-size: 0.8rem;
+    white-space: pre-wrap;
+    margin: 0;
+    color: var(--pico-color);
+    border: 1px solid var(--pico-muted-border-color);
+}
+
+.actions {
+    margin: 2rem auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--pico-muted-border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.importButton {
+    width: 100%;
+}
+
+.badge {
+    background-color: var(--pico-primary-background);
+    color: var(--pico-primary-inverse);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* --- PERFORMANCE STYLES --- */
+
+.perfContainer {
+    margin-bottom: 1.5rem;
+    padding: 0.75rem;
+    background-color: var(--pico-card-sectionning-background-color);
+    border-radius: var(--pico-border-radius);
+    display: inline-block;
+    border: 1px solid var(--pico-muted-border-color);
+}
+
+.perfStat {
+    font-size: 0.9rem;
+    color: var(--pico-muted-color);
+}
+
+.perfValue {
+    font-weight: bold;
+    margin-left: 0.5rem;
+    color: var(--pico-color);
+}
+
+.groupDetails {
+    margin-bottom: 1rem;
+    border: 1px solid var(--pico-card-border-color);
+    border-radius: var(--pico-border-radius);
+    overflow: hidden;
+    text-align: left;
+    background-color: var(--pico-card-background-color);
+}
+
+.groupSummary {
+    background-color: var(--pico-card-sectionning-background-color);
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+    list-style: none;
+    color: var(--pico-color);
+}
+
+details[open]>.groupSummary {
+    margin-bottom: 0;
+}
+
+.groupSummary strong {
+    flex-grow: 1;
+}
+
+.groupSummary::-webkit-details-marker {
+    display: none;
+}
+
+.groupSummary:hover {
+    background-color: var(--pico-card-background-color);
+    /* Or use a slight brightness filter for hover state if preferred */
+    filter: brightness(0.95);
+}
+
+/* Dark mode adjustment for hover brightness */
+@media (prefers-color-scheme: dark) {
+    .groupSummary:hover {
+        filter: brightness(1.2);
+    }
+}
+
+.timingTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.timingTable th {
+    text-align: left;
+    padding: 8px 12px;
+    background-color: var(--pico-card-background-color);
+    border-bottom: 2px solid var(--pico-muted-border-color);
+    color: var(--pico-muted-color);
+}
+
+.timingTable td {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    color: var(--pico-color);
+}
+
+.urlCell {
+    word-break: break-all;
+    color: var(--pico-primary);
+}
+
+.timeCell {
+    text-align: right;
+    white-space: nowrap;
+    font-family: monospace;
+    color: var(--pico-color);
 }
