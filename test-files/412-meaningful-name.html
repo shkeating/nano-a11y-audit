@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SC 4.1.2 Test: Meaningful Names</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 800px;
+        }
+
+        .group {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        button {
+            padding: 10px 15px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Interactive Controls Test</h1>
+
+    <section class="group">
+        <h2>Icon Buttons</h2>
+        <button aria-label="icon-v2-final.png">
+            <img src="https://placehold.co/20x20" alt="">
+        </button>
+
+        <button aria-label="Search Website">
+            🔍
+        </button>
+    </section>
+
+    <section class="group">
+        <h2>Action Buttons</h2>
+        <button aria-label="button">
+            <svg width="20" height="20">
+                <rect width="20" height="20" fill="blue" />
+            </svg>
+        </button>
+
+        <button aria-label="click here">
+            Action
+        </button>
+
+        <button>Submit Order</button>
+    </section>
+
+    <section class="group">
+        <h2>Generated ID Controls</h2>
+        <button aria-label="12345">
+            Next
+        </button>
+        <button aria-label="div_883_wrapper">
+            Settings
+        </button>
+    </section>
+
+</body>
+
+</html>
