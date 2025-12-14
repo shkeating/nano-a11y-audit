@@ -303,8 +303,3 @@ To add a new AI-powered accessibility check:
 This project uses Storybook to track UI components for development.
 The storybook can be run locally with the command `npm run storybook`.
 The main branch storybook is deployed to Netlify and updates are deployed on build at [https://nano-a11y-audit-ui.netlify.app/](https://nano-a11y-audit-ui.netlify.app/?path=/story/welcome--overview).
-
-### Licensing 
-
-Copyright (C) 2025  Shauna Keating @shkeating 
-GPL License with Provision, see LICENSE.md for more details
