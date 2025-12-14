@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resize Text Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        /* FAIL: Fixed Height Container */
+        .card-fixed {
+            width: 300px;
+            height: 100px;
+            /* This will break at 200% zoom */
+            border: 2px solid red;
+            overflow: hidden;
+            /* Hides the overflow text */
+            padding: 10px;
+            margin-bottom: 50px;
+        }
+
+        /* PASS: Fluid Container */
+        .card-fluid {
+            width: 300px;
+            min-height: 100px;
+            /* Grows with text */
+            border: 2px solid green;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>WCAG 1.4.4 Resize Text</h1>
+
+    <h2>Fail: Fixed Height (Clipping)</h2>
+    <div class="card-fixed">
+        <h3>Restricted Card</h3>
+        <p>This text is trapped inside a box with a fixed height of 100px. When you zoom to 200%, this paragraph will
+            get cut off at the bottom, making it impossible to read the last sentence.</p>
+    </div>
+
+    <h2>Pass: Fluid Height</h2>
+    <div class="card-fluid">
+        <h3>Flexible Card</h3>
+        <p>This card uses <code>min-height</code>. When you zoom to 200%, the box expands vertically to accommodate the
+            larger text. Nothing is lost.</p>
+    </div>
+</body>
+
+</html>
