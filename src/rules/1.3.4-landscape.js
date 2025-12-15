@@ -60,22 +60,37 @@ export async function teardown(tabId) {
 }
 
 export function extractor() {
+  // 1. VERIFY EMULATION
+  const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+  if (!isPortrait) {
+    return {
+      computedVerdict: "CANNOT_TELL",
+      reason: `Emulation Failed: Browser reported landscape during portrait test. Width: ${window.innerWidth}`,
+      pageTitle: document.title,
+    };
+  }
+
+  // 2. FIXED VISIBILITY CHECK
   function isVisible(el) {
     if (!el) return false;
-    if (el.offsetParent !== null) return true;
     const style = window.getComputedStyle(el);
-    return (
-      style.display !== "none" &&
-      style.visibility !== "hidden" &&
-      style.opacity !== "0"
-    );
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      style.opacity === "0"
+    ) {
+      return false;
+    }
+    // Handle fixed position elements (offsetParent is null for fixed)
+    if (style.position === "fixed") return true;
+
+    return el.offsetParent !== null;
   }
 
   const potentialRestrictions = [];
   const candidates = Array.from(
     document.querySelectorAll("div, p, h1, h2, h3, span, dialog")
   );
-  // Keywords for "Forces Landscape"
   const SUSPICIOUS_KEYWORDS = ["rotate", "landscape", "turn your device"];
 
   for (const el of candidates) {
