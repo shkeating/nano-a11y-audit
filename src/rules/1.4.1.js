@@ -8,36 +8,39 @@ export const relevantElements = [
   "textarea",
   "[aria-current]",
   "[aria-selected]",
+  "p",
+  "li",
+  "span",
+  "div",
 ];
 
 export const systemPrompt = `
-You are a violation reporter.
-Task: Format the input JSON data into a simple bulleted list.
+You are an accessibility auditor specializing in WCAG 1.4.1 Use of Color.
+Review the provided JSON data to determine the verdict.
 
-**VERDICT INSTRUCTION**
-- The input JSON contains a 'computedVerdict' field.
-- **You MUST use this value** for the output 'verdict'.
+**1. TECHNICAL FAILURES (Automatic Fail)**
+The following fields represent issues detected by code. If any of these arrays are not empty, the verdict is **FAIL**.
+- **links**: Links relying solely on color (G183).
+- **formElements**: Required/Error fields relying solely on color (G14).
+- **stateElements**: Selected/Active states relying solely on color.
+- **textFragments**: Text blocks differing only by color (G182).
 
-**SECTION INSTRUCTIONS**
-- **If 'links' has items:**
-  Write: "Links relying on color were found (G183 Check):\\n"
-  Then list items using the 'text' and 'issue' fields (Format: "- [text]: [issue]\\n").
+**2. SEMANTIC ANALYSIS (AI Review)**
+- **colorCandidates**: This text contains color names (e.g., "green", "red").
+- **Task**: specific phrases like "click the green button" or "red items are dangerous" are VIOLATIONS.
+- **Exception**: Purely decorative descriptions (e.g., "The sunset was red") are PASS.
 
-- **If 'formElements' has items:**
-  Write: "Form fields relying on color were found:\\n"
-  Then list items using the 'text' field (Format: "- [text]\\n").
+**OUTPUT INSTRUCTIONS**
+Return a JSON object:
+{
+  "verdict": "PASS" | "FAIL",
+  "reason": "Combined list of violations...",
+  "title": "[pageTitle]"
+}
 
-- **If 'stateElements' has items:**
-  Write: "Active/Selected states relying on color were found (G14 Check):\\n"
-  Then list items using the 'text' and 'issue' fields.
-
-- **If 'textFragments' has items:**
-  Write: "Text content relying on color was found:\\n"
-  Then list items using the 'text' field (Format: "- [text]\\n").
-
-**FINAL OUTPUT JSON**
-- If computedVerdict is "PASS": {"verdict": "PASS", "reason": "No use-of-color violations were found.", "title": "[pageTitle]"}
-- If computedVerdict is "FAIL": {"verdict": "FAIL", "reason": "[Your generated lists]", "title": "[pageTitle]"}
+**Format the 'reason' as a bulleted list:**
+- For Technical Failures: "- [Issue Type]: [Text/Details]"
+- For Semantic Failures: "- Content relies on color: '[Text excerpt]'"
 `;
 
 export function extractor(incompleteSelectors = []) {
@@ -68,18 +71,12 @@ export function extractor(incompleteSelectors = []) {
     return (lighter + 0.05) / (darker + 0.05);
   }
 
-  /**
-   * Checks if an element has a non-color visual cue (underline, border, bold, outline)
-   * on BOTH :hover AND :focus states.
-   */
   function hasValidVisualCues(element) {
     const states = [":hover", ":focus"];
     let hasHoverCue = false;
     let hasFocusCue = false;
 
-    // Check for browser default outline on focus (if not overridden)
     if (element.style.outline !== "none" && element.style.outline !== "0px") {
-      // We assume default focus ring exists unless we find a rule removing it
       hasFocusCue = true;
     }
 
@@ -89,16 +86,11 @@ export function extractor(incompleteSelectors = []) {
         if (!rules) continue;
         for (const rule of rules) {
           if (!rule.selectorText) continue;
-
-          // Check for Hover/Focus rules matching this element
           for (const state of states) {
             if (!rule.selectorText.includes(state)) continue;
-
             const selectors = rule.selectorText.split(",");
             for (const sel of selectors) {
               if (!sel.includes(state)) continue;
-
-              // Strip pseudo-class to test if the base selector matches our element
               const baseSel = sel.replace(state, "").trim();
               let matches = false;
               try {
@@ -113,7 +105,6 @@ export function extractor(incompleteSelectors = []) {
 
               if (matches) {
                 const s = rule.style;
-                // Check for "Valid" Cues (Decoration, Border, Outline, Bold)
                 const hasCue =
                   (s.textDecorationLine &&
                     s.textDecorationLine.includes("underline")) ||
@@ -129,14 +120,6 @@ export function extractor(incompleteSelectors = []) {
                   if (state === ":hover") hasHoverCue = true;
                   if (state === ":focus") hasFocusCue = true;
                 }
-
-                // Check if they explicitly REMOVED the default focus ring
-                if (
-                  state === ":focus" &&
-                  (s.outline === "none" || s.outlineWidth === "0px")
-                ) {
-                  hasFocusCue = false; // Reset unless they added something else
-                }
               }
             }
           }
@@ -145,14 +128,12 @@ export function extractor(incompleteSelectors = []) {
         continue;
       }
     }
-    // G183 requires cues on BOTH hover and focus
     return hasHoverCue && hasFocusCue;
   }
 
   // --- 1. LINK LOGIC (G183) ---
   const failingLinks = [];
   let linksToCheck = [];
-
   if (incompleteSelectors && incompleteSelectors.length > 0) {
     incompleteSelectors.forEach((sel) => {
       const el = document.querySelector(sel);
@@ -175,7 +156,7 @@ export function extractor(incompleteSelectors = []) {
       (s.borderBottomStyle !== "none" && parseFloat(s.borderBottomWidth) > 0);
     const hasBold = parseInt(s.fontWeight) >= 700 || s.fontWeight === "bold";
 
-    if (hasStaticCue) continue; // Pass if underlined by default
+    if (hasStaticCue) continue;
 
     const ratio = getContrastRatio(
       s.color,
@@ -189,7 +170,6 @@ export function extractor(incompleteSelectors = []) {
           issue: `Contrast ${ratio.toFixed(2)}:1 is too low (<3:1).`,
         });
       } else if (!hasBold && !hasValidVisualCues(link)) {
-        // Updated to check BOTH hover and focus
         failingLinks.push({
           text: link.innerText.substring(0, 40),
           issue: `Contrast OK (${ratio.toFixed(
@@ -245,7 +225,7 @@ export function extractor(incompleteSelectors = []) {
     if (failingForms.length >= 5) break;
   }
 
-  // --- 3. STATE INDICATORS (G14 - Active/Selected States) ---
+  // --- 3. STATE INDICATORS (G14) ---
   const failingStates = [];
   const stateElements = document.querySelectorAll(
     "[aria-current], [aria-selected='true']"
@@ -253,8 +233,6 @@ export function extractor(incompleteSelectors = []) {
 
   for (const el of stateElements) {
     if (el.offsetParent === null) continue;
-
-    // Ignore if explicitly set to false/null
     if (el.getAttribute("aria-current") === "false") continue;
 
     const s = window.getComputedStyle(el);
@@ -265,7 +243,6 @@ export function extractor(incompleteSelectors = []) {
       parseInt(s.fontWeight) >= 700 ||
       s.fontWeight === "bold";
 
-    // Check for icons in pseudo-elements
     const beforeContent = window.getComputedStyle(el, "::before").content;
     const afterContent = window.getComputedStyle(el, "::after").content;
     const hasIcon =
@@ -316,21 +293,73 @@ export function extractor(incompleteSelectors = []) {
     if (failingFragments.length >= 5) break;
   }
 
-  const hasFailures =
+  // --- 5. NEW: SEMANTIC COLOR TEXT SCAN (From 1.3.3) ---
+  const COLOR_KEYWORDS = [
+    "green",
+    "red",
+    "blue",
+    "yellow",
+    "orange",
+    "purple",
+    "black",
+    "white",
+    "color",
+  ];
+
+  const colorCandidates = [];
+  const textElements = Array.from(
+    document.querySelectorAll("p, li, span, div, td, th")
+  );
+
+  for (const el of textElements) {
+    if (el.offsetParent === null) continue;
+
+    // Check keyword presence without expensive clone first
+    const rawText = el.innerText.toLowerCase();
+    const hasKeyword = COLOR_KEYWORDS.some((kw) => rawText.includes(kw));
+
+    if (hasKeyword) {
+      // Safe extraction
+      const clone = el.cloneNode(true);
+      Array.from(clone.children).forEach((c) => c.remove());
+      const text = clone.innerText.trim();
+
+      if (
+        text.length > 5 &&
+        text.length < 300 &&
+        !colorCandidates.includes(text)
+      ) {
+        colorCandidates.push(text);
+      }
+    }
+    if (colorCandidates.length >= 10) break;
+  }
+
+  const hasTechnicalFailures =
     failingLinks.length > 0 ||
     failingForms.length > 0 ||
     failingStates.length > 0 ||
     failingFragments.length > 0;
 
-  const result = {
+  const hasSemanticCandidates = colorCandidates.length > 0;
+
+  // IMPORTANT: If we have ANY findings (technical or semantic),
+  // we do NOT return a computedVerdict. We let the AI decide.
+  // We only return computedVerdict="PASS" if the page is squeaky clean.
+
+  if (hasTechnicalFailures || hasSemanticCandidates) {
+    return {
+      pageTitle: document.title,
+      links: failingLinks,
+      formElements: failingForms,
+      stateElements: failingStates,
+      textFragments: failingFragments,
+      colorCandidates: colorCandidates,
+    };
+  }
+
+  return {
     pageTitle: document.title,
-    computedVerdict: hasFailures ? "FAIL" : "PASS",
+    computedVerdict: "PASS",
   };
-
-  if (failingLinks.length > 0) result.links = failingLinks;
-  if (failingForms.length > 0) result.formElements = failingForms;
-  if (failingStates.length > 0) result.stateElements = failingStates;
-  if (failingFragments.length > 0) result.textFragments = failingFragments;
-
-  return result;
 }
