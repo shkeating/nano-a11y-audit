@@ -561,25 +561,47 @@ function parseAIResponse(responseString) {
   // 1. Remove Markdown code blocks
   let clean = responseString.replace(/```json|```/g, "").trim();
 
-  // 2. Find the FIRST '{' and the LAST '}'
+  // 2. Find the FIRST '{'
   const startIndex = clean.indexOf("{");
-  const endIndex = clean.lastIndexOf("}");
 
-  if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
+  if (startIndex === -1) {
     return {
       verdict: "ERROR",
       reason: "Invalid AI Response format: No JSON object found.",
     };
   }
 
-  // 3. Extract strictly the JSON part
+  // 3. Find the MATCHING closing '}' (Counting balance)
+  let braceCount = 0;
+  let endIndex = -1;
+
+  for (let i = startIndex; i < clean.length; i++) {
+    if (clean[i] === "{") {
+      braceCount++;
+    } else if (clean[i] === "}") {
+      braceCount--;
+      if (braceCount === 0) {
+        endIndex = i;
+        break; // Stop immediately after the first full object closes
+      }
+    }
+  }
+
+  if (endIndex === -1) {
+    return {
+      verdict: "ERROR",
+      reason: "Invalid AI Response format: JSON object not closed.",
+    };
+  }
+
+  // 4. Extract strictly the JSON part
   let jsonCandidate = clean.substring(startIndex, endIndex + 1);
 
-  // 4. Attempt Parse
+  // 5. Attempt Parse
   try {
     return JSON.parse(jsonCandidate);
   } catch (e) {
-    // 5. Fallback: Sanitization for common LLM errors
+    // ... [Keep your existing retry/sanitization logic here] ...
     try {
       jsonCandidate = jsonCandidate.replace(/(?:\r\n|\r|\n)/g, " ");
       const reasonLabel = '"reason"';
