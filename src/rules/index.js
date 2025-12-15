@@ -1,5 +1,6 @@
 import * as Rule111 from "./1.1.1.js";
 import * as Rule131 from "./1.3.1.js";
+import * as Rule131VH from "./1.3.1-visual-heading.js";
 import * as Rule141 from "./1.4.1.js";
 import * as Rule141Images from "./1.4.1-images.js";
 import * as Rule144 from "./1.4.4.js";
@@ -29,6 +30,7 @@ import * as RuleHC from "./high-contrast.js";
 export const RULES = {
   [Rule111.id]: Rule111,
   [Rule131.id]: Rule131,
+  [Rule131VH.id]: Rule131VH,
   [Rule132.id]: Rule132,
   [Rule133.id]: Rule133,
   [Rule134L.id]: Rule134L,
