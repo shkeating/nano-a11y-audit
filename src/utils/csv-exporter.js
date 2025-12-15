@@ -1,22 +1,21 @@
 /**
- * Converts the audit results into a normalized CSV format optimized for data analysis.
+ * Converts the audit results into a normalized CSV format.
  * Features:
  * - Separates "Axe Core" vs "Gemini Nano" sources
  * - Extracts CSS selectors into their own column
- * - Normalizes verdicts (PASS/FAIL)
- *
- * @param {Array} results - The array of result objects from the audit
+ * - Prepends [TestID] and [Engine] to the description
  */
 export function generateCSV(results) {
   // 1. Define Research-Ready Headers
   const headers = [
     "URL",
     "Rule_ID",
-    "Engine", // New: "Axe Core" or "Gemini Nano"
-    "Verdict", // Normalized: PASS, FAIL, N/A
+    "Test_Case_ID", // Optional separate column if needed
+    "Engine",
+    "Verdict",
     "Confidence",
-    "Element_Selector", // New: Extracted CSS selector (e.g., "img", ".nav")
-    "Reason", // Cleaned text explanation
+    "Element_Selector",
+    "Reason", // This will now contain the formatted string
     "Latency_ms",
   ];
 
@@ -25,14 +24,12 @@ export function generateCSV(results) {
     const url = r.url || "N/A";
     const ruleId = r.earlId || r.id || "Unknown";
 
-    // --- A. Engine Detection ---
-    // Nano rules use "WCAG22:..." IDs, Axe uses "image-alt" style.
-    // Fallback: If 'engine' is manually set (e.g. for Axe results), use that.
-    const engine =
+    // --- Engine Detection ---
+    const engineName =
       r.engine || (ruleId.startsWith("WCAG") ? "Gemini Nano" : "Axe Core");
+    const engineTag = engineName.includes("Axe") ? "[Axe]" : "[Nano]";
 
-    // --- B. Verdict Normalization ---
-    // Map EARL URIs to simple analysis terms
+    // --- Verdict Normalization ---
     let verdict = (r.verdict || "UNKNOWN").toUpperCase();
     if (verdict.includes("PASSED")) verdict = "PASS";
     if (verdict.includes("FAILED")) verdict = "FAIL";
@@ -40,41 +37,52 @@ export function generateCSV(results) {
       verdict = "N/A";
     if (verdict.includes("UNTESTED")) verdict = "UNTESTED";
 
-    // --- C. Selector Extraction & Reason Cleaning ---
+    // --- Selector & Reason Cleaning ---
     let selector = "Page";
     let cleanReason = (r.reason || r.description || "").replace(
       /(\r\n|\n|\r)/gm,
       " "
     );
 
-    // Strategy 1: If there's a specific pointer/selector field (Nano often has this)
     if (r.selector) {
       selector = r.selector;
-    }
-    // Strategy 2: Regex extraction from Axe descriptions
-    // Pattern: Look for "- Element: [selector] (" or "- Element: [selector]" at end of string
-    else if (cleanReason.includes("Element:")) {
+    } else if (cleanReason.includes("Element:")) {
       const match = cleanReason.match(/- Element: (.*?)(\(|$)/);
       if (match && match[1]) {
         selector = match[1].trim();
-        // Optional: Remove the raw HTML snippet from the reason to make it readable
-        // cleanReason = cleanReason.split("- Element:")[0].trim();
       }
     }
 
-    // Sanitize for CSV (Escape double quotes)
-    const safeReason = cleanReason.replace(/"/g, '""');
-    const safeSelector = selector.replace(/"/g, '""');
+    // --- ID Capture & Formatting ---
+    let testCaseId = r.testCaseId || "";
 
-    // Default Metrics
+    // If not found in object, check if Nano embedded it in the reason string
+    if (!testCaseId && cleanReason.includes("[TestCase:")) {
+      const idMatch = cleanReason.match(/\[TestCase:(.*?)\]/);
+      if (idMatch && idMatch[1]) {
+        testCaseId = idMatch[1].trim();
+        // Optional: Remove the tag from the reason text to avoid duplication
+        cleanReason = cleanReason.replace(idMatch[0], "").trim();
+      }
+    }
+
+    // Fallback: If no ID found, use selector or "Page"
+    const displayId = testCaseId ? `[${testCaseId}]` : `[${selector}]`;
+
+    // Construct the requested format: [TestID] [Engine] Reason
+    const formattedReason = `${displayId} ${engineTag} ${cleanReason}`;
+
+    // Sanitize for CSV
+    const safeReason = formattedReason.replace(/"/g, '""');
+    const safeSelector = selector.replace(/"/g, '""');
     const confidence = "HIGH";
-    // FIX: Use actual latency if available
     const latency = r.latency !== undefined ? r.latency : "0";
 
     return [
       `"${url}"`,
       `"${ruleId}"`,
-      `"${engine}"`,
+      `"${testCaseId || "N/A"}"`, // Keep raw ID in separate column too
+      `"${engineName}"`,
       `"${verdict}"`,
       `"${confidence}"`,
       `"${safeSelector}"`,
@@ -86,9 +94,6 @@ export function generateCSV(results) {
   return [headers.join(","), ...rows].join("\n");
 }
 
-/**
- * Triggers the browser download
- */
 export function downloadCSV(csvContent, filename) {
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
