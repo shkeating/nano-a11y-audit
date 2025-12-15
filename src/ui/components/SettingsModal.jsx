@@ -57,7 +57,7 @@ export function SettingsModal({
         <hr />
 
         <TextArea
-          label="2.4.6 Heading & Labels Safe Terms (Comma Separated)"
+          label="Safe Terms (Comma Separated) - for use in 2.4.4 and 2.4.6"
           value={safeList.join(", ")}
           onInput={(e) =>
             onUpdateSetting(
@@ -65,7 +65,7 @@ export function SettingsModal({
               e.target.value.split(",").map((s) => s.trim())
             )
           }
-          description="Add your organization's specific acronyms or internal terms here to prevent false positives."
+          description="Add your organization's specific acronyms or internal terms, or any terms causing false positives in the context of your site."
           rows={6}
         />
       </fieldset>
