@@ -1,9 +1,7 @@
 export const id = "3.1.2";
 export const earlId = "WCAG22:language-of-parts";
-// We focus on text-heavy elements where language switches typically happen
 export const relevantElements = ["p", "blockquote", "li", "div", "span", "q"];
 
-// We set this to null because we use a computed verdict.
 export const systemPrompt = null;
 
 export async function extractor() {
@@ -18,7 +16,6 @@ export async function extractor() {
     );
   }
 
-  // Helper to find the effective lang of an element
   function getInheritedLang(el) {
     let current = el;
     while (current) {
@@ -27,20 +24,22 @@ export async function extractor() {
       }
       current = current.parentElement;
     }
-    // Fallback to page default or 'und' (undefined)
     return document.documentElement.lang.split("-")[0].toLowerCase() || "und";
   }
 
   const failures = [];
-  const candidates = document.querySelectorAll("p, blockquote, li, q"); // Focused list for performance
+  const debugLog = []; // NEW: Store logs for every check
 
-  // We limit the number of checks to prevent freezing on huge pages
+  // Scrape all candidates
+  const candidates = Array.from(
+    document.querySelectorAll("p, blockquote, li, q, span")
+  );
+
   let checksRun = 0;
-  const MAX_CHECKS = 20;
+  const MAX_CHECKS = 50; // Increased limit for debug
 
   try {
     const detectorClass = self.LanguageDetector || self.ai?.languageDetector;
-
     if (!detectorClass) {
       return {
         computedVerdict: "INAPPLICABLE",
@@ -48,8 +47,6 @@ export async function extractor() {
       };
     }
 
-    // FIX: Removed the .capabilities() check.
-    // We trust .create() to work or throw an error if unavailable.
     const detector = await detectorClass.create();
 
     for (const el of candidates) {
@@ -58,8 +55,12 @@ export async function extractor() {
 
       const text = el.innerText.trim();
 
-      // SKIP short text: Models are unreliable with < 5 words
-      if (text.length < 50) continue;
+      // --- CRITICAL CHANGE: LOWER LIMIT TO 5 CHARS ---
+      if (text.length < 5) continue;
+
+      // Avoid re-scanning parent elements that contain the same text
+      // (Simple check: if element has children, maybe skip if text is huge?
+      // For now, we scan everything to be safe).
 
       checksRun++;
 
@@ -72,40 +73,57 @@ export async function extractor() {
         .toLowerCase();
       const declaredLang = getInheritedLang(el);
 
-      // CRITERIA:
-      // 1. High Confidence (> 0.85)
-      // 2. Detected != Declared
-      // 3. Detected is not 'und' (undefined)
-      if (
-        topResult.confidence > 0.85 &&
-        detectedLang !== "und" &&
-        detectedLang !== declaredLang
-      ) {
-        // Snippet for report
-        const snippet = text.substring(0, 40) + (text.length > 40 ? "..." : "");
+      // --- DYNAMIC CONFIDENCE THRESHOLD ---
+      // Short text is harder to guess, so we accept lower confidence.
+      // < 50 chars: 0.3 confidence (Very lenient)
+      // > 50 chars: 0.85 confidence (Strict)
+      const confidenceThreshold = text.length < 50 ? 0.3 : 0.85;
 
+      const isMismatch =
+        topResult.confidence > confidenceThreshold &&
+        detectedLang !== "und" &&
+        detectedLang !== declaredLang;
+
+      const snippet = text.substring(0, 30).replace(/\n/g, " ");
+
+      // LOG ENTRY (For Debugging)
+      debugLog.push(
+        `[${
+          isMismatch ? "FAIL" : "PASS"
+        }] "${snippet}" | Declared: ${declaredLang} | Detected: ${detectedLang} (${topResult.confidence.toFixed(
+          2
+        )})`
+      );
+
+      if (isMismatch) {
         failures.push({
           element: `<${el.tagName.toLowerCase()}>`,
-          snippet: `"${snippet}"`,
-          issue: `Detected ${topResult.detectedLanguage.toUpperCase()} but section is declared as ${
-            declaredLang.toUpperCase() || "unknown"
-          }.`,
+          snippet: `"${snippet}..."`,
+          issue: `Detected ${detectedLang.toUpperCase()} (${topResult.confidence.toFixed(
+            2
+          )}) vs Declared ${declaredLang.toUpperCase()}`,
         });
       }
     }
 
+    // --- REPORT GENERATION ---
+    // If failures exist, report them.
     if (failures.length > 0) {
       return {
         computedVerdict: "FAIL",
-        reason: `Content found in a language different from its declared language:\n${failures
+        reason: `Language mismatches detected:\n${failures
           .map((f) => `- ${f.snippet}: ${f.issue}`)
-          .join("\n")}`,
+          .join("\n")}\n\n--- DEBUG LOG ---\n${debugLog.join("\n")}`,
       };
     }
 
+    // Even on PASS, we return the log so you can see what happened!
     return {
       computedVerdict: "PASS",
-      reason: `Analyzed ${checksRun} sections. No language mismatches detected.`,
+      reason: `Analyzed ${checksRun} sections. No mismatches found.\n\n--- DEBUG LOG ---\n${debugLog.join(
+        "\n"
+      )}`,
+      pageTitle: document.title,
     };
   } catch (error) {
     return {
