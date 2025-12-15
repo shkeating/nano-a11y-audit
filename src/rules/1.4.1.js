@@ -18,29 +18,30 @@ export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 1.4.1 Use of Color.
 Review the provided JSON data to determine the verdict.
 
-**1. TECHNICAL FAILURES (Automatic Fail)**
-The following fields represent issues detected by code. If any of these arrays are not empty, the verdict is **FAIL**.
-- **links**: Links relying solely on color (G183).
-- **formElements**: Required/Error fields relying solely on color (G14).
-- **stateElements**: Selected/Active states relying solely on color.
-- **textFragments**: Text blocks differing only by color (G182).
+**INPUT DATA EXPLANATION**
+- **links**: Array of links with low contrast (Technical G183 failure).
+- **formElements**: Array of required/error fields relying only on color (G14 failure).
+- **stateElements**: Array of active/selected items relying only on color.
+- **colorCandidates**: Array of text phrases that mention color names (Semantic check).
 
-**2. SEMANTIC ANALYSIS (AI Review)**
-- **colorCandidates**: This text contains color names (e.g., "green", "red").
-- **Task**: specific phrases like "click the green button" or "red items are dangerous" are VIOLATIONS.
-- **Exception**: Purely decorative descriptions (e.g., "The sunset was red") are PASS.
+**VERDICT LOGIC**
+1. If 'links', 'formElements', or 'stateElements' have items -> **FAIL**.
+2. If 'colorCandidates' contains instructions like "click the green button" or "red items are dangerous" -> **FAIL**.
+3. If 'colorCandidates' only contains decorative text (e.g. "The sunset is red") -> **PASS**.
 
-**OUTPUT INSTRUCTIONS**
+**OUTPUT FORMAT**
 Return a JSON object:
 {
   "verdict": "PASS" | "FAIL",
-  "reason": "Combined list of violations...",
-  "title": "[pageTitle]"
+  "reason": "..."
 }
 
-**Format the 'reason' as a bulleted list:**
-- For Technical Failures: "- [Issue Type]: [Text/Details]"
-- For Semantic Failures: "- Content relies on color: '[Text excerpt]'"
+**REASON FORMATTING RULES (STRICT)**
+- If 'links' has items: Write "- Link Color Violation: [Text of link]"
+- If 'formElements' has items: Write "- Form Field Violation: [Label of field]"
+- If 'colorCandidates' fails: Write "- Semantic Violation: Content relies on sensory color information -> '[The text snippet]'"
+
+**DO NOT call 'colorCandidates' links.** They are text content.
 `;
 
 export function extractor(incompleteSelectors = []) {
@@ -293,7 +294,7 @@ export function extractor(incompleteSelectors = []) {
     if (failingFragments.length >= 5) break;
   }
 
-  // --- 5. NEW: SEMANTIC COLOR TEXT SCAN (From 1.3.3) ---
+  // --- 5. SEMANTIC COLOR TEXT SCAN ---
   const COLOR_KEYWORDS = [
     "green",
     "red",
@@ -314,12 +315,10 @@ export function extractor(incompleteSelectors = []) {
   for (const el of textElements) {
     if (el.offsetParent === null) continue;
 
-    // Check keyword presence without expensive clone first
     const rawText = el.innerText.toLowerCase();
     const hasKeyword = COLOR_KEYWORDS.some((kw) => rawText.includes(kw));
 
     if (hasKeyword) {
-      // Safe extraction
       const clone = el.cloneNode(true);
       Array.from(clone.children).forEach((c) => c.remove());
       const text = clone.innerText.trim();
@@ -342,10 +341,6 @@ export function extractor(incompleteSelectors = []) {
     failingFragments.length > 0;
 
   const hasSemanticCandidates = colorCandidates.length > 0;
-
-  // IMPORTANT: If we have ANY findings (technical or semantic),
-  // we do NOT return a computedVerdict. We let the AI decide.
-  // We only return computedVerdict="PASS" if the page is squeaky clean.
 
   if (hasTechnicalFailures || hasSemanticCandidates) {
     return {
