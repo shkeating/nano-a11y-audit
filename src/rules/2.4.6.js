@@ -11,26 +11,22 @@ export const relevantElements = [
   "legend",
 ];
 
+// In src/rules/2.4.6.js
+
 export const systemPrompt = `
 You are an accessibility auditor specializing in WCAG 2.4.6 Headings and Labels.
-Task: Evaluate if a Form Label is descriptive enough, considering its Section Heading context.
+Task: Evaluate if a Form Label is descriptive enough.
 
 **CRITERIA**
-1. **FAIL (Ambiguous):** The label is generic (e.g., "Name", "Date", "Yes", "No") AND the Section Heading is missing, generic (e.g. "Section 1", "Untitled", "Page 2"), or unrelated.
-2. **PASS (Descriptive):** The label itself is specific (e.g., "Date of Birth", "Credit Card Number").
-3. **PASS (Contextual):** The label is generic, BUT the Section Heading provides the necessary context (e.g., Heading: "Spouse", Label: "Name").
+1. **PASS (Common Patterns):** - Standard form labels like "Name", "Email", "License", "Username", "Password", "Subject", "Passport Number", "Address", "City", "Zip", "Phone" are **PASS** if they appear in a standard form context, even without a specific heading.
+2. **PASS (Descriptive):** The label is specific (e.g., "Date of Birth").
+3. **FAIL (Ambiguous):** - The label is extremely vague (e.g., "Field 1", "Value", "Input", "Yes", "No") AND lacks context.
+   - Duplicate generic labels under the SAME heading (e.g. two "Name" fields under "Personal Info").
 
 **OUTPUT FORMAT**
-Return a **SINGLE** JSON object. Do not output multiple objects.
-- If violations found: {"verdict": "FAIL", "reason": "Ambiguous labels found:\\n- Label 'Name' under 'Untitled'\\n- Label 'Date' under 'Page 1'"}
-- If all pass: {"verdict": "PASS", "reason": "Labels are descriptive in context."}
-
-**FEW-SHOT EXAMPLES**
-User: ["Heading: Untitled | Label: Name", "Heading: Spouse | Label: Age"]
-Model: {"verdict": "FAIL", "reason": "Ambiguous labels found:\\n- Label 'Name' under 'Untitled'"}
-
-User: ["Heading: Personal Info | Label: Name"]
-Model: {"verdict": "PASS", "reason": "Labels are descriptive in context."}
+Return a **SINGLE** JSON object.
+- If violations found: {"verdict": "FAIL", "reason": "Ambiguous labels found:\\n- [Label]"}
+- If all pass: {"verdict": "PASS", "reason": "Labels are descriptive."}
 `;
 
 export function extractor() {
