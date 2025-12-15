@@ -3,10 +3,16 @@ export const earlId = "WCAG22:name-role-value";
 export const relevantElements = [
   "button",
   "a",
-  "[role='button']",
-  "[role='link']",
-  "input[type='submit']",
-  "input[type='button']",
+  "input",
+  "select",
+  "textarea",
+  "[role]",
+  "div[onclick]",
+  "span[onclick]",
+  "div[tabindex]",
+  "span[tabindex]",
+  "div[role='button']",
+  "span[role='button']",
 ];
 
 export const systemPrompt = `
